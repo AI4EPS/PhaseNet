@@ -1,0 +1,8 @@
+python = 3.6
+numpy
+scipy
+matplotlib
+pandas
+tensorflow = 1.10
+tqdm
+
