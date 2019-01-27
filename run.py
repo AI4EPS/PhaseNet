@@ -120,6 +120,18 @@ def read_flags():
                       type=int,
                       help="plotting trainning result")
 
+  parser.add_argument("--data_dir",
+                      default="../Demo/PhaseNet/",
+                      help="input file directory")
+
+  parser.add_argument("--data_list",
+                      default="../Demo/PhaseNet.csv",
+                      help="input csv file")
+
+  parser.add_argument("--output_dir",
+                      default=None,
+                      help="output directory")
+
   parser.add_argument("--plot_figure",
                       default=False,
                       type=bool,
@@ -341,9 +353,10 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
 
   return 0
 
-def pred_fn(flags, data_reader, fig_dir=None, result_dir=None):
+def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
   current_time = time.strftime("%m%d%H%M%S")
-  log_dir = os.path.join(flags.logdir, "pred", current_time)
+  if log_dir is None:
+    log_dir = os.path.join(flags.logdir, "pred", current_time)
   logging.info("Pred log: %s" % log_dir)
   logging.info("Dataset size: {}".format(data_reader.num_data))
   if not os.path.exists(log_dir):
@@ -462,11 +475,11 @@ def main(flags):
       data_reader = DataReader_pred(
           # data_dir="../Dataset2018/NPZ_PS/EHE_EHN_EHZ/",
           # data_list="../Dataset2018/NPZ_PS/EHE_EHN_EHZ.csv",
-          data_dir="../Demo/PhaseNet/",
-          data_list="../Demo/PhaseNet.csv",
+          data_dir=flags.data_dir,
+          data_list=flags.data_list,  
           queue_size=flags.batch_size*3,
           coord=coord)
-    pred_fn(flags, data_reader)
+    pred_fn(flags, data_reader, log_dir=flags.output_dir)
 
   else:
     print("mode should be: train, valid, test, pred or debug")
