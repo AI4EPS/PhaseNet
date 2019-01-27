@@ -272,7 +272,7 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True
     picks = []
     itp = []
     its = []
-    progressbar = tqdm(range(0, data_reader.num_data-flags.batch_size+1, flags.batch_size), desc=flags.mode)
+    progressbar = tqdm(range(0, data_reader.num_data-flags.batch_size, flags.batch_size), desc=flags.mode)
     pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
     for step in progressbar:
 
@@ -333,9 +333,9 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True
 
 def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True):
   current_time = time.strftime("%m%d%H%M%S")
-  logging.info("Pred: %s" % current_time)
-  logging.info("Dataset size: {}".format(data_reader.num_data))
   log_dir = os.path.join(flags.logdir, "pred", current_time)
+  logging.info("Pred log: %s" % log_dir)
+  logging.info("Dataset size: {}".format(data_reader.num_data))
   if not os.path.exists(log_dir):
     os.makedirs(log_dir)
   if fig_dir is None:
@@ -373,7 +373,7 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True)
     picks = []
     fname = []
     pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
-    for step in tqdm(range(0, data_reader.num_data-flags.batch_size+1, flags.batch_size), desc="Pred"):
+    for step in tqdm(range(0, data_reader.num_data-flags.batch_size, flags.batch_size), desc="Pred"):
       pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
                                                    feed_dict={model.drop_rate: 0,
                                                               model.is_training: False})
@@ -382,7 +382,7 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True)
                                       pred = pred_batch,
                                       X = X_batch,
                                       fname = fname_batch,
-                                      result_dir = None,
+                                      result_dir = result_dir,
                                       fig_dir = fig_dir),
                               range(len(pred_batch)))
       picks.extend(picks_batch)
@@ -394,13 +394,12 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True)
     pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]],
                                                   feed_dict={model.drop_rate: 0,
                                                             model.is_training: False})
-
     picks_batch = pool.map(partial(postprocessing_thread,
                               pred = pred_batch,
                               X = X_batch,
                               fname = fname_batch,
-                              result_dir = None,
-                              fig_dir = None),
+                              result_dir = result_dir,
+                              fig_dir = fig_dir),
                       range(len(pred_batch)))
     picks.extend(picks_batch)
     fname.extend(fname_batch)
@@ -451,10 +450,10 @@ def main(flags):
   elif flags.mode == "pred":
     with tf.name_scope('create_inputs'):
       data_reader = DataReader_pred(
-          data_dir="../Dataset2018/NPZ_PS/EHE_EHN_EHZ/",
-          data_list="../Dataset2018/NPZ_PS/EHE_EHN_EHZ.csv",
-          # data_dir="../Dataset2018/NPZ_PS/",
-          # data_list="../Dataset2018/NPZ_PS/all_channels.csv",
+          # data_dir="../Dataset2018/NPZ_PS/EHE_EHN_EHZ/",
+          # data_list="../Dataset2018/NPZ_PS/EHE_EHN_EHZ.csv",
+          data_dir="../Demo/PhaseNet/",
+          data_list="../Demo/PhaseNet.csv",
           queue_size=flags.batch_size*3,
           coord=coord)
     pred_fn(flags, data_reader)
