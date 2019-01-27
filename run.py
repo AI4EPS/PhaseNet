@@ -120,8 +120,18 @@ def read_flags():
                       type=int,
                       help="plotting trainning result")
 
+  parser.add_argument("--plot_figure",
+                      default=False,
+                      type=bool,
+                      help="ouput file name of test data")
+
+  parser.add_argument("--save_result",
+                      default=False,
+                      type=bool,
+                      help="ouput file name of test data")
+
   parser.add_argument("--fpred",
-                      default="preds.npz",
+                      default="picks.npz",
                       help="ouput file name of test data")
 
   flags = parser.parse_args()
@@ -227,17 +237,17 @@ def train_fn(flags, data_reader):
     sess.run(data_reader.queue.close())
   return 0
 
-def valid_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True):
+def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
   current_time = time.strftime("%m%d%H%M%S")
   logging.info("{} log: {}".format(flags.mode, current_time))
   log_dir = os.path.join(flags.logdir, flags.mode, current_time)
   if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-  if fig_dir is None:
+  if (flags.plot_figure == True ) and (fig_dir is None):
     fig_dir = os.path.join(log_dir, 'figures')
     if not os.path.exists(fig_dir):
       os.makedirs(fig_dir)
-  if (save_result == True) and (result_dir is None):
+  if (flags.save_result == True) and (result_dir is None):
     result_dir = os.path.join(log_dir, 'results')
     if not os.path.exists(result_dir):
       os.makedirs(result_dir)
@@ -293,8 +303,8 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True
                                itp = itp_batch,
                                its = its_batch,
                                fname = fname_batch,
-                               result_dir = None,
-                               fig_dir = None),
+                               result_dir = result_dir,
+                               fig_dir = fig_dir),
                        range(len(pred_batch)))
       picks.extend(picks_batch)
       itp.extend(itp_batch)
@@ -316,8 +326,8 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True
                               itp = itp_batch,
                               its = its_batch,
                               fname = fname_batch,
-                              result_dir = None,
-                              fig_dir = None),
+                              result_dir = result_dir,
+                              fig_dir = fig_dir),
                       range(len(pred_batch)))
     picks.extend(picks_batch)
     itp.extend(itp_batch)
@@ -331,18 +341,18 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True
 
   return 0
 
-def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True):
+def pred_fn(flags, data_reader, fig_dir=None, result_dir=None):
   current_time = time.strftime("%m%d%H%M%S")
   log_dir = os.path.join(flags.logdir, "pred", current_time)
   logging.info("Pred log: %s" % log_dir)
   logging.info("Dataset size: {}".format(data_reader.num_data))
   if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-  if fig_dir is None:
+  if (flags.plot_figure == True) and (fig_dir is None):
     fig_dir = os.path.join(log_dir, 'figures')
     if not os.path.exists(fig_dir):
       os.makedirs(fig_dir)
-  if (save_result == True) and (result_dir is None):
+  if (flags.save_result == True) and (result_dir is None):
     result_dir = os.path.join(log_dir, 'results')
     if not os.path.exists(result_dir):
       os.makedirs(result_dir)
@@ -404,8 +414,8 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, save_result=True)
     picks.extend(picks_batch)
     fname.extend(fname_batch)
 
-    if save_result:
-      np.savez(os.path.join(log_dir, "picks.npz"), picks=picks, fname=fname)
+    # if args.save_result:
+    np.savez(os.path.join(log_dir, flags.fpred), picks=picks, fname=fname)
 
   return 0
 

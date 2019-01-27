@@ -1,5 +1,5 @@
 ### Related paper:
-Zhu, W., Mousavi, S. M., & Beroza, G. C. (2018). Seismic Signal Denoising and Decomposition Using Deep Neural Networks. arXiv preprint [arXiv:1811.02695](https://arxiv.org/abs/1811.02695).
+Weiqiang Zhu, Gregory C Beroza; PhaseNet: a deep-neural-network-based seismic arrival-time picking method, Geophysical Journal International, Volume 216, Issue 1, 1 January 2019, Pages 261–273, https://doi.org/10.1093/gji/ggy423
 
 ## Install
 ```bash
@@ -12,14 +12,14 @@ pip install -r requirements.txt
 
 ### 1.Data
 
-Located in directory: **Dataset**
+Located in directory: **Demo**
 
 ### 2.Model
-Located in directory: **log/1001141928**
+Located in directory: **log/0118193232**
 
 ### 3. Prediction
 ~~~python
-python run_queue.py --mode=pred --ckdir=log/1001141928 --batch_size=10
+python run.py --mode=pred --ckdir=log/0118193232 --plot_figure=True --save_result=True
 ~~~
 
 ### 4. Output
@@ -28,22 +28,19 @@ Located in directory: **log/pred/**
 ## Hyper paramters
 
 ~~~
-python run_queue.py --help
+python run.py --help
 ~~~
 ```bash
-usage: run_queue.py [-h] [--mode MODE] [--epochs EPOCHS]
-                    [--batch_size BATCH_SIZE] [--learning_rate LEARNING_RATE]
-                    [--decay_step DECAY_STEP] [--decay_rate DECAY_RATE]
-                    [--momentum MOMENTUM] [--filters_root FILTERS_ROOT]
-                    [--depth DEPTH]
-                    [--kernel_size KERNEL_SIZE [KERNEL_SIZE ...]]
-                    [--pool_size POOL_SIZE [POOL_SIZE ...]]
-                    [--drop_rate DROP_RATE]
-                    [--dilation_rate DILATION_RATE [DILATION_RATE ...]]
-                    [--loss_type LOSS_TYPE] [--weight_decay WEIGHT_DECAY]
-                    [--optimizer OPTIMIZER] [--summary SUMMARY]
-                    [--class_weights CLASS_WEIGHTS [CLASS_WEIGHTS ...]]
-                    [--logdir LOGDIR] [--ckdir CKDIR]
-                    [--plot_number PLOT_NUMBER] [--fpred FPRED]
-                    [--plot_pred PLOT_PRED] [--save_pred SAVE_PRED]
+usage: run.py [-h] [--mode MODE] [--epochs EPOCHS] [--batch_size BATCH_SIZE]
+              [--learning_rate LEARNING_RATE] [--decay_step DECAY_STEP]
+              [--decay_rate DECAY_RATE] [--momentum MOMENTUM]
+              [--filters_root FILTERS_ROOT] [--depth DEPTH]
+              [--kernel_size KERNEL_SIZE [KERNEL_SIZE ...]]
+              [--pool_size POOL_SIZE [POOL_SIZE ...]] [--drop_rate DROP_RATE]
+              [--dilation_rate DILATION_RATE [DILATION_RATE ...]]
+              [--loss_type LOSS_TYPE] [--weight_decay WEIGHT_DECAY]
+              [--optimizer OPTIMIZER] [--summary SUMMARY]
+              [--class_weights CLASS_WEIGHTS [CLASS_WEIGHTS ...]]
+              [--logdir LOGDIR] [--ckdir CKDIR] [--plot_number PLOT_NUMBER]
+              [--fpred FPRED]
 ```
