@@ -304,6 +304,7 @@ class DataReader_pred(DataReader):
                data_list,
                queue_size,
                coord,
+               input_length=None,
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
@@ -313,6 +314,10 @@ class DataReader_pred(DataReader):
     self.queue_size = queue_size
     self.X_shape = config.X_shape
     self.Y_shape = config.Y_shape
+    if input_length is not None:
+      logging.warning("Using different input length: {}".format(input_length))
+      self.X_shape[0] = input_length
+      self.Y_shape[0] = input_length
 
     self.coord = coord
     self.threads = []

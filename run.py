@@ -8,6 +8,7 @@ from unet import UNet
 from data_reader import Config, DataReader, DataReader_valid, DataReader_pred
 from util import *
 from tqdm import tqdm
+import pandas as pd
 import multiprocessing
 from functools import partial
 
@@ -120,6 +121,11 @@ def read_flags():
                       type=int,
                       help="plotting trainning result")
 
+  parser.add_argument("--input_length",
+                      default=3000,
+                      type=int,
+                      help="input length")
+
   parser.add_argument("--data_dir",
                       default="../Demo/PhaseNet/",
                       help="input file directory")
@@ -133,17 +139,15 @@ def read_flags():
                       help="output directory")
 
   parser.add_argument("--plot_figure",
-                      default=False,
-                      type=bool,
+                      action="store_true",
                       help="ouput file name of test data")
 
   parser.add_argument("--save_result",
-                      default=False,
-                      type=bool,
+                      action="store_true",
                       help="ouput file name of test data")
 
   parser.add_argument("--fpred",
-                      default="picks.npz",
+                      default="picks.csv",
                       help="ouput file name of test data")
 
   flags = parser.parse_args()
@@ -361,6 +365,7 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
   logging.info("Dataset size: {}".format(data_reader.num_data))
   if not os.path.exists(log_dir):
     os.makedirs(log_dir)
+  print(flags.plot_figure, flags.save_result)
   if (flags.plot_figure == True) and (fig_dir is None):
     fig_dir = os.path.join(log_dir, 'figures')
     if not os.path.exists(fig_dir):
@@ -428,7 +433,9 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
     fname.extend(fname_batch)
 
     # if args.save_result:
-    np.savez(os.path.join(log_dir, flags.fpred), picks=picks, fname=fname)
+    # np.savez(os.path.join(log_dir, flags.fpred), picks=picks, fname=fname)
+    df = pd.DataFrame({'fname': fname, 'itp': [x[0] for x in picks], 'its': [x[1] for x in picks]})
+    df.to_csv(os.path.join(log_dir, flags.fpred), index=False)
 
   return 0
 
@@ -476,9 +483,10 @@ def main(flags):
           # data_dir="../Dataset2018/NPZ_PS/EHE_EHN_EHZ/",
           # data_list="../Dataset2018/NPZ_PS/EHE_EHN_EHZ.csv",
           data_dir=flags.data_dir,
-          data_list=flags.data_list,  
+          data_list=flags.data_list,
           queue_size=flags.batch_size*3,
-          coord=coord)
+          coord=coord,
+          input_length=flags.input_length)
     pred_fn(flags, data_reader, log_dir=flags.output_dir)
 
   else:
