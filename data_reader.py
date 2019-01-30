@@ -347,9 +347,10 @@ class DataReader_pred(DataReader):
         logging.error("{}: shape {} is not same as input shape {}!".format(fname, sample.shape, self.X_shape))
         continue
 
-      if np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any()):
-        logging.warning("Data error: {}".format(fname))
-        continue
+      if np.isnan(sample).any() or np.isinf(sample).any():
+        logging.warning("Data error: {}\nReplacing nan and inf with zeros".format(fname))
+        sample[np.isnan(sample)] = 0
+        sample[np.isinf(sample)] = 0
 
       sample = self.normalize(sample)
       sample = self.adjust_amplitude_for_multichannels(sample)
