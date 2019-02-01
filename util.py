@@ -10,9 +10,11 @@ import logging
 def detect_peaks_thread(i, pred, fname=None, result_dir=None):
   itp = detect_peaks(pred[i,:,0,1], mph=0.5, mpd=0.5/Config().dt, show=False)
   its = detect_peaks(pred[i,:,0,2], mph=0.5, mpd=0.5/Config().dt, show=False)
+  prob_p = pred[i,itp,0,1]
+  prob_s = pred[i,its,0,2]
   if (fname is not None) and (result_dir is not None):
-    np.savez(os.path.join(result_dir, fname[i].decode().split('/')[-1]), pred=pred[i], itp=itp, its=its)
-  return [itp, its]
+    np.savez(os.path.join(result_dir, fname[i].decode().split('/')[-1]), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
+  return [(itp, prob_p), (its, prob_s)]
 
 def plot_result_thread(i, pred, X, Y=None, itp=None, its=None, 
                        itp_pred=None, its_pred=None, fname=None, fig_dir=None):
@@ -107,10 +109,10 @@ def plot_result_thread(i, pred, X, Y=None, itp=None, its=None,
   return 0
 
 def postprocessing_thread(i, pred, X, Y=None, itp=None, its=None, fname=None, result_dir=None, fig_dir=None):
-  itp_pred, its_pred = detect_peaks_thread(i, pred, fname, result_dir)
+  (itp_pred, prob_p), (its_pred, prob_s) = detect_peaks_thread(i, pred, fname, result_dir)
   if (fname is not None) and (fig_dir is not None):
     plot_result_thread(i, pred, X, Y, itp, its, itp_pred, its_pred, fname, fig_dir)
-  return [itp_pred, its_pred]
+  return [(itp_pred, prob_p), (its_pred, prob_s)]
 
 
 def clean_queue(picks):

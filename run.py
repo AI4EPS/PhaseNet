@@ -433,8 +433,8 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
     fname.extend(fname_batch)
 
     # if args.save_result:
-    # np.savez(os.path.join(log_dir, flags.fpred), picks=picks, fname=fname)
-    df = pd.DataFrame({'fname': fname, 'itp': [x[0] for x in picks], 'its': [x[1] for x in picks]})
+    np.savez(os.path.join(log_dir, 'preds.npz'), picks=picks, fname=fname)
+    df = pd.DataFrame({'fname': fname, 'itp': [x[0][0] for x in picks], 'its': [x[1][0] for x in picks], 'prob_p': [x[0][1] for x in picks], 'prob_s': [x[1][1] for x in picks]})
     df.to_csv(os.path.join(log_dir, flags.fpred), index=False)
 
   return 0
