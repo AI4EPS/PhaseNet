@@ -365,7 +365,6 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
   logging.info("Dataset size: {}".format(data_reader.num_data))
   if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-  print(flags.plot_figure, flags.save_result)
   if (flags.plot_figure == True) and (fig_dir is None):
     fig_dir = os.path.join(log_dir, 'figures')
     if not os.path.exists(fig_dir):
@@ -434,7 +433,14 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
 
     # if args.save_result:
     np.savez(os.path.join(log_dir, 'preds.npz'), picks=picks, fname=fname)
-    df = pd.DataFrame({'fname': fname, 'itp': [x[0][0] for x in picks], 'its': [x[1][0] for x in picks], 'prob_p': [x[0][1] for x in picks], 'prob_s': [x[1][1] for x in picks]})
+    itp_list = []; its_list = []
+    prob_p_list = []; prob_s_list = []
+    for x in picks:
+      itp_list.append(x[0][0])
+      its_list.append(x[1][0])
+      prob_p_list.append(x[0][1])
+      prob_s_list.append(x[1][1])
+    df = pd.DataFrame({'fname': fname, 'itp': itp_list, 'prob_p': prob_p_list, 'its': its_list, 'prob_s': prob_s_list})
     df.to_csv(os.path.join(log_dir, flags.fpred), index=False)
 
   return 0
