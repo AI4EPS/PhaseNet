@@ -78,9 +78,9 @@ def plot_result_thread(i, pred, X, Y=None, itp=None, its=None,
   plt.text(text_loc[0], text_loc[1], '(iii)', horizontalalignment='center',
            transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
   plt.subplot(414)
-  # if Y is not None:
-  #   plt.plot(t, Y[i, :, 0, 1], 'b', label='P', linewidth=0.5)
-  #   plt.plot(t, Y[i, :, 0, 2], 'r', label='S', linewidth=0.5)
+  if Y is not None:
+    plt.plot(t, Y[i, :, 0, 1], 'b', label='P', linewidth=0.5)
+    plt.plot(t, Y[i, :, 0, 2], 'r', label='S', linewidth=0.5)
   plt.plot(t, pred[i, :, 0, 1], '--g', label='$\hat{P}$', linewidth=0.5)
   plt.plot(t, pred[i, :, 0, 2], '-.m', label='$\hat{S}$', linewidth=0.5)
   plt.autoscale(enable=True, axis='x', tight=True)

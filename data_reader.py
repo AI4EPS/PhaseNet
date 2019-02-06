@@ -342,7 +342,8 @@ class DataReader_pred(DataReader):
       fname = self.data_list.iloc[i]['fname']
       meta = np.load(os.path.join(self.data_dir, fname))
 
-      sample = meta['data'][:, np.newaxis, :]
+      shift = 2500
+      sample = meta['data'][shift:shift+3000, np.newaxis, :]
       if np.array(sample.shape).all() != np.array(self.X_shape).all():
         logging.error("{}: shape {} is not same as input shape {}!".format(fname, sample.shape, self.X_shape))
         continue

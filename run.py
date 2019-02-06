@@ -42,7 +42,7 @@ def read_flags():
                       help="decay step")
 
   parser.add_argument("--decay_rate",
-                      default=0.95,
+                      default=0.9,
                       type=float,
                       help="decay rate")
 
@@ -116,7 +116,7 @@ def read_flags():
                       default=None,
                       help="Checkpoint directory (default: None)")
 
-  parser.add_argument("--plot_number",
+  parser.add_argument("--num_plots",
                       default=10,
                       type=int,
                       help="plotting trainning result")
@@ -190,8 +190,8 @@ def set_config(flags, data_reader):
 
 def train_fn(flags, data_reader):
   current_time = time.strftime("%m%d%H%M%S")
-  logging.info("Training log: {}".format(current_time))
   log_dir = os.path.join(flags.logdir, current_time)
+  logging.info("Training log: {}".format(log_dir))
   if not os.path.exists(log_dir):
     os.makedirs(log_dir)
   fig_dir = os.path.join(log_dir, 'figures')
@@ -226,6 +226,7 @@ def train_fn(flags, data_reader):
     flog = open(os.path.join(log_dir, 'loss.log'), 'w')
     total_step = 0
     mean_loss = 0
+    pool = multiprocessing.Pool(flags.num_plots)
     for epoch in range(flags.epochs):
       progressbar = tqdm(range(0, data_reader.num_data, flags.batch_size), desc="epoch {}".format(epoch))
       for step in progressbar:
@@ -243,13 +244,23 @@ def train_fn(flags, data_reader):
         flog.flush()
 
       loss_batch, pred_batch, logits_batch, X_batch, Y_batch = model.train_on_batch(sess, summary_writer, flags.drop_rate, raw_data=True)
-      plot_result(epoch, flags.plot_number, fig_dir,
-                  pred_batch, X_batch, Y_batch)
+      # plot_result(epoch, flags.num_plots, fig_dir,
+      #             pred_batch, X_batch, Y_batch)
+      pool.map(partial(plot_result_thread,
+                       pred = pred_batch,
+                       X = X_batch,
+                       Y = Y_batch,
+                       fname = ["{:03d}_{:03d}".format(epoch, x).encode() for x in range(flags.num_plots)],
+                       fig_dir = fig_dir),
+               range(flags.num_plots))
       saver.save(sess, os.path.join(log_dir, "model_{}.ckpt".format(epoch)))
     flog.close()
+    pool.close()
+    logging.info("data_reader.coord.request_stop()")
     data_reader.coord.request_stop()
-    for t in threads:
-      t.join()
+    # for t in threads:
+    #   t.join()
+    logging.info("data_reader.queue.close()")
     sess.run(data_reader.queue.close())
   return 0
 
@@ -486,8 +497,8 @@ def main(flags):
   elif flags.mode == "pred":
     with tf.name_scope('create_inputs'):
       data_reader = DataReader_pred(
-          # data_dir="../Dataset2018/NPZ_PS/EHE_EHN_EHZ/",
-          # data_list="../Dataset2018/NPZ_PS/EHE_EHN_EHZ.csv",
+          # data_dir="../Data/NPZ/",
+          # data_list="../Data/NPZ.csv",
           data_dir=flags.data_dir,
           data_list=flags.data_list,
           queue_size=flags.batch_size*3,
