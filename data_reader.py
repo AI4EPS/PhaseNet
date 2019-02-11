@@ -315,7 +315,7 @@ class DataReader_pred(DataReader):
     self.X_shape = config.X_shape
     self.Y_shape = config.Y_shape
     if input_length is not None:
-      logging.warning("Using different input length: {}".format(input_length))
+      logging.warning("Using input length: {}".format(input_length))
       self.X_shape[0] = input_length
       self.Y_shape[0] = input_length
 
