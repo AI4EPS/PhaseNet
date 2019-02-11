@@ -312,6 +312,11 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
     progressbar = tqdm(range(0, data_reader.num_data, flags.batch_size), desc=flags.mode)
     pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
     for step in progressbar:
+      
+      if step + flags.batch_size >= data_reader.num_data:
+        for t in threads:
+          t.join()
+        sess.run(data_reader.queue.close())
 
       loss_batch, pred_batch, X_batch, Y_batch, \
       fname_batch, itp_batch, its_batch = model.valid_on_batch(sess, summary_writer)
@@ -336,11 +341,6 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
       picks.extend(picks_batch)
       itp.extend(itp_batch)
       its.extend(its_batch)
-
-      ## final batch
-      for t in threads:
-        t.join()
-      sess.run(data_reader.queue.close())
 
 
     metrics_p, metrics_s = calculate_metrics(picks, itp, its, tol=0.1)
@@ -394,6 +394,12 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
     fname = []
     pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
     for step in tqdm(range(0, data_reader.num_data, flags.batch_size), desc="Pred"):
+
+      if step + flags.batch_size >= data_reader.num_data:
+        for t in threads:
+          t.join()
+        sess.run(data_reader.queue.close())
+
       pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
                                                    feed_dict={model.drop_rate: 0,
                                                               model.is_training: False})
@@ -407,10 +413,6 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
                               range(len(pred_batch)))
       picks.extend(picks_batch)
       fname.extend(fname_batch)
-
-      for t in threads:
-        t.join()
-      sess.run(data_reader.queue.close())
 
     # if args.save_result:
     np.savez(os.path.join(log_dir, 'preds.npz'), picks=picks, fname=fname)
