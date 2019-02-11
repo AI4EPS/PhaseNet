@@ -122,7 +122,7 @@ class DataReader(object):
       if normalize:
         data += self.normalize(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
       else:
-        data += meta['data'][start_tp+shift:stat_tp+self.X_shape[0]+shift, np.newaxis, :]
+        data += meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
       itp_list.append(itp-shift)
       its_list.append(its-shift)
     return data, itp_list, its_list
