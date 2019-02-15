@@ -256,12 +256,13 @@ def train_fn(flags, data_reader):
       saver.save(sess, os.path.join(log_dir, "model_{}.ckpt".format(epoch)))
     flog.close()
     pool.close()
-    logging.info("data_reader.coord.request_stop()")
     data_reader.coord.request_stop()
+    logging.info("data_reader.coord.request_stop()")
     # for t in threads:
     #   t.join()
+    sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
     logging.info("data_reader.queue.close()")
-    sess.run(data_reader.queue.close())
+
   return 0
 
 def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
