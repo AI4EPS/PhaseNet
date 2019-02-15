@@ -42,7 +42,7 @@ def read_flags():
                       help="decay step")
 
   parser.add_argument("--decay_rate",
-                      default=0.9,
+                      default=1,
                       type=float,
                       help="decay rate")
 
@@ -228,7 +228,7 @@ def train_fn(flags, data_reader):
     mean_loss = 0
     pool = multiprocessing.Pool(flags.num_plots)
     for epoch in range(flags.epochs):
-      progressbar = tqdm(range(0, data_reader.num_data, flags.batch_size), desc="epoch {}".format(epoch))
+      progressbar = tqdm(range(0, data_reader.num_data, flags.batch_size), desc="{}: epoch {}".format(log_dir.split("/")[-1], epoch))
       for step in progressbar:
         # X_batch, Y_batch = sess.run(batch)
         # loss_batch, pred_batch, logits_batch = model.train_on_batch(
@@ -439,8 +439,10 @@ def main(flags):
       data_reader = DataReader(
           # data_dir="../Dataset/NPZ_PS/HNE_HNN_HNZ/",
           # data_list="../Dataset/NPZ_PS/HNE_HNN_HNZ.csv",
-          data_dir="../Dataset/NPZ_PS/",
-          data_list="../Dataset/NPZ_PS/selected_channels_train.csv",
+          # data_dir="../Dataset/NPZ_PS/",
+          # data_list="../Dataset/NPZ_PS/selected_channels_train.csv",
+          data_dir=flags.data_dir,
+          data_list=flags.data_list,
           mask_window=0.4,
           queue_size=flags.batch_size*3,
           coord=coord)

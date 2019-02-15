@@ -30,3 +30,8 @@ If using input data length other than 3000:
 python run.py --mode=pred --ckdir=log/0118193232 --data_dir=../Demo/PhaseNet --
 data_list=../Demo/PhaseNet.csv --input_length=5000 --output_dir=./output --plot_figure --save_result
 ~~~
+
+### 5. Train
+~~~bash
+
+~~~
