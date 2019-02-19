@@ -87,7 +87,7 @@ class DataReader(object):
   def add_noise(self, data, channels):
     while random.uniform(0, 1) < 0.1:
       meta = np.load(os.path.join(self.data_dir, (self.data_list[self.data_list['channels']==channels]).sample(n=1).iloc[0]['fname']))
-      data += self.normalize(meta['data'][:self.X_shape[0], np.newaxis, :]) * random.uniform(1, 3)
+      data += self.normalize(meta['data'][:self.X_shape[0], np.newaxis, :]) * random.uniform(1, 10)
     return data
 
   def adjust_amplitude_for_multichannels(self, data):
@@ -101,8 +101,7 @@ class DataReader(object):
     while random.uniform(0, 1) < 0.1:
     # for i in range(3):
       shift = None
-      meta = np.load(os.path.join(
-          self.data_dir, (self.data_list[self.data_list['channels']==channels]).sample(n=1).iloc[0]['fname']))
+      meta = np.load(os.path.join(self.data_dir, (self.data_list[self.data_list['channels']==channels]).sample(n=1).iloc[0]['fname']))
       start_tp = meta['itp'].tolist()
       itp = meta['itp'].tolist() - start_tp
       its = meta['its'].tolist() - start_tp
@@ -155,7 +154,7 @@ class DataReader(object):
           # data augmentation
           sample = self.normalize(sample)
           sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-          # sample = self.add_noise(sample)
+          sample = self.add_noise(sample, channels)
           # sample = self.scale_amplitude(sample)
           if len(channels.split('_')) == 3:
             sample = self.drop_channel(sample)
