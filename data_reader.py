@@ -32,7 +32,7 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-    self.data_list = tmp_list[tmp_list['snr'] > 2.0]
+    self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
     self.queue_size = queue_size
