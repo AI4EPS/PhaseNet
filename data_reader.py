@@ -32,7 +32,8 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-    self.data_list = tmp_list
+    self.data_list = tmp_list[tmp_list['snr'] > 2.0]
+    # self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
     self.queue_size = queue_size
@@ -246,7 +247,7 @@ class DataReader_valid(DataReader):
         # data augmentation
         sample = self.normalize(sample)
         sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-        # sample = self.add_noise(sample)
+        # sample = self.add_noise(sample, channels)
         # sample = self.scale_amplitude(sample)
         if len(channels.split('_')) == 3:
           sample = self.drop_channel(sample)

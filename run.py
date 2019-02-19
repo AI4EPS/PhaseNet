@@ -42,7 +42,7 @@ def read_flags():
                       help="decay step")
 
   parser.add_argument("--decay_rate",
-                      default=1,
+                      default=0.9,
                       type=float,
                       help="decay rate")
 
@@ -127,11 +127,11 @@ def read_flags():
                       help="input length")
 
   parser.add_argument("--data_dir",
-                      default="../Demo/PhaseNet/",
+                      default="../Dataset/NPZ_PS/",
                       help="input file directory")
 
   parser.add_argument("--data_list",
-                      default="../Demo/PhaseNet.csv",
+                      default="../Dataset/NPZ_PS/selected_channels_train.csv",
                       help="input csv file")
 
   parser.add_argument("--output_dir",
