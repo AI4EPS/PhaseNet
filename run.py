@@ -42,7 +42,7 @@ def read_flags():
                       help="decay step")
 
   parser.add_argument("--decay_rate",
-                      default=0.9,
+                      default=1,
                       type=float,
                       help="decay rate")
 
@@ -122,7 +122,7 @@ def read_flags():
                       help="plotting trainning result")
 
   parser.add_argument("--input_length",
-                      default=3000,
+                      default=None,
                       type=int,
                       help="input length")
 
@@ -228,7 +228,7 @@ def train_fn(flags, data_reader):
     mean_loss = 0
     pool = multiprocessing.Pool(flags.num_plots)
     for epoch in range(flags.epochs):
-      progressbar = tqdm(range(0, data_reader.num_data, flags.batch_size), desc="epoch {}".format(epoch))
+      progressbar = tqdm(range(0, data_reader.num_data, flags.batch_size), desc="{}: epoch {}".format(log_dir.split("/")[-1], epoch))
       for step in progressbar:
         # X_batch, Y_batch = sess.run(batch)
         # loss_batch, pred_batch, logits_batch = model.train_on_batch(
@@ -256,12 +256,13 @@ def train_fn(flags, data_reader):
       saver.save(sess, os.path.join(log_dir, "model_{}.ckpt".format(epoch)))
     flog.close()
     pool.close()
-    logging.info("data_reader.coord.request_stop()")
     data_reader.coord.request_stop()
+    logging.info("data_reader.coord.request_stop()")
     # for t in threads:
     #   t.join()
+    sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
     logging.info("data_reader.queue.close()")
-    sess.run(data_reader.queue.close())
+
   return 0
 
 def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
@@ -309,9 +310,14 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
     picks = []
     itp = []
     its = []
-    progressbar = tqdm(range(0, data_reader.num_data-flags.batch_size, flags.batch_size), desc=flags.mode)
+    progressbar = tqdm(range(0, data_reader.num_data, flags.batch_size), desc=flags.mode)
     pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
     for step in progressbar:
+      
+      if step + flags.batch_size >= data_reader.num_data:
+        for t in threads:
+          t.join()
+        sess.run(data_reader.queue.close())
 
       loss_batch, pred_batch, X_batch, Y_batch, \
       fname_batch, itp_batch, its_batch = model.valid_on_batch(sess, summary_writer)
@@ -337,29 +343,6 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
       itp.extend(itp_batch)
       its.extend(its_batch)
 
-    ## final batch
-    for t in threads:
-      t.join()
-    sess.run(data_reader.queue.close())
-    loss_batch, pred_batch, X_batch, Y_batch, \
-    fname_batch, itp_batch, its_batch = model.valid_on_batch(sess, summary_writer)
-
-    itp_batch = clean_queue(itp_batch)
-    its_batch = clean_queue(its_batch)
-    picks_batch = pool.map(partial(postprocessing_thread,
-                              pred = pred_batch,
-                              X = X_batch,
-                              Y = Y_batch,
-                              itp = itp_batch,
-                              its = its_batch,
-                              fname = fname_batch,
-                              result_dir = result_dir,
-                              fig_dir = fig_dir),
-                      range(len(pred_batch)))
-    picks.extend(picks_batch)
-    itp.extend(itp_batch)
-    its.extend(its_batch)
-    pool.close()
 
     metrics_p, metrics_s = calculate_metrics(picks, itp, its, tol=0.1)
     flog.write("P-phase: Precision={}, Recall={}, F1={}\n".format(metrics_p[0], metrics_p[1], metrics_p[2]))
@@ -411,7 +394,13 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
     picks = []
     fname = []
     pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
-    for step in tqdm(range(0, data_reader.num_data-flags.batch_size, flags.batch_size), desc="Pred"):
+    for step in tqdm(range(0, data_reader.num_data, flags.batch_size), desc="Pred"):
+
+      if step + flags.batch_size >= data_reader.num_data:
+        for t in threads:
+          t.join()
+        sess.run(data_reader.queue.close())
+
       pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
                                                    feed_dict={model.drop_rate: 0,
                                                               model.is_training: False})
@@ -425,22 +414,6 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
                               range(len(pred_batch)))
       picks.extend(picks_batch)
       fname.extend(fname_batch)
-
-    for t in threads:
-      t.join()
-    sess.run(data_reader.queue.close())
-    pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]],
-                                                  feed_dict={model.drop_rate: 0,
-                                                            model.is_training: False})
-    picks_batch = pool.map(partial(postprocessing_thread,
-                              pred = pred_batch,
-                              X = X_batch,
-                              fname = fname_batch,
-                              result_dir = result_dir,
-                              fig_dir = fig_dir),
-                      range(len(pred_batch)))
-    picks.extend(picks_batch)
-    fname.extend(fname_batch)
 
     # if args.save_result:
     np.savez(os.path.join(log_dir, 'preds.npz'), picks=picks, fname=fname)
@@ -467,8 +440,10 @@ def main(flags):
       data_reader = DataReader(
           # data_dir="../Dataset/NPZ_PS/HNE_HNN_HNZ/",
           # data_list="../Dataset/NPZ_PS/HNE_HNN_HNZ.csv",
-          data_dir="../Dataset/NPZ_PS/",
-          data_list="../Dataset/NPZ_PS/selected_channels_train.csv",
+          # data_dir="../Dataset/NPZ_PS/",
+          # data_list="../Dataset/NPZ_PS/selected_channels_train.csv",
+          data_dir=flags.data_dir,
+          data_list=flags.data_list,
           mask_window=0.4,
           queue_size=flags.batch_size*3,
           coord=coord)

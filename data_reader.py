@@ -32,7 +32,7 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-    self.data_list = tmp_list[tmp_list['snr'] > 2.0]
+    self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
     self.queue_size = queue_size
@@ -122,7 +122,7 @@ class DataReader(object):
       if normalize:
         data += self.normalize(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
       else:
-        data += meta['data'][start_tp+shift:stat_tp+self.X_shape[0]+shift, np.newaxis, :]
+        data += meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
       itp_list.append(itp-shift)
       its_list.append(its-shift)
     return data, itp_list, its_list
@@ -315,7 +315,7 @@ class DataReader_pred(DataReader):
     self.X_shape = config.X_shape
     self.Y_shape = config.Y_shape
     if input_length is not None:
-      logging.warning("Using different input length: {}".format(input_length))
+      logging.warning("Using input length: {}".format(input_length))
       self.X_shape[0] = input_length
       self.Y_shape[0] = input_length
 
@@ -342,8 +342,9 @@ class DataReader_pred(DataReader):
       fname = self.data_list.iloc[i]['fname']
       meta = np.load(os.path.join(self.data_dir, fname))
 
-      shift = 2500
-      sample = meta['data'][shift:shift+3000, np.newaxis, :]
+      # shift = 2500
+      # sample = meta['data'][shift:shift+3000, np.newaxis, :]
+      sample = meta['data'][:, np.newaxis, :]
       if np.array(sample.shape).all() != np.array(self.X_shape).all():
         logging.error("{}: shape {} is not same as input shape {}!".format(fname, sample.shape, self.X_shape))
         continue
