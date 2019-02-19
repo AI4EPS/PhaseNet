@@ -13,7 +13,10 @@ def detect_peaks_thread(i, pred, fname=None, result_dir=None):
   prob_p = pred[i,itp,0,1]
   prob_s = pred[i,its,0,2]
   if (fname is not None) and (result_dir is not None):
-    np.savez(os.path.join(result_dir, fname[i].decode().split('/')[-1]), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
+    # np.savez(os.path.join(result_dir, fname[i].decode().split('/')[-1]), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
+    if not os.path.exists(os.path.dirname(os.path.join(result_dir, fname[i].decode()))):
+      os.makedirs(os.path.dirname(os.path.join(result_dir, fname[i].decode())), exist_ok=True)
+    np.savez(os.path.join(result_dir, fname[i].decode()), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
   return [(itp, prob_p), (its, prob_s)]
 
 def plot_result_thread(i, pred, X, Y=None, itp=None, its=None, 
@@ -99,9 +102,14 @@ def plot_result_thread(i, pred, X, Y=None, itp=None, its=None,
   plt.tight_layout()
   plt.gcf().align_labels()
 
+  if not os.path.exists(os.path.dirname(os.path.join(fig_dir, fname[i].decode()))):
+    os.makedirs(os.path.dirname(os.path.join(fig_dir, fname[i].decode())), exist_ok=True)
   plt.savefig(os.path.join(fig_dir, 
-              fname[i].decode().split('/')[-1].rstrip('.npz')+'.png'), 
+              fname[i].decode().rstrip('.npz')+'.png'), 
               bbox_inches='tight')
+  # plt.savefig(os.path.join(fig_dir, 
+  #             fname[i].decode().split('/')[-1].rstrip('.npz')+'.png'), 
+  #             bbox_inches='tight')
   # plt.savefig(os.path.join(fig_dir, 
   #             fname[i].decode().split('/')[-1].rstrip('.npz')+'.pdf'), 
   #             bbox_inches='tight')
