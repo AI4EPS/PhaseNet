@@ -32,8 +32,8 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-    self.data_list = tmp_list[tmp_list['snr'] > 2.0]
-    # self.data_list = tmp_list
+    # self.data_list = tmp_list[tmp_list['snr'] > 2.0]
+    self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
     self.queue_size = queue_size
@@ -86,9 +86,13 @@ class DataReader(object):
     return data
 
   def add_noise(self, data, channels):
-    while random.uniform(0, 1) < 0.1:
-      meta = np.load(os.path.join(self.data_dir, (self.data_list[self.data_list['channels']==channels]).sample(n=1).iloc[0]['fname']))
-      data += self.normalize(meta['data'][:self.X_shape[0], np.newaxis, :]) * random.uniform(1, 10)
+    if random.uniform(0, 1) < 0.1:
+      fname = os.path.join(self.data_dir, (self.data_list[self.data_list['channels']==channels]).sample(n=1).iloc[0]['fname'])
+      try:
+        meta = np.load(fname)
+        data += self.normalize(meta['data'][:self.X_shape[0], np.newaxis, :]) * random.uniform(1, 10)
+      except:
+        logging.error("Failed reading {}".format(fname))
     return data
 
   def adjust_amplitude_for_multichannels(self, data):
@@ -102,7 +106,12 @@ class DataReader(object):
     while random.uniform(0, 1) < 0.1:
     # for i in range(3):
       shift = None
-      meta = np.load(os.path.join(self.data_dir, (self.data_list[self.data_list['channels']==channels]).sample(n=1).iloc[0]['fname']))
+      fname = os.path.join(self.data_dir, (self.data_list[self.data_list['channels']==channels]).sample(n=1).iloc[0]['fname'])
+      try:
+        meta = np.load(fname)
+      except:
+        logging.error("Failed reading {}".format(fname))
+        continue
       start_tp = meta['itp'].tolist()
       itp = meta['itp'].tolist() - start_tp
       its = meta['its'].tolist() - start_tp
@@ -134,7 +143,12 @@ class DataReader(object):
       index = list(range(start, self.num_data, n_threads))
       random.shuffle(index)
       for i in index:
-        meta = np.load(os.path.join(self.data_dir, self.data_list.iloc[i]['fname']))
+        fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
+        try:
+          meta = np.load(fname)
+        except:
+          logging.error("Failed reading {}".format(fname))
+          continue
         data = np.squeeze(meta['data'])
         channels = meta['channels'].tolist()
         start_tp = meta['itp'].tolist()
@@ -144,9 +158,9 @@ class DataReader(object):
           break
 
         sample = np.zeros(self.X_shape)
-        if self.config.use_seed:
-          np.random.seed(self.config.seed+i)
-        if np.random.random() < 0.9:
+        # if self.config.use_seed:
+        #   np.random.seed(self.config.seed+i)
+        if np.random.random() < 0.95:
           shift = random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
           sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
           itp_list = [meta['itp'].tolist()-start_tp-shift]
@@ -155,7 +169,7 @@ class DataReader(object):
           # data augmentation
           sample = self.normalize(sample)
           sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-          sample = self.add_noise(sample, channels)
+          # sample = self.add_noise(sample, channels)
           # sample = self.scale_amplitude(sample)
           if len(channels.split('_')) == 3:
             sample = self.drop_channel(sample)
@@ -227,7 +241,11 @@ class DataReader_valid(DataReader):
     index = list(range(start, self.num_data, n_threads))
     for i in index:
       fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
-      meta = np.load(fname)
+      try:
+        meta = np.load(fname)
+      except:
+        logging.error("Failed reading {}".format(fname))
+        continue
       data = np.squeeze(meta['data'])
       channels = meta['channels'].tolist()
       start_tp = meta['itp'].tolist()
@@ -339,9 +357,12 @@ class DataReader_pred(DataReader):
   def thread_main(self, sess, n_threads=1, start=0):
     index = list(range(start, self.num_data, n_threads))
     for i in index:
-      fname = self.data_list.iloc[i]['fname']
-      meta = np.load(os.path.join(self.data_dir, fname))
-
+      fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
+      try:
+        meta = np.load(fname)
+      except:
+        logging.error("Failed reading {}".format(fname))
+        continue
       # shift = 2500
       # sample = meta['data'][shift:shift+3000, np.newaxis, :]
       sample = meta['data'][:, np.newaxis, :]

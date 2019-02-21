@@ -111,6 +111,9 @@ class UNet:
                    kernel_regularizer=self.regularizer,
                    #bias_regularizer=self.regularizer,
                    name="input_conv")
+      net = tf.layers.batch_normalization(net,
+                        training=self.is_training,
+                        name="input_bn")
       net = tf.nn.relu(net,
                name="input_relu")
       # net = tf.nn.dropout(net, self.keep_prob)
@@ -118,9 +121,7 @@ class UNet:
                   rate=self.drop_rate,
                   training=self.is_training,
                   name="input_dropout")
-      net = tf.layers.batch_normalization(net,
-                        training=self.is_training,
-                        name="input_bn")
+
 
     for depth in range(0, self.depths):
       with tf.variable_scope("DownConv_%d" % depth):
@@ -136,15 +137,15 @@ class UNet:
                      kernel_regularizer=self.regularizer,
                      #bias_regularizer=self.regularizer,
                      name="down_conv1_{}".format(depth + 1))
+        net = tf.layers.batch_normalization(net,
+                          training=self.is_training,
+                          name="down_bn1_{}".format(depth + 1))
         net = tf.nn.relu(net,
                  name="down_relu1_{}".format(depth+1))
         net = tf.layers.dropout(net,
                     rate=self.drop_rate,
                     training=self.is_training,
                     name="down_dropout1_{}".format(depth + 1))
-        net = tf.layers.batch_normalization(net,
-                          training=self.is_training,
-                          name="down_bn1_{}".format(depth + 1))
 
         convs[depth] = net
 
@@ -160,15 +161,16 @@ class UNet:
                        kernel_regularizer=self.regularizer,
                        #bias_regularizer=self.regularizer,
                        name="down_conv3_{}".format(depth + 1))
+          net = tf.layers.batch_normalization(net,
+                            training=self.is_training,
+                            name="down_bn3_{}".format(depth + 1))
           net = tf.nn.relu(net,
                    name="down_relu3_{}".format(depth+1))
           net = tf.layers.dropout(net,
                     rate=self.drop_rate,
                     training=self.is_training,
                     name="down_dropout3_{}".format(depth + 1))
-          net = tf.layers.batch_normalization(net,
-                            training=self.is_training,
-                            name="down_bn3_{}".format(depth + 1))
+
 
     # up layers
     for depth in range(self.depths - 2, -1, -1):
@@ -184,15 +186,16 @@ class UNet:
                          kernel_regularizer=self.regularizer,
                          #bias_regularizer=self.regularizer,
                          name="up_conv0_{}".format(depth+1))
+        net = tf.layers.batch_normalization(net,
+                          training=self.is_training,
+                          name="up_bn0_{}".format(depth + 1))
         net = tf.nn.relu(net,
                  name="up_relu0_{}".format(depth+1))
         net = tf.layers.dropout(net,
                     rate=self.drop_rate,
                     training=self.is_training,
                     name="up_dropout0_{}".format(depth + 1))
-        net = tf.layers.batch_normalization(net,
-                          training=self.is_training,
-                          name="up_bn0_{}".format(depth + 1))
+
         
         #skip connection
         net = crop_and_concat(convs[depth], net)
@@ -208,15 +211,16 @@ class UNet:
                      kernel_regularizer=self.regularizer,
                      #bias_regularizer=self.regularizer,
                      name="up_conv1_{}".format(depth + 1))
+        net = tf.layers.batch_normalization(net,
+                          training=self.is_training,
+                          name="up_bn1_{}".format(depth + 1))
         net = tf.nn.relu(net,
                  name="up_relu1_{}".format(depth + 1))
         net = tf.layers.dropout(net,
                     rate=self.drop_rate,
                     training=self.is_training,
                     name="up_dropout1_{}".format(depth + 1))
-        net = tf.layers.batch_normalization(net,
-                          training=self.is_training,
-                          name="up_bn1_{}".format(depth + 1))
+
 
     # Output Map
     with tf.variable_scope("Output"):

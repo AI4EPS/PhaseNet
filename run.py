@@ -189,7 +189,7 @@ def set_config(flags, data_reader):
 
 
 def train_fn(flags, data_reader):
-  current_time = time.strftime("%m%d%H%M%S")
+  current_time = time.strftime("%y%m%d-%H%M%S")
   log_dir = os.path.join(flags.logdir, current_time)
   logging.info("Training log: {}".format(log_dir))
   if not os.path.exists(log_dir):
@@ -261,12 +261,13 @@ def train_fn(flags, data_reader):
     # for t in threads:
     #   t.join()
     sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
+    data_reader.cood.join(threads)
     logging.info("data_reader.queue.close()")
 
   return 0
 
 def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
-  current_time = time.strftime("%m%d%H%M%S")
+  current_time = time.strftime("%y%m%d-%H%M%S")
   logging.info("{} log: {}".format(flags.mode, current_time))
   log_dir = os.path.join(flags.logdir, flags.mode, current_time)
   if not os.path.exists(log_dir):
@@ -352,7 +353,7 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
   return 0
 
 def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
-  current_time = time.strftime("%m%d%H%M%S")
+  current_time = time.strftime("%y%m%d-%H%M%S")
   if log_dir is None:
     log_dir = os.path.join(flags.logdir, "pred", current_time)
   logging.info("Pred log: %s" % log_dir)
@@ -483,9 +484,6 @@ def main(flags):
 
   else:
     print("mode should be: train, valid, test, pred or debug")
-
-  coord.request_stop()
-  coord.join()
 
   return
 
