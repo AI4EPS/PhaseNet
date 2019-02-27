@@ -6,7 +6,7 @@ The code is tested under Python3.6.
 
 ```bash
 pip install virtualenv
-virtualenv .venv
+virtualenv .venv --python=python3.6
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -32,6 +32,12 @@ data_list=../Demo/PhaseNet_test.csv --input_length=5000 --output_dir=./output --
 ~~~
 
 ### 5. Train
+
+#### Data format
+Required a csv file and a npz file.
+The csv file contains four colomns: "fname", "itp", "its", "channels"
+The npz file contains four variable: "data", "itp", "its", "channels"
+
 ~~~bash
 python run.py --mode=train --data_dir=../Demo/PhaseNet_train --data_list=../Demo/PhaseNet_train.csv --batch_size=20
 ~~~

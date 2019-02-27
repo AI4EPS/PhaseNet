@@ -260,8 +260,8 @@ def train_fn(flags, data_reader):
     logging.info("data_reader.coord.request_stop()")
     # for t in threads:
     #   t.join()
-    sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
     data_reader.cood.join(threads)
+    sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
     logging.info("data_reader.queue.close()")
 
   return 0
