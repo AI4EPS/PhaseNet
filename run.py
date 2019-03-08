@@ -241,28 +241,30 @@ def train_fn(flags, data_reader):
           mean_loss += (loss_batch-mean_loss)/total_step
         progressbar.set_description("{}: epoch {}, loss={:.6f}, mean={:.6f}".format(log_dir.split("/")[-1], epoch, loss_batch, mean_loss))
         flog.write("epoch: {}, step: {}, loss: {}, mean loss: {}\n".format(epoch, step//flags.batch_size, loss_batch, mean_loss))
-        flog.flush()
 
       loss_batch, pred_batch, logits_batch, X_batch, Y_batch = model.train_on_batch(sess, summary_writer, flags.drop_rate, raw_data=True)
       # plot_result(epoch, flags.num_plots, fig_dir,
       #             pred_batch, X_batch, Y_batch)
-      pool.map(partial(plot_result_thread,
-                       pred = pred_batch,
-                       X = X_batch,
-                       Y = Y_batch,
-                       fname = ["{:03d}_{:03d}".format(epoch, x).encode() for x in range(flags.num_plots)],
-                       fig_dir = fig_dir),
-               range(flags.num_plots))
-      saver.save(sess, os.path.join(log_dir, "model_{}.ckpt".format(epoch)))
+      try: ## IO Error
+        flog.flush()
+        pool.map(partial(plot_result_thread,
+                        pred = pred_batch,
+                        X = X_batch,
+                        Y = Y_batch,
+                        fname = ["{:03d}_{:03d}".format(epoch, x).encode() for x in range(flags.num_plots)],
+                        fig_dir = fig_dir),
+                range(flags.num_plots))
+        saver.save(sess, os.path.join(log_dir, "model_{}.ckpt".format(epoch)))
+      except:
+        pass
     flog.close()
     pool.close()
     data_reader.coord.request_stop()
-    logging.info("data_reader.coord.request_stop()")
-    # for t in threads:
-    #   t.join()
-    data_reader.cood.join(threads)
+    try:
+      data_reader.coord.join(threads, stop_grace_period_secs=10, ignore_live_threads=True)
+    except:
+      pass
     sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
-    logging.info("data_reader.queue.close()")
 
   return 0
 

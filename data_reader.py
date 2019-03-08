@@ -32,8 +32,9 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-    # self.data_list = tmp_list[tmp_list['snr'] > 2.0]
-    self.data_list = tmp_list
+    # self.data_list = tmp_list
+    self.data_list = tmp_list[tmp_list['snr'] > 2.0]
+    # self.data_list = tmp_list[tmp_list['distance'] > 100]
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
     self.queue_size = queue_size
@@ -87,18 +88,20 @@ class DataReader(object):
         # data *= 3/(c1+c2+c3)
     return data
 
-  def add_noise(self, data, channels, save_buffer=True):
+  def add_noise(self, data, channels):
     if random.uniform(0, 1) < 0.1:
-      fname = os.path.join(self.data_dir, (self.data_list[self.data_list['channels']==channels]).sample(n=1).iloc[0]['fname'])
+      if channels not in self.buffer_channels:
+        self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
+      fname = os.path.join(self.data_dir, self.buffer_channels[channels].sample(n=1).iloc[0]['fname'])
       try:
-        if save_buffer:
+        if fname not in self.buffer:
           meta = np.load(fname)
           self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
         meta = self.buffer[fname]
       except:
         logging.error("Failed reading {} in func add_noise".format(fname))
         return data
-    data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * random.uniform(1, 5)
+      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * random.uniform(1, 5)
     return data
 
   def adjust_amplitude_for_multichannels(self, data):
@@ -108,7 +111,7 @@ class DataReader(object):
       data *= data.shape[-1] / np.count_nonzero(tmp)
     return data
 
-  def add_event(self, data, itp_list, its_list, channels, normalize=False, save_buffer=True):
+  def add_event(self, data, itp_list, its_list, channels, normalize=False):
     while random.uniform(0, 1) < 0.2:
     # for i in range(3):
       shift = None
@@ -116,12 +119,12 @@ class DataReader(object):
         self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
       fname = os.path.join(self.data_dir, self.buffer_channels[channels].sample(n=1).iloc[0]['fname'])
       try:
-        if save_buffer:
+        if fname not in self.buffer:
           meta = np.load(fname)
           self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
         meta = self.buffer[fname]
       except:
-        logging.error("Failed reading {}".format(fname))
+        logging.error("Failed reading {} in func add_event".format(fname))
         continue
 
       start_tp = meta['itp'].tolist()
@@ -150,14 +153,13 @@ class DataReader(object):
 
   def thread_main(self, sess, n_threads=1, start=0):
     stop = False
-    save_buffer = True
     while not stop:
       index = list(range(start, self.num_data, n_threads))
       random.shuffle(index)
       for i in index:
         fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
         try:
-          if save_buffer:
+          if fname not in self.buffer:
             meta = np.load(fname)
             self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
           meta = self.buffer[fname]
@@ -183,8 +185,8 @@ class DataReader(object):
 
           # data augmentation
           sample = self.normalize(sample)
-          sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True, save_buffer=save_buffer)
-          # sample = self.add_noise(sample, channels, save_buffer)
+          sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
+          # sample = self.add_noise(sample, channels)
           # sample = self.scale_amplitude(sample)
           if len(channels.split('_')) == 3:
             sample = self.drop_channel(sample)
@@ -221,7 +223,6 @@ class DataReader(object):
 
         sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
                                           self.target_placeholder: target})
-      save_buffer = False
     return 0
 
   def start_threads(self, sess, n_threads=8):
@@ -254,12 +255,11 @@ class DataReader_valid(DataReader):
     return output
 
   def thread_main(self, sess, n_threads=1, start=0):
-    save_buffer = True
     index = list(range(start, self.num_data, n_threads))
     for i in index:
       fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
       try:
-        if save_buffer:
+        if fname not in self.buffer:
           meta = np.load(fname)
           self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
         meta = self.buffer[fname]
@@ -284,8 +284,8 @@ class DataReader_valid(DataReader):
 
         # data augmentation
         sample = self.normalize(sample)
-        sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True, save_buffer=save_buffer)
-        # sample = self.add_noise(sample, channels)
+        sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
+        sample = self.add_noise(sample, channels)
         # sample = self.scale_amplitude(sample)
         if len(channels.split('_')) == 3:
           sample = self.drop_channel(sample)
