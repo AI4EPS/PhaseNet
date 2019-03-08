@@ -16,20 +16,21 @@ pip install -r requirements.txt
 Located in directory: **Demo**
 
 ### 3.Model
-Located in directory: **model/0118193232**
+Located in directory: **model/190227-104249** and **model/190227-104428**
 
 ### 4. Prediction
 ~~~bash
 source .venv/bin/activate
 ~~~
 ~~~bash
-python run.py --mode=pred --ckdir=model/0118193232 --data_dir=../Demo/PhaseNet_test --data_list=../Demo/PhaseNet_test.csv --output_dir=./output --plot_figure --save_result
+python run.py --mode=pred --ckdir=model/190227-104249 --data_dir=../Demo/PhaseNet_test --data_list=../Demo/PhaseNet_test.csv --output_dir=./output --plot_figure --save_result
 ~~~
-If using input data length other than 3000:
+or 
 ~~~bash
-python run.py --mode=pred --ckdir=model/0118193232 --data_dir=../Demo/PhaseNet_test --
-data_list=../Demo/PhaseNet_test.csv --input_length=5000 --output_dir=./output --plot_figure --save_result
+python run.py --mode=pred --ckdir=model/190227-104428 --data_dir=../Demo/PhaseNet_test --data_list=../Demo/PhaseNet_test.csv --output_dir=./output --plot_figure --save_result
 ~~~
+
+If using input data length other than 3000, specify argument --input_length=
 
 ### 5. Train
 
