@@ -33,8 +33,7 @@ class DataReader(object):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
     # self.data_list = tmp_list
-    self.data_list = tmp_list[tmp_list['snr'] > 2.0]
-    # self.data_list = tmp_list[tmp_list['distance'] > 100]
+    # self.data_list = tmp_list[tmp_list['snr'] > 2.0]
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
     self.queue_size = queue_size
@@ -60,7 +59,6 @@ class DataReader(object):
 
   def dequeue(self, num_elements):
     output = self.queue.dequeue_many(num_elements)
-    # output = self.queue.dequeue_up_to(num_elements)
     return output
 
   def normalize(self, data):
@@ -113,7 +111,6 @@ class DataReader(object):
 
   def add_event(self, data, itp_list, its_list, channels, normalize=False):
     while random.uniform(0, 1) < 0.2:
-    # for i in range(3):
       shift = None
       if channels not in self.buffer_channels:
         self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
@@ -131,10 +128,8 @@ class DataReader(object):
       itp = meta['itp'].tolist() - start_tp
       its = meta['its'].tolist() - start_tp
 
-      # shift = random.randint(-self.X_shape[1], self.X_shape[1])
       if (max(its_list) - itp + self.mask_window + self.min_event_gap > self.X_shape[0]-self.mask_window) \
          and (its - min(itp_list) + self.mask_window + self.min_event_gap > min([its, self.X_shape[0]]) - self.mask_window):
-        # return data, itp_list, its_list
         continue
       elif max(its_list) - itp + self.mask_window + self.min_event_gap > self.X_shape[0]-self.mask_window:
         shift = random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)
@@ -175,15 +170,12 @@ class DataReader(object):
           break
 
         sample = np.zeros(self.X_shape)
-        # if self.config.use_seed:
-        #   np.random.seed(self.config.seed+i)
         if np.random.random() < 0.95:
           shift = random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
           sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
           itp_list = [meta['itp'].tolist()-start_tp-shift]
           its_list = [meta['its'].tolist()-start_tp-shift]
 
-          # data augmentation
           sample = self.normalize(sample)
           sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
           # sample = self.add_noise(sample, channels)
@@ -228,7 +220,7 @@ class DataReader(object):
   def start_threads(self, sess, n_threads=8):
     for i in range(n_threads):
       thread = threading.Thread(target=self.thread_main, args=(sess, n_threads, i))
-      thread.daemon = True  # Thread will close when parent quits.
+      thread.daemon = True
       thread.start()
       self.threads.append(thread)
     return self.threads
@@ -250,7 +242,6 @@ class DataReader_valid(DataReader):
                                        self.itp_placeholder, self.its_placeholder])
 
   def dequeue(self, num_elements):
-    # output = self.queue.dequeue_many(num_elements)
     output = self.queue.dequeue_up_to(num_elements)
     return output
 
@@ -282,7 +273,6 @@ class DataReader_valid(DataReader):
         itp_list = [meta['itp'].tolist()-start_tp-shift]
         its_list = [meta['its'].tolist()-start_tp-shift]
 
-        # data augmentation
         sample = self.normalize(sample)
         sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
         sample = self.add_noise(sample, channels)
@@ -370,7 +360,6 @@ class DataReader_pred(DataReader):
     self.enqueue = self.queue.enqueue([self.sample_placeholder, self.fname_placeholder])
 
   def dequeue(self, num_elements):
-    # output = self.queue.dequeue_many(num_elements)
     output = self.queue.dequeue_up_to(num_elements)
     return output
 

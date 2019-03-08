@@ -24,12 +24,12 @@ def read_flags():
   parser.add_argument("--epochs",
                       default=100,
                       type=int,
-                      help="Number of epochs (default: 10)")
+                      help="number of epochs (default: 10)")
 
   parser.add_argument("--batch_size",
                       default=200,
                       type=int,
-                      help="Batch size")
+                      help="batch size")
 
   parser.add_argument("--learning_rate",
                       default=0.01,
@@ -82,7 +82,7 @@ def read_flags():
                       nargs="+",
                       type=int,
                       default=[1, 1],
-                      help="dilation_rate")
+                      help="dilation rate")
 
   parser.add_argument("--loss_type",
                       default="cross_entropy",
@@ -119,7 +119,7 @@ def read_flags():
   parser.add_argument("--num_plots",
                       default=10,
                       type=int,
-                      help="plotting trainning result")
+                      help="Plotting trainning results")
 
   parser.add_argument("--input_length",
                       default=None,
@@ -128,27 +128,27 @@ def read_flags():
 
   parser.add_argument("--data_dir",
                       default="../Dataset/NPZ_PS/",
-                      help="input file directory")
+                      help="Input file directory")
 
   parser.add_argument("--data_list",
                       default="../Dataset/NPZ_PS/selected_channels_train.csv",
-                      help="input csv file")
+                      help="Input csv file")
 
   parser.add_argument("--output_dir",
                       default=None,
-                      help="output directory")
+                      help="Output directory")
 
   parser.add_argument("--plot_figure",
                       action="store_true",
-                      help="ouput file name of test data")
+                      help="If plot figure for test")
 
   parser.add_argument("--save_result",
                       action="store_true",
-                      help="ouput file name of test data")
+                      help="If save result for test")
 
   parser.add_argument("--fpred",
-                      default="picks.csv",
-                      help="ouput file name of test data")
+                      default="picks",
+                      help="Ouput filename fo test")
 
   flags = parser.parse_args()
   return flags
@@ -230,9 +230,6 @@ def train_fn(flags, data_reader):
     for epoch in range(flags.epochs):
       progressbar = tqdm(range(0, data_reader.num_data, flags.batch_size), desc="{}: epoch {}".format(log_dir.split("/")[-1], epoch))
       for step in progressbar:
-        # X_batch, Y_batch = sess.run(batch)
-        # loss_batch, pred_batch, logits_batch = model.train_on_batch(
-        #                       sess, X_batch, Y_batch, summary_writer, flags.drop_rate)
         loss_batch = model.train_on_batch(sess, summary_writer, flags.drop_rate)
         if epoch < 1:
           mean_loss = loss_batch
@@ -243,9 +240,7 @@ def train_fn(flags, data_reader):
         flog.write("epoch: {}, step: {}, loss: {}, mean loss: {}\n".format(epoch, step//flags.batch_size, loss_batch, mean_loss))
 
       loss_batch, pred_batch, logits_batch, X_batch, Y_batch = model.train_on_batch(sess, summary_writer, flags.drop_rate, raw_data=True)
-      # plot_result(epoch, flags.num_plots, fig_dir,
-      #             pred_batch, X_batch, Y_batch)
-      try: ## IO Error
+      try: ## IO Error on cluster
         flog.flush()
         pool.map(partial(plot_result_thread,
                         pred = pred_batch,
@@ -346,7 +341,6 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
       itp.extend(itp_batch)
       its.extend(its_batch)
 
-
     metrics_p, metrics_s = calculate_metrics(picks, itp, its, tol=0.1)
     flog.write("P-phase: Precision={}, Recall={}, F1={}\n".format(metrics_p[0], metrics_p[1], metrics_p[2]))
     flog.write("S-phase: Precision={}, Recall={}, F1={}\n".format(metrics_s[0], metrics_s[1], metrics_s[2]))
@@ -418,8 +412,7 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
       picks.extend(picks_batch)
       fname.extend(fname_batch)
 
-    # if args.save_result:
-    np.savez(os.path.join(log_dir, 'preds.npz'), picks=picks, fname=fname)
+    np.savez(os.path.join(log_dir, flags.fpred), picks=picks, fname=fname)
     itp_list = []; its_list = []
     prob_p_list = []; prob_s_list = []
     for x in picks:
@@ -441,10 +434,6 @@ def main(flags):
   if flags.mode == "train":
     with tf.name_scope('create_inputs'):
       data_reader = DataReader(
-          # data_dir="../Dataset/NPZ_PS/HNE_HNN_HNZ/",
-          # data_list="../Dataset/NPZ_PS/HNE_HNN_HNZ.csv",
-          # data_dir="../Dataset/NPZ_PS/",
-          # data_list="../Dataset/NPZ_PS/selected_channels_train.csv",
           data_dir=flags.data_dir,
           data_list=flags.data_list,
           mask_window=0.4,
@@ -455,8 +444,8 @@ def main(flags):
   elif flags.mode == "valid" or flags.mode == "test":
     with tf.name_scope('create_inputs'):
       data_reader = DataReader_valid(
-          data_dir="../Dataset2018/NPZ_PS/HNE_HNN_HNZ/",
-          data_list="../Dataset2018/NPZ_PS/HNE_HNN_HNZ.csv",
+          data_dir=flags.data_dir,
+          data_list=flags.data_list,
           mask_window=0.4,
           queue_size=flags.batch_size*3,
           coord=coord)
@@ -465,8 +454,8 @@ def main(flags):
   elif flags.mode == "debug":
     with tf.name_scope('create_inputs'):
       data_reader = DataReader(
-          data_dir="../Dataset/NPZ_PS/",
-          data_list="../Dataset/NPZ_PS/selected_channels_train.csv",
+          data_dir=flags.data_dir,
+          data_list=flags.data_list,
           mask_window=0.4,
           queue_size=flags.batch_size*3,
           coord=coord)
@@ -475,8 +464,6 @@ def main(flags):
   elif flags.mode == "pred":
     with tf.name_scope('create_inputs'):
       data_reader = DataReader_pred(
-          # data_dir="../Data/NPZ/",
-          # data_list="../Data/NPZ.csv",
           data_dir=flags.data_dir,
           data_list=flags.data_list,
           queue_size=flags.batch_size*3,
