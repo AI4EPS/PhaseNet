@@ -421,7 +421,7 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
       prob_p_list.append(x[0][1])
       prob_s_list.append(x[1][1])
     df = pd.DataFrame({'fname': fname, 'itp': itp_list, 'prob_p': prob_p_list, 'its': its_list, 'prob_s': prob_s_list})
-    df.to_csv(os.path.join(log_dir, flags.fpred), index=False)
+    df.to_csv(os.path.join(log_dir, flags.fpred+".csv"), index=False)
 
   return 0
 
