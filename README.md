@@ -23,7 +23,7 @@ Located in directory: **model/190227-104428**
 source .venv/bin/activate
 ~~~
 ~~~bash
-python run.py --mode=pred --ckdir=model/190227-104428 --data_dir=../Demo/PhaseNet_test --data_list=../Demo/PhaseNet_test.csv --output_dir=./output --plot_figure --save_result
+python run.py --mode=pred --ckdir=model/190227-104428 --data_dir=../Demo/PhaseNet_test --data_list=../Demo/PhaseNet_test.csv --output_dir=../output --plot_figure --save_result
 ~~~
 
 If using input data length other than 3000, specify argument --input_length=
