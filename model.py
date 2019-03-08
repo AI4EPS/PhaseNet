@@ -36,7 +36,7 @@ def crop_only(net1, net2):
   #return tf.concat([net1, net2_resize], 3)
   return net2_resize
 
-class UNet:
+class Model:
   def __init__(self, config, input_batch=None, mode='train'):
     self.depths = config.depths
     self.filters_root = config.filters_root

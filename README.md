@@ -6,7 +6,7 @@ The code is tested under Python3.6.
 
 ```bash
 pip install virtualenv
-virtualenv .venv --python=python3.6
+virtualenv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -16,16 +16,12 @@ pip install -r requirements.txt
 Located in directory: **Demo**
 
 ### 3.Model
-Located in directory: **model/190227-104249** and **model/190227-104428**
+Located in directory: **model/190227-104428**
 
 ### 4. Prediction
 ~~~bash
 source .venv/bin/activate
 ~~~
-~~~bash
-python run.py --mode=pred --ckdir=model/190227-104249 --data_dir=../Demo/PhaseNet_test --data_list=../Demo/PhaseNet_test.csv --output_dir=./output --plot_figure --save_result
-~~~
-or 
 ~~~bash
 python run.py --mode=pred --ckdir=model/190227-104428 --data_dir=../Demo/PhaseNet_test --data_list=../Demo/PhaseNet_test.csv --output_dir=./output --plot_figure --save_result
 ~~~
