@@ -1,5 +1,4 @@
 import os
-import random
 import threading
 import tensorflow as tf
 import numpy as np
@@ -32,8 +31,7 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-    # self.data_list = tmp_list
-    # self.data_list = tmp_list[tmp_list['snr'] > 2.0]
+    self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
     self.queue_size = queue_size
@@ -70,24 +68,24 @@ class DataReader(object):
     return data
 
   def scale_amplitude(self, data):
-    if random.uniform(0, 1) < 0.2:
-      data *= random.uniform(1, 2)
-    elif random.uniform(0, 1) < 0.4:
-      data /= random.uniform(1, 10)
+    if np.random.uniform(0, 1) < 0.2:
+      data *= np.random.uniform(1, 2)
+    elif np.random.uniform(0, 1) < 0.4:
+      data /= np.random.uniform(1, 10)
     return data
 
   def drop_channel(self, data):
-    if random.uniform(0, 1) < 0.3:
-      c1 = random.choice([0, 1])
-      c2 = random.choice([0, 1])
-      c3 = random.choice([0, 1, 1, 1])
+    if np.random.uniform(0, 1) < 0.3:
+      c1 = np.random.choice([0, 1])
+      c2 = np.random.choice([0, 1])
+      c3 = np.random.choice([0, 1, 1, 1])
       if c1 + c2 + c3 > 0:
         data[..., np.array([c1, c2, c3]) == 0] = 0
         # data *= 3/(c1+c2+c3)
     return data
 
   def add_noise(self, data, channels):
-    if random.uniform(0, 1) < 0.1:
+    if np.random.uniform(0, 1) < 0.1:
       if channels not in self.buffer_channels:
         self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
       fname = os.path.join(self.data_dir, self.buffer_channels[channels].sample(n=1).iloc[0]['fname'])
@@ -99,7 +97,7 @@ class DataReader(object):
       except:
         logging.error("Failed reading {} in func add_noise".format(fname))
         return data
-      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * random.uniform(1, 5)
+      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * np.random.uniform(1, 5)
     return data
 
   def adjust_amplitude_for_multichannels(self, data):
@@ -110,7 +108,7 @@ class DataReader(object):
     return data
 
   def add_event(self, data, itp_list, its_list, channels, normalize=False):
-    while random.uniform(0, 1) < 0.2:
+    while np.random.uniform(0, 1) < 0.2:
       shift = None
       if channels not in self.buffer_channels:
         self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
@@ -132,12 +130,12 @@ class DataReader(object):
          and (its - min(itp_list) + self.mask_window + self.min_event_gap > min([its, self.X_shape[0]]) - self.mask_window):
         continue
       elif max(its_list) - itp + self.mask_window + self.min_event_gap > self.X_shape[0]-self.mask_window:
-        shift = random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)
+        shift = np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)
       elif its - min(itp_list) + self.mask_window + self.min_event_gap > min([its, self.X_shape[0]]) - self.mask_window:
-        shift = -random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window)
+        shift = -np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window)
       else:
-        shift = random.choice([-random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window), 
-                               random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)])
+        shift = np.random.choice([-np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window), 
+                               np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)])
       if normalize:
         data += self.normalize(np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]))
       else:
@@ -150,7 +148,7 @@ class DataReader(object):
     stop = False
     while not stop:
       index = list(range(start, self.num_data, n_threads))
-      random.shuffle(index)
+      np.random.shuffle(index)
       for i in index:
         fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
         try:
@@ -171,7 +169,7 @@ class DataReader(object):
 
         sample = np.zeros(self.X_shape)
         if np.random.random() < 0.95:
-          shift = random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+          shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
           sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
           itp_list = [meta['itp'].tolist()-start_tp-shift]
           its_list = [meta['its'].tolist()-start_tp-shift]
@@ -265,24 +263,24 @@ class DataReader_valid(DataReader):
         break
 
       sample = np.zeros(self.X_shape)
-      if self.config.use_seed:
-        np.random.seed(self.config.seed+i)
-      if np.random.random() < 0.9:
-        shift = random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
-        sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
-        itp_list = [meta['itp'].tolist()-start_tp-shift]
-        its_list = [meta['its'].tolist()-start_tp-shift]
 
-        sample = self.normalize(sample)
-        sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-        sample = self.add_noise(sample, channels)
+      np.random.seed(self.config.seed+i)
+      # if np.random.random() < 0.9:
+      shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+      itp_list = [meta['itp'].tolist()-start_tp-shift]
+      its_list = [meta['its'].tolist()-start_tp-shift]
+
+        # sample = self.normalize(sample)
+        # sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
+        # sample = self.add_noise(sample, channels)
         # sample = self.scale_amplitude(sample)
-        if len(channels.split('_')) == 3:
-          sample = self.drop_channel(sample)
-      else:  # pure noise
-        sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
-        itp_list = []
-        its_list = []
+        # if len(channels.split('_')) == 3:
+          # sample = self.drop_channel(sample)
+      # else:  # pure noise
+        # sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
+        # itp_list = []
+        # its_list = []
 
       sample = self.normalize(sample)
       sample = self.adjust_amplitude_for_multichannels(sample)

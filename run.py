@@ -301,7 +301,7 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
     latest_check_point = tf.train.latest_checkpoint(flags.ckdir)
     saver.restore(sess, latest_check_point)
     
-    threads = data_reader.start_threads(sess, n_threads=20)
+    threads = data_reader.start_threads(sess, n_threads=8)
     flog = open(os.path.join(log_dir, 'loss.log'), 'w')
     total_step = 0
     mean_loss = 0
@@ -387,7 +387,7 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
     latest_check_point = tf.train.latest_checkpoint(flags.ckdir)
     saver.restore(sess, latest_check_point)
 
-    threads = data_reader.start_threads(sess, n_threads=20)
+    threads = data_reader.start_threads(sess, n_threads=8)
     picks = []
     fname = []
     pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
@@ -421,7 +421,7 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
       prob_p_list.append(x[0][1])
       prob_s_list.append(x[1][1])
     df = pd.DataFrame({'fname': fname, 'itp': itp_list, 'prob_p': prob_p_list, 'its': its_list, 'prob_s': prob_s_list})
-    df.to_csv(os.path.join(log_dir, flags.fpred+".csv"), index=False)
+    df.to_csv(os.path.join(log_dir, flags.fpred+'.csv'), index=False)
 
   return 0
 

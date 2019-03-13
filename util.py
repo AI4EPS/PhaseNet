@@ -13,10 +13,10 @@ def detect_peaks_thread(i, pred, fname=None, result_dir=None):
   prob_p = pred[i,itp,0,1]
   prob_s = pred[i,its,0,2]
   if (fname is not None) and (result_dir is not None):
-    # np.savez(os.path.join(result_dir, fname[i].decode().split('/')[-1]), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
-    if not os.path.exists(os.path.dirname(os.path.join(result_dir, fname[i].decode()))):
-      os.makedirs(os.path.dirname(os.path.join(result_dir, fname[i].decode())), exist_ok=True)
-    np.savez(os.path.join(result_dir, fname[i].decode()), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
+    np.savez(os.path.join(result_dir, fname[i].decode().split('/')[-1]), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
+    # if not os.path.exists(os.path.dirname(os.path.join(result_dir, fname[i].decode()))):
+    #   os.makedirs(os.path.dirname(os.path.join(result_dir, fname[i].decode())), exist_ok=True)
+    # np.savez(os.path.join(result_dir, fname[i].decode()), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
   return [(itp, prob_p), (its, prob_s)]
 
 def plot_result_thread(i, pred, X, Y=None, itp=None, its=None, 
@@ -102,14 +102,14 @@ def plot_result_thread(i, pred, X, Y=None, itp=None, its=None,
   plt.tight_layout()
   plt.gcf().align_labels()
 
-  if not os.path.exists(os.path.dirname(os.path.join(fig_dir, fname[i].decode()))):
-    os.makedirs(os.path.dirname(os.path.join(fig_dir, fname[i].decode())), exist_ok=True)
-  plt.savefig(os.path.join(fig_dir, 
-              fname[i].decode().rstrip('.npz')+'.png'), 
-              bbox_inches='tight')
+  # if not os.path.exists(os.path.dirname(os.path.join(fig_dir, fname[i].decode()))):
+  #   os.makedirs(os.path.dirname(os.path.join(fig_dir, fname[i].decode())), exist_ok=True)
   # plt.savefig(os.path.join(fig_dir, 
-  #             fname[i].decode().split('/')[-1].rstrip('.npz')+'.png'), 
+  #             fname[i].decode().rstrip('.npz')+'.png'), 
   #             bbox_inches='tight')
+  plt.savefig(os.path.join(fig_dir, 
+              fname[i].decode().split('/')[-1].rstrip('.npz')+'.png'), 
+              bbox_inches='tight')
   # plt.savefig(os.path.join(fig_dir, 
   #             fname[i].decode().split('/')[-1].rstrip('.npz')+'.pdf'), 
   #             bbox_inches='tight')
@@ -162,11 +162,13 @@ def correct_picks(picks, true_p, true_s, tol):
   for i in range(num):
     nT_p += len(true_p[i])
     nT_s += len(true_s[i])
-    nP_p += len(picks[i][0])
-    nP_s += len(picks[i][1])
+    nP_p += len(picks[i][0][0])
+    nP_s += len(picks[i][1][0])
 
-    tmp_p = np.array(picks[i][0]) - np.array(true_p[i])[:,np.newaxis]
-    tmp_s = np.array(picks[i][1]) - np.array(true_s[i])[:,np.newaxis]
+    if len(true_p[i]) > 1 or len(true_s[i]) > 1:
+      print(i, picks[i], true_p[i], true_s[i])
+    tmp_p = np.array(picks[i][0][0]) - np.array(true_p[i])[:,np.newaxis]
+    tmp_s = np.array(picks[i][1][0]) - np.array(true_s[i])[:,np.newaxis]
     TP_p += np.sum(np.abs(tmp_p) < tol/dt)
     TP_s += np.sum(np.abs(tmp_s) < tol/dt)
     diff_p.append(tmp_p[np.abs(tmp_p) < 0.5/dt])
@@ -181,9 +183,9 @@ def calculate_metrics(picks, itp, its, tol=0.1):
   
   logging.info("Total records: {}".format(len(picks)))
   logging.info("P-phase:")
-  logging.info("True={}, Positive={}, TruePositive={}".format(nT_p, nP_p, TP_p))
+  logging.info("True={}, Predict={}, TruePositive={}".format(nT_p, nP_p, TP_p))
   logging.info("Precision={:.3f}, Recall={:.3f}, F1={:.3f}".format(precision_p, recall_p, f1_p))
   logging.info("S-phase:")
-  logging.info("True={}, Positive={}, TruePositive={}".format(nT_s, nP_s, TP_s))
+  logging.info("True={}, Predict={}, TruePositive={}".format(nT_s, nP_s, TP_s))
   logging.info("Precision={:.3f}, Recall={:.3f}, F1={:.3f}".format(precision_s, recall_s, f1_s))
   return [precision_p, recall_p, f1_p], [precision_s, recall_s, f1_s]

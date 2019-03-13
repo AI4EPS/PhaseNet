@@ -78,7 +78,7 @@ class Model:
 
 
   def add_prediction_op(self):
-    logging.info("UNet: depths {depths}, filters {filters}, "
+    logging.info("Model: depths {depths}, filters {filters}, "
            "filter size {kernel_size[0]}x{kernel_size[1]}, "
            "pool size: {pool_size[0]}x{pool_size[1]}, "
            "dilation rate: {dilation_rate[0]}x{dilation_rate[1]}".format(
