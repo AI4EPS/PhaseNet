@@ -22,7 +22,7 @@ Located in directory: **model/190227-104428**
 #### Data format
 Required a csv file and a directory of npz files.
 
-The csv file contains one colomn: "fname"
+The csv file contains one column: "fname"
 
 The npz file contains one variable: "data"
 
@@ -35,21 +35,21 @@ python run.py --mode=pred --ckdir=model/190227-104428 --data_dir=../Demo/Wavefor
 
 Notes:
 1. If using input data length other than 3000, specify argument **--input_length=**
-2. For large dataset and GPUs, larger batch size can speedup the prediction linearly. 
-3. Plotting figure is slow. Removing the argument of **--plot_figure** can speedup the prediction
+2. For large dataset and GPUs, larger batch size can accelerate the prediction (linearly). 
+3. Plotting figures is slow. Removing the argument of **--plot_figure** can speed the prediction
 
 ### 5. Train
 
 #### Data format
 Required a csv file and a directory of npz files.
 
-The csv file contains four colomns: "fname", "itp", "its", "channels"
+The csv file contains four columns: "fname", "itp", "its", "channels"
 
 The npz file contains four variable: "data", "itp", "its", "channels"
 
 The shape of "data" variables has a shape of 9001 x 3
 
-The variabeles "itp" and "its" are the data pionts of first P&S arrivals picked by analysists. 
+The variables "itp" and "its" are the data points of first P&S arrivals picked by analysts. 
 
 ~~~bash
 source .venv/bin/activate
@@ -62,4 +62,4 @@ source .venv/bin/activate
 python run.py --mode=valid --ckdir=model/190227-104428 --data_dir=../Demo/Waveform --data_list=../Demo/waveform.csv --plot_figure --save_result --batch_size=20
 ~~~
 
-Let us know any bugs found in the code. Suggetsions and collobratons are welcomed!
+Please let us know of any bugs found in the code. Suggestions and collaborations are welcomed!
