@@ -1,3 +1,4 @@
+from __future__ import division
 import os
 import threading
 import tensorflow as tf
@@ -126,12 +127,12 @@ class DataReader(object):
       itp = meta['itp'].tolist() - start_tp
       its = meta['its'].tolist() - start_tp
 
-      if (max(its_list) - itp + self.mask_window + self.min_event_gap > self.X_shape[0]-self.mask_window) \
-         and (its - min(itp_list) + self.mask_window + self.min_event_gap > min([its, self.X_shape[0]]) - self.mask_window):
+      if (max(its_list) - itp + self.mask_window + self.min_event_gap >= self.X_shape[0]-self.mask_window) \
+         and (its - min(itp_list) + self.mask_window + self.min_event_gap >= min([its, self.X_shape[0]]) - self.mask_window):
         continue
-      elif max(its_list) - itp + self.mask_window + self.min_event_gap > self.X_shape[0]-self.mask_window:
+      elif max(its_list) - itp + self.mask_window + self.min_event_gap >= self.X_shape[0]-self.mask_window:
         shift = np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)
-      elif its - min(itp_list) + self.mask_window + self.min_event_gap > min([its, self.X_shape[0]]) - self.mask_window:
+      elif its - min(itp_list) + self.mask_window + self.min_event_gap >= min([its, self.X_shape[0]]) - self.mask_window:
         shift = -np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window)
       else:
         shift = np.random.choice([-np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window), 

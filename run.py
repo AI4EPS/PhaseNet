@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as np
 import tensorflow as tf
 import argparse
@@ -42,7 +43,7 @@ def read_flags():
                       help="decay step")
 
   parser.add_argument("--decay_rate",
-                      default=0.9,
+                      default=1,
                       type=float,
                       help="decay rate")
 
