@@ -6,7 +6,7 @@ import os
 import time
 import logging
 from model import Model
-from data_reader import Config, DataReader, DataReader_valid, DataReader_pred
+from data_reader import *
 from util import *
 from tqdm import tqdm
 import pandas as pd
@@ -463,13 +463,18 @@ def main(flags):
     valid_fn(flags, data_reader)
 
   elif flags.mode == "pred":
+    # with tf.name_scope('create_inputs'):
+    #   data_reader = DataReader_pred(
+    #       data_dir=flags.data_dir,
+    #       data_list=flags.data_list,
+    #       queue_size=flags.batch_size*3,
+    #       coord=coord,
+    #       input_length=flags.input_length)
     with tf.name_scope('create_inputs'):
-      data_reader = DataReader_pred(
-          data_dir=flags.data_dir,
-          data_list=flags.data_list,
+      data_reader = DataReader_pred2(
+          data="../arkansas_PhaseNet.npz",
           queue_size=flags.batch_size*3,
-          coord=coord,
-          input_length=flags.input_length)
+          coord=coord)
     pred_fn(flags, data_reader, log_dir=flags.output_dir)
 
   else:

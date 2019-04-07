@@ -388,6 +388,54 @@ class DataReader_pred(DataReader):
       sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
                                         self.fname_placeholder: fname})
 
+class DataReader_pred2(DataReader):
+
+  def __init__(self,
+               data,
+               queue_size,
+               coord,
+               config=Config()):
+    self.config = config
+    self.data = np.load(data)['data']
+    self.num_data = len(self.data)
+    self.queue_size = queue_size
+    self.X_shape = config.X_shape
+    self.Y_shape = config.Y_shape
+    self.X_shape[0] = self.data.shape[1]
+    self.Y_shape[0] = self.data.shape[1]
+
+    self.coord = coord
+    self.threads = []
+    self.add_placeholder()
+  
+  def add_placeholder(self):
+    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
+    self.fname_placeholder = tf.placeholder(dtype=tf.string, shape=None)
+    self.queue = tf.PaddingFIFOQueue(self.queue_size,
+                                     ['float32', 'string'],
+                                     shapes=[self.config.X_shape, []])
+    self.enqueue = self.queue.enqueue([self.sample_placeholder, self.fname_placeholder])
+
+  def dequeue(self, num_elements):
+    output = self.queue.dequeue_up_to(num_elements)
+    return output
+
+  def thread_main(self, sess, n_threads=1, start=0):
+    index = list(range(start, self.num_data, n_threads))
+    for i in index:
+      sample = self.data[i, :, np.newaxis, :]
+      fname = "{:05d}.npz".format(i)
+
+      if np.isnan(sample).any() or np.isinf(sample).any():
+        logging.warning("Data error: {}\nReplacing nan and inf with zeros".format(fname))
+        sample[np.isnan(sample)] = 0
+        sample[np.isinf(sample)] = 0
+
+      sample = self.normalize(sample)
+      sample = self.adjust_amplitude_for_multichannels(sample)
+      sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
+                                        self.fname_placeholder: fname})
+
 
 if __name__ == "__main__":
   pass
