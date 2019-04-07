@@ -155,12 +155,14 @@ def read_flags():
   return flags
 
 
-def set_config(flags, data_reader):
+def set_config(flags, data_reader=None):
   config = Config()
 
-  config.X_shape = data_reader.X_shape
+  if data_reader is not None:
+    config.X_shape = data_reader.X_shape
+    config.Y_shape = data_reader.Y_shape
+
   config.n_channel = config.X_shape[-1]
-  config.Y_shape = data_reader.Y_shape
   config.n_class = config.Y_shape[-1]
 
   config.depths = flags.depth
@@ -176,7 +178,8 @@ def set_config(flags, data_reader):
 
   config.learning_rate = flags.learning_rate
   if (flags.decay_step == -1) and (flags.mode == 'train'):
-    config.decay_step = data_reader.num_data // flags.batch_size
+    if data_reader is not None:
+      config.decay_step = data_reader.num_data // flags.batch_size
   else:
     config.decay_step = flags.decay_step
   config.decay_rate = flags.decay_rate
@@ -426,6 +429,81 @@ def pred_fn(flags, data_reader, fig_dir=None, result_dir=None, log_dir=None):
 
   return 0
 
+def pred_fn2(flags, data, fig_dir=None, result_dir=None, log_dir=None):
+  current_time = time.strftime("%y%m%d-%H%M%S")
+  if log_dir is None:
+    log_dir = os.path.join(flags.logdir, "pred", current_time)
+  logging.info("Pred log: %s" % log_dir)
+  logging.info("Dataset size: {}".format(data.shape[0]))
+  if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+  if (flags.plot_figure == True) and (fig_dir is None):
+    fig_dir = os.path.join(log_dir, 'figures')
+    if not os.path.exists(fig_dir):
+      os.makedirs(fig_dir)
+  if (flags.save_result == True) and (result_dir is None):
+    result_dir = os.path.join(log_dir, 'results')
+    if not os.path.exists(result_dir):
+      os.makedirs(result_dir)
+
+  config = set_config(flags)
+  config.X_shape[0] = data.shape[1]
+  config.Y_shape[0] = data.shape[1]
+
+  model = Model(config, mode="pred")
+  sess_config = tf.ConfigProto()
+  sess_config.gpu_options.allow_growth = True
+  sess_config.log_device_placement = False
+
+  with tf.Session(config=sess_config) as sess:
+
+    saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
+    init = tf.global_variables_initializer()
+    sess.run(init)
+
+    logging.info("restoring models...")
+    latest_check_point = tf.train.latest_checkpoint(flags.ckdir)
+    saver.restore(sess, latest_check_point)
+
+    picks = []
+    fname = []
+    pred = []
+    pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
+    for step in tqdm(range(0, data.shape[0], flags.batch_size), desc="Pred"):
+
+      X_batch = data[step:step+flags.batch_size]
+      fname_batch = ["{:05d}".format(i) for i in range(step, step+flags.batch_size)]
+      pred_batch = sess.run(model.preds, 
+                            feed_dict={model.X: X_batch,
+                                       model.drop_rate: 0,
+                                       model.is_training: False})
+      
+      # picks_batch = pool.map(partial(postprocessing_thread,
+      #                                 pred = pred_batch,
+      #                                 X = X_batch,
+      #                                 fname = fname_batch,
+      #                                 result_dir = result_dir,
+      #                                 fig_dir = fig_dir),
+      #                         range(len(pred_batch)))
+      # picks.extend(picks_batch)
+      # fname.extend(fname_batch)
+
+      pred.append(pred_batch)
+
+    pred = np.vstack(pred)
+    np.savez(os.path.join(log_dir, flags.fpred), pred=pred)
+    # np.savez(os.path.join(log_dir, flags.fpred), picks=picks, fname=fname)
+    # itp_list = []; its_list = []
+    # prob_p_list = []; prob_s_list = []
+    # for x in picks:
+    #   itp_list.append(x[0][0])
+    #   its_list.append(x[1][0])
+    #   prob_p_list.append(x[0][1])
+    #   prob_s_list.append(x[1][1])
+    # df = pd.DataFrame({'fname': fname, 'itp': itp_list, 'prob_p': prob_p_list, 'its': its_list, 'prob_s': prob_s_list})
+    # df.to_csv(os.path.join(log_dir, flags.fpred+'.csv'), index=False)
+
+  return 0
 
 def main(flags):
 
@@ -470,12 +548,14 @@ def main(flags):
     #       queue_size=flags.batch_size*3,
     #       coord=coord,
     #       input_length=flags.input_length)
-    with tf.name_scope('create_inputs'):
-      data_reader = DataReader_pred2(
-          data="../arkansas_PhaseNet.npz",
-          queue_size=flags.batch_size*3,
-          coord=coord)
-    pred_fn(flags, data_reader, log_dir=flags.output_dir)
+    # with tf.name_scope('create_inputs'):
+    #   data_reader = DataReader_pred2(
+    #       data="../arkansas_PhaseNet.npz",
+    #       queue_size=flags.batch_size*3,
+    #       coord=coord)
+    # pred_fn(flags, data_reader, log_dir=flags.output_dir)
+    data = np.load("../arkansas_PhaseNet.npz")['data'][:,:,np.newaxis,:]
+    pred_fn2(flags, data, log_dir=flags.output_dir)
 
   else:
     print("mode should be: train, valid, test, pred or debug")

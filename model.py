@@ -65,7 +65,7 @@ class Model:
   def add_placeholders(self, input_batch=None, mode="train"):
     if input_batch is None:
       self.X = tf.placeholder(dtype=tf.float32, shape=[None, self.X_shape[0], self.X_shape[1], self.X_shape[2]], name='X')
-      self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.Y_shape[0], self.Y_shape[1], self.n_class], name='y')
+      self.Y = tf.placeholder(dtype=tf.float32, shape=[None, self.Y_shape[0], self.Y_shape[1], self.n_class], name='Y')
     else:
       self.X = input_batch[0]
       if mode in ["train", "valid", "test"]:
