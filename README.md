@@ -34,9 +34,9 @@ python run.py --mode=pred --ckdir=model/190227-104428 --data_dir=../Demo/Wavefor
 ~~~
 
 Notes:
-1. If using input data length other than 3000, specify argument **--input_length=**
-2. For large dataset and GPUs, larger batch size can accelerate the prediction (linearly). 
-3. Plotting figures is slow. Removing the argument of **--plot_figure** can speed the prediction
+1. For large dataset and GPUs, larger batch size can accelerate the prediction. 
+2. Plotting figures is slow. Removing the argument of **--plot_figure** can speed the prediction
+3. If using input data length other than 3000, specify argument **--input_length=**. But this is not suggested as the model is trained using input length of 3000. Too long input length would degrade the performance.
 
 ### 5. Train
 
