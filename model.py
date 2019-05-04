@@ -3,37 +3,19 @@ import numpy as np
 import logging
 
 def crop_and_concat(net1, net2):
-  """
-  the size(net1) <= size(net2)
-  """
   net1_shape = net1.get_shape().as_list()
   net2_shape = net2.get_shape().as_list()
-  # print(net1_shape)
-  # print(net2_shape)
-  # if net2_shape[1] >= net1_shape[1] and net2_shape[2] >= net1_shape[2]:
   offsets = [0, (net2_shape[1] - net1_shape[1]) // 2, (net2_shape[2] - net1_shape[2]) // 2, 0]
   size = [-1, net1_shape[1], net1_shape[2], -1]
   net2_resize = tf.slice(net2, offsets, size)
   return tf.concat([net1, net2_resize], 3)
-  # else:
-  #     offsets = [0, (net1_shape[1] - net2_shape[1]) // 2, (net1_shape[2] - net2_shape[2]) // 2, 0]
-  #     size = [-1, net2_shape[1], net2_shape[2], -1]
-  #     net1_resize = tf.slice(net1, offsets, size)
-  #     return tf.concat([net1_resize, net2], 3)
 
 def crop_only(net1, net2):
-  """
-  the size(net1) <= size(net2)
-  """
   net1_shape = net1.get_shape().as_list()
   net2_shape = net2.get_shape().as_list()
-  # print(net1_shape)
-  # print(net2_shape)
-  # if net2_shape[1] >= net1_shape[1] and net2_shape[2] >= net1_shape[2]:
   offsets = [0, (net2_shape[1] - net1_shape[1]) // 2, (net2_shape[2] - net1_shape[2]) // 2, 0]
   size = [-1, net1_shape[1], net1_shape[2], -1]
   net2_resize = tf.slice(net2, offsets, size)
-  #return tf.concat([net1, net2_resize], 3)
   return net2_resize
 
 class Model:
@@ -73,7 +55,6 @@ class Model:
       self.input_batch = input_batch
 
     self.is_training = tf.placeholder(dtype=tf.bool, name="is_training")
-    # self.keep_prob = tf.placeholder(dtype=tf.float32, name="keep_prob")
     self.drop_rate = tf.placeholder(dtype=tf.float32, name="drop_rate")
 
 
@@ -105,6 +86,7 @@ class Model:
                    filters=self.filters_root,
                    kernel_size=self.kernel_size,
                    activation=None,
+                   use_bias=False,
                    padding='same',
                    dilation_rate=self.dilation_rate,
                    kernel_initializer=self.initializer,
@@ -116,7 +98,6 @@ class Model:
                         name="input_bn")
       net = tf.nn.relu(net,
                name="input_relu")
-      # net = tf.nn.dropout(net, self.keep_prob)
       net = tf.layers.dropout(net,
                   rate=self.drop_rate,
                   training=self.is_training,
@@ -131,6 +112,7 @@ class Model:
                      filters=filters,
                      kernel_size=self.kernel_size,
                      activation=None,
+                     use_bias=False,
                      padding='same',
                      dilation_rate=self.dilation_rate,
                      kernel_initializer=self.initializer,
@@ -155,8 +137,9 @@ class Model:
                        kernel_size=self.kernel_size,
                        strides=self.pool_size,
                        activation=None,
+                       use_bias=False,
                        padding='same',
-                       #dilation_rate=self.dilation_rate,
+                       dilation_rate=self.dilation_rate,
                        kernel_initializer=self.initializer,
                        kernel_regularizer=self.regularizer,
                        #bias_regularizer=self.regularizer,
@@ -171,7 +154,6 @@ class Model:
                     training=self.is_training,
                     name="down_dropout3_{}".format(depth + 1))
 
-
     # up layers
     for depth in range(self.depths - 2, -1, -1):
       with tf.variable_scope("UpConv_%d" % depth):
@@ -181,6 +163,7 @@ class Model:
                          kernel_size=self.kernel_size,
                          strides=self.pool_size,
                          activation=None,
+                         use_bias=False,
                          padding="same",
                          kernel_initializer=self.initializer,
                          kernel_regularizer=self.regularizer,
@@ -205,6 +188,7 @@ class Model:
                      filters=filters,
                      kernel_size=self.kernel_size,
                      activation=None,
+                     use_bias=False,
                      padding='same',
                      dilation_rate=self.dilation_rate,
                      kernel_initializer=self.initializer,
@@ -234,15 +218,6 @@ class Model:
                    kernel_regularizer=self.regularizer,
                    #bias_regularizer=self.regularizer,
                    name="output_conv")
-      # net = tf.nn.relu(net,
-      #                     name="output_relu")
-      # net = tf.layers.dropout(net,
-      #                         rate=self.drop_rate,
-      #                         training=self.is_training,
-      #                         name="output_dropout")
-      # net = tf.layers.batch_normalization(net,
-      #                                    training=self.is_training,
-      #                                    name="output_bn")
       output = net
      
     with tf.variable_scope("representation"):
@@ -269,15 +244,11 @@ class Model:
           weight_map = tf.reduce_sum(weight_map, axis=1)
           loss_map = tf.nn.softmax_cross_entropy_with_logits_v2(logits=flat_logits,
                                      labels=flat_labels)
-#                     loss_map = tf.nn.sigmoid_cross_entropy_with_logits(logits=flat_logits,
-#                                                                       labels=flat_labels)
           weighted_loss = tf.multiply(loss_map, weight_map)
           loss = tf.reduce_mean(weighted_loss)
         else:
           loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=flat_logits,
                                          labels=flat_labels))
-#                     loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=flat_logits,
-#                                                                                   labels=flat_labels))
     elif self.loss_type == "IOU":
       with tf.variable_scope("IOU"):
         eps = 1e-7
@@ -323,77 +294,12 @@ class Model:
                                  decay_steps=self.decay_step,
                                  decay_rate=self.decay_rate,
                                  staircase=True)
-
       optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate_node)
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
       self.train_op = optimizer.minimize(self.loss, global_step=self.global_step)
     tmp = tf.summary.scalar("learning_rate", self.learning_rate_node)
     self.summary_train.append(tmp)
-
-  def add_metrics_op(self):
-    with tf.variable_scope("metrics"):
-
-      Y= tf.argmax(self.Y, -1)
-      confusion_matrix = tf.cast(tf.confusion_matrix(
-          tf.reshape(Y, [-1]), 
-          tf.reshape(self.preds, [-1]), 
-          self.n_class, name='confusion_matrix'),
-          dtype=tf.float32)
-
-      # with tf.variable_scope("P"):
-      c = tf.constant(1e-7, dtype=tf.float32)
-      precision_P =  (confusion_matrix[1,1] + c) / (tf.reduce_sum(confusion_matrix[:,1]) + c)
-      recall_P = (confusion_matrix[1,1] + c) / (tf.reduce_sum(confusion_matrix[1,:]) + c)
-      f1_P = 2 * precision_P * recall_P / (precision_P + recall_P)
-
-      tmp1 = tf.summary.scalar("train_precision_p", precision_P)
-      tmp2 = tf.summary.scalar("train_recall_p", recall_P)
-      tmp3 = tf.summary.scalar("train_f1_p", f1_P)
-      self.summary_train.extend([tmp1, tmp2, tmp3])
-
-      tmp1 = tf.summary.scalar("valid_precision_p", precision_P)
-      tmp2 = tf.summary.scalar("valid_recall_p", recall_P)
-      tmp3 = tf.summary.scalar("valid_f1_p", f1_P)
-      self.summary_valid.extend([tmp1, tmp2, tmp3])
-
-      # with tf.variable_scope("S"):
-      precision_S =  (confusion_matrix[2,2] + c) / (tf.reduce_sum(confusion_matrix[:,2]) + c)
-      recall_S = (confusion_matrix[2,2] + c) / (tf.reduce_sum(confusion_matrix[2,:]) + c)
-      f1_S = 2 * precision_S * recall_S / (precision_S + recall_S)
-
-      tmp1 = tf.summary.scalar("train_precision_s", precision_S)
-      tmp2 = tf.summary.scalar("train_recall_s", recall_S)
-      tmp3 = tf.summary.scalar("train_f1_s", f1_S)
-      self.summary_train.extend([tmp1, tmp2, tmp3])
-
-      tmp1 = tf.summary.scalar("valid_precision_s", precision_S)
-      tmp2 = tf.summary.scalar("valid_recall_s", recall_S)
-      tmp3 = tf.summary.scalar("valid_f1_s", f1_S)
-      self.summary_valid.extend([tmp1, tmp2, tmp3])
-      
-      self.precision = [precision_P, precision_S]
-      self.recall = [recall_P, recall_S]
-      self.f1 = [f1_P, f1_S]
-
-
-
-  # def train_on_batch(self, sess, inputs_batch, labels_batch, summary_writer, drop_rate):
-  #     feed = {self.X: inputs_batch,
-  #             self.Y: labels_batch,
-  #             self.drop_rate: drop_rate,
-  #             self.is_training: True}
-   
-  #     _, step_summary, step, loss, preds, logits = sess.run([self.train_op,
-  #                                                         self.summary_train,
-  #                                                         self.global_step,
-  #                                                         self.loss,
-  #                                                         self.preds,
-  #                                                         self.logits],
-  #                                                         feed_dict=feed)
-
-  #     summary_writer.add_summary(step_summary, step)
-  #     return loss, preds, logits
 
   def train_on_batch(self, sess, summary_writer, drop_rate=0.0, raw_data=False):
     feed = {self.drop_rate: drop_rate,
@@ -445,7 +351,6 @@ class Model:
     if mode in ["train", "valid", "test"]:
       self.add_loss_op()
       self.add_training_op()
-      # self.add_metrics_op()
       self.summary_train = tf.summary.merge(self.summary_train)
       self.summary_valid = tf.summary.merge(self.summary_valid)
     return 0
