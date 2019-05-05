@@ -89,7 +89,7 @@ class DataReader(object):
           break
 
         sample = np.zeros(self.X_shape)
-        sample[:, :, :] = np.copy(meta['data'])
+        sample[:, :, :] = np.copy(meta['data'])[:,np.newaxis,:]
         itp = meta['itp']
         its = meta['its']
 
@@ -167,7 +167,7 @@ class DataReader_valid(DataReader):
         break
 
       sample = np.zeros(self.X_shape)
-      sample[:, :, :] = np.copy(meta['data'])
+      sample[:, :, :] = np.copy(meta['data'])[:,np.newaxis,:]
       itp = meta['itp']
       its = meta['its']
 
