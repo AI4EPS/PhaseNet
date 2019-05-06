@@ -92,7 +92,18 @@ class DataReader(object):
         try:
           if fname not in self.buffer:
             meta = np.load(fname)
-            self.buffer[fname] = {'data': meta['data']}
+            tmp_signal = scipy.signal.detrend(np.copy(meta['data'])[300:1300,:], axis=0)
+            # tmp_signal = butter_lowpass_filter(tmp_signal, 10, 100, 5)
+            # tmp_signal = scipy.signal.decimate(tmp_signal, 5, ftype='iir', axis=0)
+            tmp_signal = tmp_signal/np.std(tmp_signal)
+            if (np.isnan(tmp_signal).any() or np.isinf(tmp_signal).any() or (not tmp_signal.any())):
+              continue
+            # tmp_low = scipy.signal.decimate(tmp_signal, 4, ftype='iir', axis=0) 
+            # tmp_low = scipy.signal.resample(tmp_low, tmp_signal.shape[0], axis=0)  
+            tmp_low = butter_lowpass_filter(tmp_signal, self.config.cutoff, self.config.sampling_rate, self.config.order)
+            tmp_high = tmp_signal - tmp_low
+
+            self.buffer[fname] = {'data': meta['data'], 'low': tmp_low, 'high': tmp_high}
           meta = self.buffer[fname]
         except:
           logging.error("Failed reading {}".format(fname))
@@ -102,19 +113,8 @@ class DataReader(object):
           stop = True
           break
 
-        tmp_signal = scipy.signal.detrend(np.copy(meta['data'])[300:1300,:], axis=0)
-        # tmp_signal = butter_lowpass_filter(tmp_signal, 10, 100, 5)
-        # tmp_signal = scipy.signal.decimate(tmp_signal, 5, ftype='iir', axis=0)
-        tmp_signal = tmp_signal/np.std(tmp_signal)
-        if (np.isnan(tmp_signal).any() or np.isinf(tmp_signal).any() or (not tmp_signal.any())):
-          continue
-        # tmp_low = scipy.signal.decimate(tmp_signal, 4, ftype='iir', axis=0) 
-        # tmp_low = scipy.signal.resample(tmp_low, tmp_signal.shape[0], axis=0)  
-        tmp_low = butter_lowpass_filter(tmp_signal, self.config.cutoff, self.config.sampling_rate, self.config.order)
-        tmp_high = tmp_signal - tmp_low
-
-        sess.run(self.enqueue, feed_dict={self.sample_placeholder: tmp_low[:,np.newaxis,:],
-                                          self.target_placeholder: tmp_high[:,np.newaxis,:]})
+        sess.run(self.enqueue, feed_dict={self.sample_placeholder: meta['low'][:,np.newaxis,:],
+                                          self.target_placeholder: meta['high'][:,np.newaxis,:]})
     return 0
 
   def start_threads(self, sess, n_threads=8):
