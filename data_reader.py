@@ -5,6 +5,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import logging
+import scipy.signal
 pd.options.mode.chained_assignment = None
 
 
@@ -16,10 +17,23 @@ class Config():
   num_repeat_noise = 1
   sampling_rate = 100
   dt = 1.0/sampling_rate
-  X_shape = [3000, 1, n_channel]
-  Y_shape = [3000, 1, n_class]
+  cutoff = 4
+  order = 3
+  X_shape = [1000, 1, n_channel]
+  Y_shape = [1000, 1, n_class]
   min_event_gap = 3 * sampling_rate
 
+def butter_lowpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = scipy.signal.butter(order, normal_cutoff, btype='low', analog=False)
+    return b, a
+
+
+def butter_lowpass_filter(data, cutoff, fs, order=5):
+    b, a = butter_lowpass(cutoff, fs, order=order)
+    y = scipy.signal.lfilter(b, a, data, axis=0)
+    return y
 
 class DataReader(object):
 
@@ -78,7 +92,7 @@ class DataReader(object):
         try:
           if fname not in self.buffer:
             meta = np.load(fname)
-            self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its']}
+            self.buffer[fname] = {'data': meta['data']}
           meta = self.buffer[fname]
         except:
           logging.error("Failed reading {}".format(fname))
@@ -88,38 +102,19 @@ class DataReader(object):
           stop = True
           break
 
-        sample = np.zeros(self.X_shape)
-        sample[:, :, :] = np.copy(meta['data'])[:,np.newaxis,:]
-        itp = meta['itp']
-        its = meta['its']
-
-        sample = self.normalize(sample)
-
-        if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
+        tmp_signal = scipy.signal.detrend(np.copy(meta['data'])[300:1300,:], axis=0)
+        # tmp_signal = butter_lowpass_filter(tmp_signal, 10, 100, 5)
+        # tmp_signal = scipy.signal.decimate(tmp_signal, 5, ftype='iir', axis=0)
+        tmp_signal = tmp_signal/np.std(tmp_signal)
+        if (np.isnan(tmp_signal).any() or np.isinf(tmp_signal).any() or (not tmp_signal.any())):
           continue
+        # tmp_low = scipy.signal.decimate(tmp_signal, 4, ftype='iir', axis=0) 
+        # tmp_low = scipy.signal.resample(tmp_low, tmp_signal.shape[0], axis=0)  
+        tmp_low = butter_lowpass_filter(tmp_signal, self.config.cutoff, self.config.sampling_rate, self.config.order)
+        tmp_high = tmp_signal - tmp_low
 
-        target = np.zeros(self.Y_shape)
-
-        if (itp-self.mask_window//2 >= target.shape[0]) or (itp+self.mask_window//2 < 0):
-          pass
-        elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
-          target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = np.exp(-(np.arange(
-                  itp-self.mask_window//2,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-        elif (itp-self.mask_window//2 < target.shape[0]):
-          target[0:itp+self.mask_window//2, 0, 1] = np.exp(-(np.arange(
-                  0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-        if (its-self.mask_window//2 >= target.shape[0]) or (its+self.mask_window//2 < 0):
-          pass
-        elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
-          target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = np.exp(-(np.arange(
-                  its-self.mask_window//2,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-        elif (its-self.mask_window//2 < target.shape[0]):
-          target[0:its+self.mask_window//2, 0, 2] = np.exp(-(np.arange(
-                  0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-        target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
-
-        sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
-                                          self.target_placeholder: target})
+        sess.run(self.enqueue, feed_dict={self.sample_placeholder: tmp_low[:,np.newaxis,:],
+                                          self.target_placeholder: tmp_high[:,np.newaxis,:]})
     return 0
 
   def start_threads(self, sess, n_threads=8):

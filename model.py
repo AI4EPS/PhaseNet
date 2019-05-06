@@ -212,6 +212,7 @@ class Model:
                    filters=self.n_class,
                    kernel_size=(1,1),
                    activation=None,
+                  #  use_bias=False,
                    padding='same',
                    #dilation_rate=self.dilation_rate,
                    kernel_initializer=self.initializer,

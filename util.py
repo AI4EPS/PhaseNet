@@ -25,81 +25,84 @@ def plot_result_thread(i, pred, X, Y=None, itp=None, its=None,
   dt = Config().dt
   t = np.arange(0, pred.shape[1]) * dt
   box = dict(boxstyle='round', facecolor='white', alpha=1)
-  text_loc = [0.05, 0.77]
+  text_loc = [0.06, 0.77]
 
   plt.figure(i)
-  # fig_size = plt.gcf().get_size_inches()
-  # plt.gcf().set_size_inches(fig_size*[1, 1.2])
-  plt.subplot(411)
+  fig_size = plt.gcf().get_size_inches()
+  plt.gcf().set_size_inches(fig_size*[2, 3])
+  plt.subplot(611)
   plt.plot(t, X[i, :, 0, 0], 'k', label='E', linewidth=0.5)
   plt.autoscale(enable=True, axis='x', tight=True)
-  tmp_min = np.min(X[i, :, 0, 0])
-  tmp_max = np.max(X[i, :, 0, 0])
-  if (itp is not None) and (its is not None):
-    for j in range(len(itp[i])):
-      if j == 0:
-        plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'b', label='P', linewidth=0.5)
-      else:
-        plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'b', linewidth=0.5)
-    for j in range(len(its[i])):
-      if j == 0:
-        plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'r', label='S', linewidth=0.5)
-      else:
-        plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'r', linewidth=0.5)
   plt.ylabel('Amplitude')
   plt.legend(loc='upper right', fontsize='small')
   plt.gca().set_xticklabels([])
   plt.text(text_loc[0], text_loc[1], '(i)', horizontalalignment='center',
            transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
-  plt.subplot(412)
+  plt.subplot(613)
   plt.plot(t, X[i, :, 0, 1], 'k', label='N', linewidth=0.5)
   plt.autoscale(enable=True, axis='x', tight=True)
-  tmp_min = np.min(X[i, :, 0, 1])
-  tmp_max = np.max(X[i, :, 0, 1])
-  if (itp is not None) and (its is not None):
-    for j in range(len(itp[i])):
-      plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'b', linewidth=0.5)
-    for j in range(len(its[i])):
-      plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'r', linewidth=0.5)
   plt.ylabel('Amplitude')
   plt.legend(loc='upper right', fontsize='small')
   plt.gca().set_xticklabels([])
   plt.text(text_loc[0], text_loc[1], '(ii)', horizontalalignment='center',
            transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
-  plt.subplot(413)
+  plt.subplot(615)
   plt.plot(t, X[i, :, 0, 2], 'k', label='Z', linewidth=0.5)
   plt.autoscale(enable=True, axis='x', tight=True)
-  tmp_min = np.min(X[i, :, 0, 2])
-  tmp_max = np.max(X[i, :, 0, 2])
-  if (itp is not None) and (its is not None):
-    for j in range(len(itp[i])):
-      plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'b', linewidth=0.5)
-    for j in range(len(its[i])):
-      plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'r', linewidth=0.5)
   plt.ylabel('Amplitude')
   plt.legend(loc='upper right', fontsize='small')
   plt.gca().set_xticklabels([])
   plt.text(text_loc[0], text_loc[1], '(iii)', horizontalalignment='center',
            transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
-  plt.subplot(414)
-  if Y is not None:
-    plt.plot(t, Y[i, :, 0, 1], 'b', label='P', linewidth=0.5)
-    plt.plot(t, Y[i, :, 0, 2], 'r', label='S', linewidth=0.5)
-  plt.plot(t, pred[i, :, 0, 1], '--g', label='$\hat{P}$', linewidth=0.5)
-  plt.plot(t, pred[i, :, 0, 2], '-.m', label='$\hat{S}$', linewidth=0.5)
-  plt.autoscale(enable=True, axis='x', tight=True)
-  if (itp_pred is not None) and (its_pred is not None):
-    for j in range(len(itp_pred)):
-      plt.plot([itp_pred[j]*dt, itp_pred[j]*dt], [-0.1, 1.1], '--g', linewidth=0.5)
-    for j in range(len(its_pred)):
-      plt.plot([its_pred[j]*dt, its_pred[j]*dt], [-0.1, 1.1], '-.m', linewidth=0.5)
-  plt.ylim([-0.05, 1.05])
-  plt.text(text_loc[0], text_loc[1], '(iv)', horizontalalignment='center',
-           transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
-  plt.legend(loc='upper right', fontsize='small')
-  plt.xlabel('Time (s)')
-  plt.ylabel('Probability')
 
+  plt.subplot(612)
+  plt.plot(t, Y[i, :, 0, 0], 'k', label='y', linewidth=0.5)
+  plt.plot(t, pred[i, :, 0, 0], 'r--', label=r'$\hat{y}$', linewidth=0.5)
+  plt.autoscale(enable=True, axis='x', tight=True)
+  # plt.ylabel('Amplitude')
+  plt.legend(loc='upper right', fontsize='small')
+  plt.gca().set_xticklabels([])
+  plt.text(text_loc[0], text_loc[1], '(i)', horizontalalignment='center',
+           transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+  plt.subplot(614)
+  plt.plot(t, Y[i, :, 0, 1], 'k', label='y', linewidth=0.5)
+  plt.plot(t, pred[i, :, 0, 1], 'r--', label=r'$\hat{y}$', linewidth=0.5)
+  plt.autoscale(enable=True, axis='x', tight=True)
+  # plt.ylabel('Amplitude')
+  plt.legend(loc='upper right', fontsize='small')
+  plt.gca().set_xticklabels([])
+  plt.text(text_loc[0], text_loc[1], '(ii)', horizontalalignment='center',
+           transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+  plt.subplot(616)
+  plt.plot(t, Y[i, :, 0, 2], 'k', label='y', linewidth=0.5)
+  plt.plot(t, pred[i, :, 0, 2], 'r--', label=r'$\hat{y}$', linewidth=0.5)
+  plt.autoscale(enable=True, axis='x', tight=True)
+  # plt.ylabel('Amplitude')
+  plt.legend(loc='upper right', fontsize='small')
+  plt.gca().set_xticklabels([])
+  plt.text(text_loc[0], text_loc[1], '(iii)', horizontalalignment='center',
+           transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+  
+  # plt.subplot(414)
+  # if Y is not None:
+  #   plt.plot(t, Y[i, :, 0, 1], 'b', label='P', linewidth=0.5)
+  #   plt.plot(t, Y[i, :, 0, 2], 'r', label='S', linewidth=0.5)
+  # plt.plot(t, pred[i, :, 0, 1], '--g', label='$\hat{P}$', linewidth=0.5)
+  # plt.plot(t, pred[i, :, 0, 2], '-.m', label='$\hat{S}$', linewidth=0.5)
+  # plt.autoscale(enable=True, axis='x', tight=True)
+  # if (itp_pred is not None) and (its_pred is not None):
+  #   for j in range(len(itp_pred)):
+  #     plt.plot([itp_pred[j]*dt, itp_pred[j]*dt], [-0.1, 1.1], '--g', linewidth=0.5)
+  #   for j in range(len(its_pred)):
+  #     plt.plot([its_pred[j]*dt, its_pred[j]*dt], [-0.1, 1.1], '-.m', linewidth=0.5)
+  # plt.ylim([-0.05, 1.05])
+  # plt.text(text_loc[0], text_loc[1], '(iv)', horizontalalignment='center',
+  #          transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+  # plt.legend(loc='upper right', fontsize='small')
+  # plt.xlabel('Time (s)')
+  # plt.ylabel('Probability')
+
+  plt.subplots_adjust(wspace=0, hspace=0)
   plt.tight_layout()
   plt.gcf().align_labels()
 
@@ -118,7 +121,11 @@ def plot_result_thread(i, pred, X, Y=None, itp=None, its=None,
   return 0
 
 def postprocessing_thread(i, pred, X, Y=None, itp=None, its=None, fname=None, result_dir=None, fig_dir=None):
-  (itp_pred, prob_p), (its_pred, prob_s) = detect_peaks_thread(i, pred, fname, result_dir)
+  # (itp_pred, prob_p), (its_pred, prob_s) = detect_peaks_thread(i, pred, fname, result_dir)
+  itp_pred = None
+  prob_p = None
+  its_pred = None
+  prob_s = None
   if (fname is not None) and (fig_dir is not None):
     plot_result_thread(i, pred, X, Y, itp, its, itp_pred, its_pred, fname, fig_dir)
   return [(itp_pred, prob_p), (its_pred, prob_s)]

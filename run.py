@@ -23,17 +23,17 @@ def read_flags():
                       help="train/valid/test/debug")
 
   parser.add_argument("--epochs",
-                      default=100,
+                      default=1000,
                       type=int,
                       help="number of epochs (default: 10)")
 
   parser.add_argument("--batch_size",
-                      default=200,
+                      default=10,
                       type=int,
                       help="batch size")
 
   parser.add_argument("--learning_rate",
-                      default=0.01,
+                      default=0.001,
                       type=float,
                       help="learning rate")
 
@@ -43,7 +43,7 @@ def read_flags():
                       help="decay step")
 
   parser.add_argument("--decay_rate",
-                      default=1,
+                      default=0.99,
                       type=float,
                       help="decay rate")
 
@@ -65,13 +65,13 @@ def read_flags():
   parser.add_argument("--kernel_size",
                       nargs="+",
                       type=int,
-                      default=[7, 1],
+                      default=[3, 1],
                       help="kernel size")
 
   parser.add_argument("--pool_size",
                       nargs="+",
                       type=int,
-                      default=[4, 1],
+                      default=[2, 1],
                       help="pool size")
 
   parser.add_argument("--drop_rate",
@@ -86,7 +86,7 @@ def read_flags():
                       help="dilation rate")
 
   parser.add_argument("--loss_type",
-                      default="cross_entropy",
+                      default="mean_squared",
                       help="loss type: cross_entropy, IOU, mean_squared")
 
   parser.add_argument("--weight_decay",
