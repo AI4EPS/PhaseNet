@@ -244,7 +244,7 @@ def train_fn(flags, data_reader):
       try: ## IO Error on cluster
         flog.flush()
         pool.map(partial(plot_result_thread,
-                        pred = pred_batch,
+                        pred = logits_batch,
                         X = X_batch,
                         Y = Y_batch,
                         fname = ["{:03d}_{:03d}".format(epoch, x).encode() for x in range(flags.num_plots)],
