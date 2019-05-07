@@ -439,6 +439,7 @@ def main(flags):
           mask_window=0.4,
           queue_size=flags.batch_size*3,
           coord=coord)
+      logging.info("Dataset size: {}".format(data_reader.num_data))
     train_fn(flags, data_reader)
   
   elif flags.mode == "valid" or flags.mode == "test":

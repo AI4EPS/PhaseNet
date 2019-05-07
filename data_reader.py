@@ -4,6 +4,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import logging
+import scipy.interpolate
 pd.options.mode.chained_assignment = None
 
 
@@ -68,10 +69,11 @@ class DataReader(object):
     return data
 
   def scale_amplitude(self, data):
-    if np.random.uniform(0, 1) < 0.2:
-      data *= np.random.uniform(1, 2)
-    elif np.random.uniform(0, 1) < 0.4:
-      data /= np.random.uniform(1, 10)
+    tmp = np.random.uniform(0, 1)
+    if tmp < 0.2:
+      data *= np.random.uniform(1, 3)
+    elif tmp < 0.4:
+      data /= np.random.uniform(1, 3)
     return data
 
   def drop_channel(self, data):
@@ -84,6 +86,14 @@ class DataReader(object):
         # data *= 3/(c1+c2+c3)
     return data
 
+  def interplate(self, data, itp, its, ratio=1):
+    nt = data.shape[0]
+    t = np.linspace(0, 1, nt)
+    t_new = np.linspace(0, 1, nt*ratio)
+    f = scipy.interpolate.interp1d(t, data, axis=0)
+    data_new = f(t_new)
+    return data_new, round(itp*ratio), round(its*ratio)
+
   def add_noise(self, data, channels):
     if np.random.uniform(0, 1) < 0.1:
       if channels not in self.buffer_channels:
@@ -92,12 +102,12 @@ class DataReader(object):
       try:
         if fname not in self.buffer:
           meta = np.load(fname)
-          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
+          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'snr':meta['snr'], 'channels': meta['channels']}
         meta = self.buffer[fname]
       except:
         logging.error("Failed reading {} in func add_noise".format(fname))
         return data
-      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * np.random.uniform(1, 5)
+      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * ((1+np.random.random())*meta['snr'])
     return data
 
   def adjust_amplitude_for_multichannels(self, data):
@@ -116,7 +126,7 @@ class DataReader(object):
       try:
         if fname not in self.buffer:
           meta = np.load(fname)
-          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
+          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'snr': meta['snr'], 'channels': meta['channels']}
         meta = self.buffer[fname]
       except:
         logging.error("Failed reading {} in func add_event".format(fname))
@@ -154,7 +164,7 @@ class DataReader(object):
         try:
           if fname not in self.buffer:
             meta = np.load(fname)
-            self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
+            self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'snr': meta['snr'], 'channels': meta['channels']}
           meta = self.buffer[fname]
         except:
           logging.error("Failed reading {}".format(fname))
@@ -169,14 +179,24 @@ class DataReader(object):
 
         sample = np.zeros(self.X_shape)
         if np.random.random() < 0.95:
-          shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
-          sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
-          itp_list = [meta['itp'].tolist()-start_tp-shift]
-          its_list = [meta['its'].tolist()-start_tp-shift]
+          if np.random.random() < 0.5:
+            ratio = np.random.uniform(1, 5)
+            data, itp, its = self.interplate(meta['data'], meta['itp'].tolist(), meta['its'].tolist(), ratio)
+          else:
+            data = np.copy(meta['data'])
+            itp = meta['itp']
+            its = meta['its']
+
+          start_tp = itp
+          shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+          sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+          itp_list = [itp-start_tp-shift]
+          its_list = [its-start_tp-shift]
 
           sample = self.normalize(sample)
           sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-          sample = self.add_noise(sample, channels)
+          # if meta['snr'] > 2:
+          #   sample = self.add_noise(sample, channels)
           # sample = self.scale_amplitude(sample)
           if len(channels.split('_')) == 3:
             sample = self.drop_channel(sample)
