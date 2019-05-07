@@ -31,7 +31,7 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-    self.data_list = tmp_list
+    self.data_list = tmp_list[tmp_list['snr']>1.1]
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
     self.queue_size = queue_size
@@ -78,7 +78,7 @@ class DataReader(object):
     if np.random.uniform(0, 1) < 0.3:
       c1 = np.random.choice([0, 1])
       c2 = np.random.choice([0, 1])
-      c3 = np.random.choice([0, 1, 1, 1])
+      c3 = np.random.choice([0, 1])
       if c1 + c2 + c3 > 0:
         data[..., np.array([c1, c2, c3]) == 0] = 0
         # data *= 3/(c1+c2+c3)
@@ -126,12 +126,12 @@ class DataReader(object):
       itp = meta['itp'].tolist() - start_tp
       its = meta['its'].tolist() - start_tp
 
-      if (max(its_list) - itp + self.mask_window + self.min_event_gap > self.X_shape[0]-self.mask_window) \
-         and (its - min(itp_list) + self.mask_window + self.min_event_gap > min([its, self.X_shape[0]]) - self.mask_window):
+      if (max(its_list) - itp + self.mask_window + self.min_event_gap >= self.X_shape[0]-self.mask_window) \
+         and (its - min(itp_list) + self.mask_window + self.min_event_gap >= min([its, self.X_shape[0]]) - self.mask_window):
         continue
-      elif max(its_list) - itp + self.mask_window + self.min_event_gap > self.X_shape[0]-self.mask_window:
+      elif max(its_list) - itp + self.mask_window + self.min_event_gap >= self.X_shape[0]-self.mask_window:
         shift = np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)
-      elif its - min(itp_list) + self.mask_window + self.min_event_gap > min([its, self.X_shape[0]]) - self.mask_window:
+      elif its - min(itp_list) + self.mask_window + self.min_event_gap >= min([its, self.X_shape[0]]) - self.mask_window:
         shift = -np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window)
       else:
         shift = np.random.choice([-np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window), 
@@ -176,7 +176,7 @@ class DataReader(object):
 
           sample = self.normalize(sample)
           sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-          # sample = self.add_noise(sample, channels)
+          sample = self.add_noise(sample, channels)
           # sample = self.scale_amplitude(sample)
           if len(channels.split('_')) == 3:
             sample = self.drop_channel(sample)

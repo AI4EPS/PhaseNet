@@ -116,7 +116,6 @@ class Model:
                         name="input_bn")
       net = tf.nn.relu(net,
                name="input_relu")
-      # net = tf.nn.dropout(net, self.keep_prob)
       net = tf.layers.dropout(net,
                   rate=self.drop_rate,
                   training=self.is_training,
@@ -131,6 +130,7 @@ class Model:
                      filters=filters,
                      kernel_size=self.kernel_size,
                      activation=None,
+                     use_bias=False,
                      padding='same',
                      dilation_rate=self.dilation_rate,
                      kernel_initializer=self.initializer,
@@ -155,8 +155,9 @@ class Model:
                        kernel_size=self.kernel_size,
                        strides=self.pool_size,
                        activation=None,
+                       use_bias=False,
                        padding='same',
-                       #dilation_rate=self.dilation_rate,
+                       dilation_rate=self.dilation_rate,
                        kernel_initializer=self.initializer,
                        kernel_regularizer=self.regularizer,
                        #bias_regularizer=self.regularizer,
@@ -181,6 +182,7 @@ class Model:
                          kernel_size=self.kernel_size,
                          strides=self.pool_size,
                          activation=None,
+                         use_bias=False,
                          padding="same",
                          kernel_initializer=self.initializer,
                          kernel_regularizer=self.regularizer,
@@ -205,6 +207,7 @@ class Model:
                      filters=filters,
                      kernel_size=self.kernel_size,
                      activation=None,
+                     use_bias=False,
                      padding='same',
                      dilation_rate=self.dilation_rate,
                      kernel_initializer=self.initializer,
