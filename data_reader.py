@@ -1,3 +1,4 @@
+from __future__ import division
 import os
 import threading
 import tensorflow as tf
@@ -107,7 +108,7 @@ class DataReader(object):
       except:
         logging.error("Failed reading {} in func add_noise".format(fname))
         return data
-      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * ((2+np.random.random())*meta['snr'])
+      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * np.random.uniform(1, 5)
     return data
 
   def adjust_amplitude_for_multichannels(self, data):
@@ -375,7 +376,9 @@ class DataReader_pred(DataReader):
     self.queue = tf.PaddingFIFOQueue(self.queue_size,
                                      ['float32', 'string'],
                                      shapes=[self.config.X_shape, []])
-    self.enqueue = self.queue.enqueue([self.sample_placeholder, self.fname_placeholder])
+
+    self.enqueue = self.queue.enqueue([self.sample_placeholder, 
+                                       self.fname_placeholder])
 
   def dequeue(self, num_elements):
     output = self.queue.dequeue_up_to(num_elements)
@@ -384,15 +387,16 @@ class DataReader_pred(DataReader):
   def thread_main(self, sess, n_threads=1, start=0):
     index = list(range(start, self.num_data, n_threads))
     for i in index:
-      fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
+      fname = self.data_list.iloc[i]['fname']
+      fp = os.path.join(self.data_dir, fname)
       try:
-        meta = np.load(fname)
+        meta = np.load(fp)
       except:
         logging.error("Failed reading {}".format(fname))
         continue
-      # shift = 2500
-      # sample = meta['data'][shift:shift+3000, np.newaxis, :]
-      sample = meta['data'][:, np.newaxis, :]
+      shift = 2500
+      sample = meta['data'][shift:shift+3000, np.newaxis, :]
+      # sample = meta['data'][:, np.newaxis, :]
       if np.array(sample.shape).all() != np.array(self.X_shape).all():
         logging.error("{}: shape {} is not same as input shape {}!".format(fname, sample.shape, self.X_shape))
         continue

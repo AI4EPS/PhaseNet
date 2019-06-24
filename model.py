@@ -116,6 +116,7 @@ class Model:
                         name="input_bn")
       net = tf.nn.relu(net,
                name="input_relu")
+      # net = tf.nn.dropout(net, self.keep_prob)
       net = tf.layers.dropout(net,
                   rate=self.drop_rate,
                   training=self.is_training,
