@@ -32,7 +32,7 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-    self.data_list = tmp_list[tmp_list['snr']>1.1]
+    self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
     self.queue_size = queue_size
@@ -107,7 +107,7 @@ class DataReader(object):
       except:
         logging.error("Failed reading {} in func add_noise".format(fname))
         return data
-      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * ((1+np.random.random())*meta['snr'])
+      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * ((2+np.random.random())*meta['snr'])
     return data
 
   def adjust_amplitude_for_multichannels(self, data):
@@ -244,7 +244,7 @@ class DataReader(object):
     return self.threads
 
 
-class DataReader_valid(DataReader):
+class DataReader_test(DataReader):
 
   def add_placeholder(self):
     self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)

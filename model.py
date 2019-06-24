@@ -381,49 +381,61 @@ class Model:
 
 
 
-  # def train_on_batch(self, sess, inputs_batch, labels_batch, summary_writer, drop_rate):
-  #     feed = {self.X: inputs_batch,
-  #             self.Y: labels_batch,
-  #             self.drop_rate: drop_rate,
-  #             self.is_training: True}
-   
-  #     _, step_summary, step, loss, preds, logits = sess.run([self.train_op,
-  #                                                         self.summary_train,
-  #                                                         self.global_step,
-  #                                                         self.loss,
-  #                                                         self.preds,
-  #                                                         self.logits],
-  #                                                         feed_dict=feed)
-
-  #     summary_writer.add_summary(step_summary, step)
-  #     return loss, preds, logits
-
-  def train_on_batch(self, sess, summary_writer, drop_rate=0.0, raw_data=False):
-    feed = {self.drop_rate: drop_rate,
+  def train_on_batch(self, sess, inputs_batch, labels_batch, summary_writer, drop_rate=0.0):
+    feed = {self.X: inputs_batch,
+            self.Y: labels_batch,
+            self.drop_rate: drop_rate,
             self.is_training: True}
-    if raw_data:
-      _, step_summary, step, loss, preds, logits, \
-      X_batch, Y_batch = sess.run([self.train_op, 
-                                   self.summary_train,
-                                   self.global_step,
-                                   self.loss,
-                                   self.preds,
-                                   self.logits,
-                                   self.X,
-                                   self.Y],
-                                   feed_dict=feed)
-      summary_writer.add_summary(step_summary, step)
-      return loss, preds, logits, X_batch, Y_batch
-    else:
-      _, step_summary, step, loss = sess.run([self.train_op,
-                          self.summary_train,
-                          self.global_step,
-                          self.loss],
-                          feed_dict=feed)
-      summary_writer.add_summary(step_summary, step)
-      return loss
+            
 
-  def valid_on_batch(self, sess, summary_writer):
+    _, step_summary, step, loss = sess.run([self.train_op,
+                                            self.summary_train,
+                                            self.global_step,
+                                            self.loss],
+                                            feed_dict=feed)
+    summary_writer.add_summary(step_summary, step)
+    return loss
+
+  def valid_on_batch(self, sess, inputs_batch, labels_batch, summary_writer, drop_rate=0.0):
+    feed = {self.X: inputs_batch,
+            self.Y: labels_batch,
+            self.drop_rate: drop_rate,
+            self.is_training: False}
+            
+    step_summary, step, loss, preds = sess.run([self.summary_valid,
+                                                self.global_step,
+                                                self.loss,
+                                                self.preds],
+                                                feed_dict=feed)
+    summary_writer.add_summary(step_summary, step)
+    return loss, preds
+
+  # def train_on_batch(self, sess, summary_writer, drop_rate=0.0, raw_data=False):
+  #   feed = {self.drop_rate: drop_rate,
+  #           self.is_training: True}
+  #   if raw_data:
+  #     _, step_summary, step, loss, preds, logits, \
+  #     X_batch, Y_batch = sess.run([self.train_op, 
+  #                                  self.summary_train,
+  #                                  self.global_step,
+  #                                  self.loss,
+  #                                  self.preds,
+  #                                  self.logits,
+  #                                  self.X,
+  #                                  self.Y],
+  #                                  feed_dict=feed)
+  #     summary_writer.add_summary(step_summary, step)
+  #     return loss, preds, logits, X_batch, Y_batch
+  #   else:
+  #     _, step_summary, step, loss = sess.run([self.train_op,
+  #                         self.summary_train,
+  #                         self.global_step,
+  #                         self.loss],
+  #                         feed_dict=feed)
+  #     summary_writer.add_summary(step_summary, step)
+  #     return loss
+
+  def test_on_batch(self, sess, summary_writer):
     feed = {self.drop_rate: 0,
             self.is_training: False}
     step_summary, step, loss, preds, \

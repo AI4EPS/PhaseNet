@@ -5,7 +5,7 @@ import os
 import time
 import logging
 from model import Model
-from data_reader import Config, DataReader, DataReader_valid, DataReader_pred
+from data_reader import Config, DataReader, DataReader_test, DataReader_pred
 from util import *
 from tqdm import tqdm
 import pandas as pd
@@ -134,6 +134,22 @@ def read_flags():
                       default="../Dataset/NPZ_PS/selected_channels_train.csv",
                       help="Input csv file")
 
+  parser.add_argument("--train_dir",
+                      default="../Dataset/NPZ_PS/",
+                      help="Input file directory")
+
+  parser.add_argument("--train_list",
+                      default="../Dataset/NPZ_PS/all_channels_clean_train.csv",
+                      help="Input csv file")
+
+  parser.add_argument("--valid_dir",
+                      default="../Dataset/NPZ_PS/",
+                      help="Input file directory")
+
+  parser.add_argument("--valid_list",
+                      default="../Dataset/NPZ_PS/all_channels_clean_valid.csv",
+                      help="Input csv file")
+
   parser.add_argument("--output_dir",
                       default=None,
                       help="Output directory")
@@ -188,7 +204,7 @@ def set_config(flags, data_reader):
   return config
 
 
-def train_fn(flags, data_reader):
+def train_fn(flags, data_reader, data_reader_valid=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
   log_dir = os.path.join(flags.logdir, current_time)
   logging.info("Training log: {}".format(log_dir))
@@ -204,8 +220,10 @@ def train_fn(flags, data_reader):
 
   with tf.name_scope('Input_Batch'):
     batch = data_reader.dequeue(flags.batch_size)
+    if data_reader_valid is not None:
+      batch_valid = data_reader_valid.dequeue(flags.batch_size)
 
-  model = Model(config, input_batch=batch)
+  model = Model(config)
   sess_config = tf.ConfigProto()
   sess_config.gpu_options.allow_growth = True
   sess_config.log_device_placement = False
@@ -222,15 +240,18 @@ def train_fn(flags, data_reader):
       latest_check_point = tf.train.latest_checkpoint(flags.ckdir)
       saver.restore(sess, latest_check_point)
 
-    threads = data_reader.start_threads(sess, n_threads=20)
+    threads = data_reader.start_threads(sess, n_threads=multiprocessing.cpu_count())
+    if data_reader_valid is not None:
+      threads_valid = data_reader_valid.start_threads(sess, n_threads=multiprocessing.cpu_count())
     flog = open(os.path.join(log_dir, 'loss.log'), 'w')
     total_step = 0
     mean_loss = 0
-    pool = multiprocessing.Pool(flags.num_plots)
+    pool = multiprocessing.Pool(4)
     for epoch in range(flags.epochs):
       progressbar = tqdm(range(0, data_reader.num_data, flags.batch_size), desc="{}: epoch {}".format(log_dir.split("/")[-1], epoch))
       for step in progressbar:
-        loss_batch = model.train_on_batch(sess, summary_writer, flags.drop_rate)
+        X_batch, Y_batch = sess.run(batch)
+        loss_batch = model.train_on_batch(sess, X_batch, Y_batch, summary_writer, flags.drop_rate)
         if epoch < 1:
           mean_loss = loss_batch
         else:
@@ -238,12 +259,25 @@ def train_fn(flags, data_reader):
           mean_loss += (loss_batch-mean_loss)/total_step
         progressbar.set_description("{}: epoch {}, loss={:.6f}, mean={:.6f}".format(log_dir.split("/")[-1], epoch, loss_batch, mean_loss))
         flog.write("epoch: {}, step: {}, loss: {}, mean loss: {}\n".format(epoch, step//flags.batch_size, loss_batch, mean_loss))
-
-      loss_batch, pred_batch, logits_batch, X_batch, Y_batch = model.train_on_batch(sess, summary_writer, flags.drop_rate, raw_data=True)
+      
+      if data_reader_valid is not None:
+        valid_step = 0
+        valid_loss = 0
+        progressbar = tqdm(range(0, data_reader_valid.num_data, flags.batch_size), desc="Valid:")
+        for step in progressbar:
+          X_batch, Y_batch = sess.run(batch_valid)
+          loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer, flags.drop_rate)
+          valid_step += 1
+          valid_loss += (loss_batch-valid_loss)/valid_step
+          progressbar.set_description("valid, loss={:.6f}, mean={:.6f}".format(loss_batch, valid_loss))
+          flog.write("Valid: loss: {}, mean loss: {}\n".format(loss_batch, valid_loss))
+      else:
+        loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer, flags.drop_rate)
+      # loss_batch, pred_batch, logits_batch, X_batch, Y_batch = model.train_on_batch(sess, summary_writer, flags.drop_rate, raw_data=True)
       try: ## IO Error on cluster
         flog.flush()
         pool.map(partial(plot_result_thread,
-                        pred = pred_batch,
+                        pred = preds_batch,
                         X = X_batch,
                         Y = Y_batch,
                         fname = ["{:03d}_{:03d}".format(epoch, x).encode() for x in range(flags.num_plots)],
@@ -257,13 +291,17 @@ def train_fn(flags, data_reader):
     data_reader.coord.request_stop()
     try:
       data_reader.coord.join(threads, stop_grace_period_secs=10, ignore_live_threads=True)
+      if data_reader_valid is not None:
+        data_reader_valid.coord.join(threads, stop_grace_period_secs=10, ignore_live_threads=True)
     except:
       pass
     sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
-
+    if data_reader_valid is not None:
+      sess.run(data_reader_valid.queue.close(cancel_pending_enqueues=True))
+      
   return 0
 
-def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
+def test_fn(flags, data_reader, fig_dir=None, result_dir=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
   logging.info("{} log: {}".format(flags.mode, current_time))
   log_dir = os.path.join(flags.logdir, flags.mode, current_time)
@@ -318,7 +356,7 @@ def valid_fn(flags, data_reader, fig_dir=None, result_dir=None):
         sess.run(data_reader.queue.close())
 
       loss_batch, pred_batch, X_batch, Y_batch, \
-      fname_batch, itp_batch, its_batch = model.valid_on_batch(sess, summary_writer)
+      fname_batch, itp_batch, its_batch = model.test_on_batch(sess, summary_writer)
       total_step += 1
       mean_loss += (loss_batch-mean_loss)/total_step
       progressbar.set_description("{}, loss={:.6f}, mean loss={:6f}".format(flags.mode, loss_batch, mean_loss))
@@ -434,23 +472,29 @@ def main(flags):
   if flags.mode == "train":
     with tf.name_scope('create_inputs'):
       data_reader = DataReader(
-          data_dir=flags.data_dir,
-          data_list=flags.data_list,
+          data_dir=flags.train_dir,
+          data_list=flags.train_list,
           mask_window=0.4,
           queue_size=flags.batch_size*3,
           coord=coord)
-      logging.info("Dataset size: {}".format(data_reader.num_data))
-    train_fn(flags, data_reader)
+      data_reader_valid = DataReader(
+          data_dir=flags.valid_dir,
+          data_list=flags.valid_list,
+          mask_window=0.4,
+          queue_size=flags.batch_size*3,
+          coord=coord)
+      logging.info("Dataset size: train {}, valid {}".format(data_reader.num_data, data_reader_valid.num_data))
+    train_fn(flags, data_reader, data_reader_valid)
   
   elif flags.mode == "valid" or flags.mode == "test":
     with tf.name_scope('create_inputs'):
-      data_reader = DataReader_valid(
+      data_reader = DataReader_test(
           data_dir=flags.data_dir,
           data_list=flags.data_list,
           mask_window=0.4,
           queue_size=flags.batch_size*3,
           coord=coord)
-    valid_fn(flags, data_reader)
+    test_fn(flags, data_reader)
 
   elif flags.mode == "debug":
     with tf.name_scope('create_inputs'):
@@ -460,7 +504,7 @@ def main(flags):
           mask_window=0.4,
           queue_size=flags.batch_size*3,
           coord=coord)
-    valid_fn(flags, data_reader)
+    test_fn(flags, data_reader)
 
   elif flags.mode == "pred":
     with tf.name_scope('create_inputs'):
