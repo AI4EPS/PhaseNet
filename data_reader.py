@@ -356,7 +356,8 @@ class DataReader_pred(DataReader):
     self.queue = tf.PaddingFIFOQueue(self.queue_size,
                                      ['float32', 'string'],
                                      shapes=[self.config.X_shape, []])
-    self.enqueue = self.queue.enqueue([self.sample_placeholder, self.fname_placeholder])
+    self.enqueue = self.queue.enqueue([self.sample_placeholder, 
+                                       self.fname_placeholder])
 
   def dequeue(self, num_elements):
     output = self.queue.dequeue_up_to(num_elements)
@@ -365,15 +366,16 @@ class DataReader_pred(DataReader):
   def thread_main(self, sess, n_threads=1, start=0):
     index = list(range(start, self.num_data, n_threads))
     for i in index:
-      fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
+      fname = self.data_list.iloc[i]['fname']
+      fp = os.path.join(self.data_dir, fname)
       try:
-        meta = np.load(fname)
+        meta = np.load(fp)
       except:
         logging.error("Failed reading {}".format(fname))
         continue
-      # shift = 2500
-      # sample = meta['data'][shift:shift+3000, np.newaxis, :]
-      sample = meta['data'][:, np.newaxis, :]
+      shift = 2500
+      sample = meta['data'][shift:shift+3000, np.newaxis, :]
+      # sample = meta['data'][:, np.newaxis, :]
       if np.array(sample.shape).all() != np.array(self.X_shape).all():
         logging.error("{}: shape {} is not same as input shape {}!".format(fname, sample.shape, self.X_shape))
         continue
@@ -382,6 +384,7 @@ class DataReader_pred(DataReader):
         logging.warning("Data error: {}\nReplacing nan and inf with zeros".format(fname))
         sample[np.isnan(sample)] = 0
         sample[np.isinf(sample)] = 0
+
 
       sample = self.normalize(sample)
       sample = self.adjust_amplitude_for_multichannels(sample)
