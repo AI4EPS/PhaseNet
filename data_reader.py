@@ -302,26 +302,26 @@ class DataReader_test(DataReader):
       itp_true = []
       its_true = []
       for itp, its in zip(itp_list, its_list):
-        if (itp-self.mask_window//2 >= target.shape[0]) or (itp+self.mask_window//2 < 0):
+        if (itp >= target.shape[0]) or (itp < 0):
           pass
         elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
-          target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = np.exp(-(np.arange(
-                  itp-self.mask_window//2,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+          target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = ...
+              np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
           itp_true.append(itp)
         elif (itp-self.mask_window//2 < target.shape[0]):
-          target[0:itp+self.mask_window//2, 0, 1] = np.exp(-(np.arange(
-                  0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+          target[0:itp+self.mask_window//2, 0, 1] = ...
+              np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
           itp_true.append(itp)
 
-        if (its-self.mask_window//2 >= target.shape[0]) or (its+self.mask_window//2 < 0):
+        if (its >= target.shape[0]) or (its < 0):
           pass
         elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
-          target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = np.exp(-(np.arange(
-                  its-self.mask_window//2,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+          target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = ...
+              np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
           its_true.append(its)
         elif (its-self.mask_window//2 < target.shape[0]):
-          target[0:its+self.mask_window//2, 0, 2] = np.exp(-(np.arange(
-                  0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+          target[0:its+self.mask_window//2, 0, 2] = ...
+              np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
           its_true.append(its)
       target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
 
