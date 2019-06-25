@@ -148,7 +148,7 @@ class DataReader(object):
         shift = np.random.choice([-np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window), 
                                np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)])
       if normalize:
-        data += self.normalize(np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]))
+        data += self.normalize(np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])) * np.random.random()
       else:
         data += np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
       itp_list.append(itp-shift)
@@ -196,8 +196,8 @@ class DataReader(object):
 
           sample = self.normalize(sample)
           sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-          # if meta['snr'] > 2:
-          #   sample = self.add_noise(sample, channels)
+          #if meta['snr'] > 2:
+          #  sample = self.add_noise(sample, channels)
           # sample = self.scale_amplitude(sample)
           if len(channels.split('_')) == 3:
             sample = self.drop_channel(sample)
@@ -214,22 +214,22 @@ class DataReader(object):
 
         target = np.zeros(self.Y_shape)
         for itp, its in zip(itp_list, its_list):
-          if (itp-self.mask_window//2 >= target.shape[0]) or (itp+self.mask_window//2 < 0):
+          if (itp >= target.shape[0]) or (itp < 0):
             pass
           elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
-            target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = np.exp(-(np.arange(
-                   itp-self.mask_window//2,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+            target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = ...
+                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
           elif (itp-self.mask_window//2 < target.shape[0]):
-            target[0:itp+self.mask_window//2, 0, 1] = np.exp(-(np.arange(
-                   0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-          if (its-self.mask_window//2 >= target.shape[0]) or (its+self.mask_window//2 < 0):
+            target[0:itp+self.mask_window//2, 0, 1] = ...
+                 np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+          if (its >= target.shape[0]) or (its < 0):
             pass
           elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
-            target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = np.exp(-(np.arange(
-                   its-self.mask_window//2,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+            target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = ...
+                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
           elif (its-self.mask_window//2 < target.shape[0]):
-            target[0:its+self.mask_window//2, 0, 2] = np.exp(-(np.arange(
-                   0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+            target[0:its+self.mask_window//2, 0, 2] = ...
+                np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
         target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
 
         sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
@@ -267,14 +267,15 @@ class DataReader_test(DataReader):
   def thread_main(self, sess, n_threads=1, start=0):
     index = list(range(start, self.num_data, n_threads))
     for i in index:
-      fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
+      fname = self.data_list.iloc[i]['fname']
+      fp = os.path.join(self.data_dir, fname)
       try:
-        if fname not in self.buffer:
-          meta = np.load(fname)
-          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
-        meta = self.buffer[fname]
+        if fp not in self.buffer:
+          meta = np.load(fp)
+          self.buffer[fp] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
+        meta = self.buffer[fp]
       except:
-        logging.error("Failed reading {}".format(fname))
+        logging.error("Failed reading {}".format(fp))
         continue
 
       channels = meta['channels'].tolist()
@@ -286,22 +287,10 @@ class DataReader_test(DataReader):
       sample = np.zeros(self.X_shape)
 
       np.random.seed(self.config.seed+i)
-      # if np.random.random() < 0.9:
       shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
       sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
       itp_list = [meta['itp'].tolist()-start_tp-shift]
       its_list = [meta['its'].tolist()-start_tp-shift]
-
-        # sample = self.normalize(sample)
-        # sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-        # sample = self.add_noise(sample, channels)
-        # sample = self.scale_amplitude(sample)
-        # if len(channels.split('_')) == 3:
-          # sample = self.drop_channel(sample)
-      # else:  # pure noise
-        # sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
-        # itp_list = []
-        # its_list = []
 
       sample = self.normalize(sample)
       sample = self.adjust_amplitude_for_multichannels(sample)

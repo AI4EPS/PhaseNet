@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-=======
 from __future__ import division
->>>>>>> origin/improve-prediction
 import numpy as np
 import tensorflow as tf
 import argparse
@@ -144,7 +141,7 @@ def read_args():
                       help="Input file directory")
 
   parser.add_argument("--data_list",
-                      default="../Dataset/NPZ_PS/selected_channels_train.csv",
+                      default="../Dataset/NPZ_PS/all_channels_clean_valid.csv",
                       help="Input csv file")
 
   parser.add_argument("--train_dir",
@@ -219,13 +216,13 @@ def set_config(args, data_reader):
 
 def train_fn(args, data_reader, data_reader_valid=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
-  log_dir = os.path.join(args.logdir, current_time)
+  log_dir = os.path.join(args.log_dir, current_time)
   logging.info("Training log: {}".format(log_dir))
   if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-  fig_dir = os.path.join(log_dir, 'figures')
-  if not os.path.exists(fig_dir):
-    os.makedirs(fig_dir)
+  figure_dir = os.path.join(log_dir, 'figures')
+  if not os.path.exists(figure_dir):
+    os.makedirs(figure_dir)
 
   config = set_config(args, data_reader)
   with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
@@ -248,9 +245,9 @@ def train_fn(args, data_reader, data_reader_valid=None):
     init = tf.global_variables_initializer()
     sess.run(init)
 
-    if args.ckdir is not None:
+    if args.model_dir is not None:
       logging.info("restoring models...")
-      latest_check_point = tf.train.latest_checkpoint(args.ckdir)
+      latest_check_point = tf.train.latest_checkpoint(args.model_dir)
       saver.restore(sess, latest_check_point)
 
     threads = data_reader.start_threads(sess, n_threads=multiprocessing.cpu_count())
@@ -259,7 +256,13 @@ def train_fn(args, data_reader, data_reader_valid=None):
     flog = open(os.path.join(log_dir, 'loss.log'), 'w')
     total_step = 0
     mean_loss = 0
-    pool = multiprocessing.Pool(4)
+    if args.plot_figure:
+      num_pool = multiprocessing.cpu_count()*2
+    elif args.save_result:
+      num_pool = multiprocessing.cpu_count()
+    else:
+      num_pool = 2
+    pool = multiprocessing.Pool(num_pool)
     for epoch in range(args.epochs):
       progressbar = tqdm(range(0, data_reader.num_data, args.batch_size), desc="{}: epoch {}".format(log_dir.split("/")[-1], epoch))
       for step in progressbar:
@@ -294,7 +297,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
                         X = X_batch,
                         Y = Y_batch,
                         fname = ["{:03d}_{:03d}".format(epoch, x).encode() for x in range(args.num_plots)],
-                        fig_dir = fig_dir),
+                        figure_dir = figure_dir),
                 range(args.num_plots))
         saver.save(sess, os.path.join(log_dir, "model_{}.ckpt".format(epoch)))
       except:
@@ -314,16 +317,16 @@ def train_fn(args, data_reader, data_reader_valid=None):
       
   return 0
 
-def test_fn(args, data_reader, fig_dir=None, result_dir=None):
+def test_fn(args, data_reader, figure_dir=None, result_dir=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
   logging.info("{} log: {}".format(args.mode, current_time))
-  log_dir = os.path.join(args.logdir, args.mode, current_time)
+  log_dir = os.path.join(args.log_dir, args.mode, current_time)
   if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-  if (args.plot_figure == True ) and (fig_dir is None):
-    fig_dir = os.path.join(log_dir, 'figures')
-    if not os.path.exists(fig_dir):
-      os.makedirs(fig_dir)
+  if (args.plot_figure == True ) and (figure_dir is None):
+    figure_dir = os.path.join(log_dir, 'figures')
+    if not os.path.exists(figure_dir):
+      os.makedirs(figure_dir)
   if (args.save_result == True) and (result_dir is None):
     result_dir = os.path.join(log_dir, 'results')
     if not os.path.exists(result_dir):
@@ -349,7 +352,7 @@ def test_fn(args, data_reader, fig_dir=None, result_dir=None):
     sess.run(init)
 
     logging.info("restoring models...")
-    latest_check_point = tf.train.latest_checkpoint(args.ckdir)
+    latest_check_point = tf.train.latest_checkpoint(args.model_dir)
     saver.restore(sess, latest_check_point)
     
     threads = data_reader.start_threads(sess, n_threads=8)
@@ -360,7 +363,13 @@ def test_fn(args, data_reader, fig_dir=None, result_dir=None):
     itp = []
     its = []
     progressbar = tqdm(range(0, data_reader.num_data, args.batch_size), desc=args.mode)
-    pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
+    if args.plot_figure:
+      num_pool = multiprocessing.cpu_count()*2
+    elif args.save_result:
+      num_pool = multiprocessing.cpu_count()
+    else:
+      num_pool = 2
+    pool = multiprocessing.Pool(num_pool)
     for step in progressbar:
       
       if step + args.batch_size >= data_reader.num_data:
@@ -386,7 +395,7 @@ def test_fn(args, data_reader, fig_dir=None, result_dir=None):
                                its = its_batch,
                                fname = fname_batch,
                                result_dir = result_dir,
-                               fig_dir = fig_dir),
+                               figure_dir = figure_dir),
                        range(len(pred_batch)))
       picks.extend(picks_batch)
       itp.extend(itp_batch)
@@ -399,18 +408,18 @@ def test_fn(args, data_reader, fig_dir=None, result_dir=None):
 
   return 0
 
-def pred_fn(args, data_reader, fig_dir=None, result_dir=None, log_dir=None):
+def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
   if log_dir is None:
-    log_dir = os.path.join(args.logdir, "pred", current_time)
+    log_dir = os.path.join(args.log_dir, "pred", current_time)
   logging.info("Pred log: %s" % log_dir)
   logging.info("Dataset size: {}".format(data_reader.num_data))
   if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-  if (args.plot_figure == True) and (fig_dir is None):
-    fig_dir = os.path.join(log_dir, 'figures')
-    if not os.path.exists(fig_dir):
-      os.makedirs(fig_dir)
+  if (args.plot_figure == True) and (figure_dir is None):
+    figure_dir = os.path.join(log_dir, 'figures')
+    if not os.path.exists(figure_dir):
+      os.makedirs(figure_dir)
   if (args.save_result == True) and (result_dir is None):
     result_dir = os.path.join(log_dir, 'results')
     if not os.path.exists(result_dir):
@@ -435,11 +444,19 @@ def pred_fn(args, data_reader, fig_dir=None, result_dir=None, log_dir=None):
     sess.run(init)
 
     logging.info("restoring models...")
-    latest_check_point = tf.train.latest_checkpoint(args.ckdir)
+    latest_check_point = tf.train.latest_checkpoint(args.model_dir)
     saver.restore(sess, latest_check_point)
 
     threads = data_reader.start_threads(sess, n_threads=8)
-    pool = multiprocessing.Pool(multiprocessing.cpu_count()*2)
+    if args.plot_figure:
+      num_pool = multiprocessing.cpu_count()*2
+    elif args.save_result:
+      num_pool = multiprocessing.cpu_count()
+    else:
+      num_pool = 2
+    pool = multiprocessing.Pool(num_pool)
+    fclog = open(os.path.join(log_dir, args.fpred+'.csv'), 'w')
+    fclog.write("fname,itp,tp_prob,its,ts_prob\n") 
     for step in tqdm(range(0, data_reader.num_data, args.batch_size), desc="Pred"):
 
       if step + args.batch_size >= data_reader.num_data:
@@ -456,7 +473,7 @@ def pred_fn(args, data_reader, fig_dir=None, result_dir=None, log_dir=None):
                                       X = X_batch,
                                       fname = fname_batch,
                                       result_dir = result_dir,
-                                      fig_dir = fig_dir),
+                                      figure_dir = figure_dir),
                               range(len(pred_batch)))
   
       for i in range(len(fname_batch)):
@@ -493,16 +510,6 @@ def main(args):
   elif args.mode == "valid" or args.mode == "test":
     with tf.name_scope('create_inputs'):
       data_reader = DataReader_test(
-          data_dir=args.data_dir,
-          data_list=args.data_list,
-          mask_window=0.4,
-          queue_size=args.batch_size*3,
-          coord=coord)
-    test_fn(args, data_reader)
-
-  elif args.mode == "debug":
-    with tf.name_scope('create_inputs'):
-      data_reader = DataReader(
           data_dir=args.data_dir,
           data_list=args.data_list,
           mask_window=0.4,

@@ -28,7 +28,7 @@ def detect_peaks_thread(i, pred, fname=None, result_dir=None, args=None):
   return [(itp, prob_p), (its, prob_s)]
 
 def plot_result_thread(i, pred, X, Y=None, itp=None, its=None, 
-                       itp_pred=None, its_pred=None, fname=None, fig_dir=None):
+                       itp_pred=None, its_pred=None, fname=None, figure_dir=None):
   dt = Config().dt
   t = np.arange(0, pred.shape[1]) * dt
   box = dict(boxstyle='round', facecolor='white', alpha=1)
@@ -111,28 +111,28 @@ def plot_result_thread(i, pred, X, Y=None, itp=None, its=None,
   plt.gcf().align_labels()
 
   try:
-    plt.savefig(os.path.join(fig_dir, 
+    plt.savefig(os.path.join(figure_dir, 
                 fname[i].decode().rstrip('.npz')+'.png'), 
                 bbox_inches='tight')
   except FileNotFoundError:
-  #if not os.path.exists(os.path.dirname(os.path.join(fig_dir, fname[i].decode()))):
-    os.makedirs(os.path.dirname(os.path.join(fig_dir, fname[i].decode())), exist_ok=True)
-    plt.savefig(os.path.join(fig_dir, 
+  #if not os.path.exists(os.path.dirname(os.path.join(figure_dir, fname[i].decode()))):
+    os.makedirs(os.path.dirname(os.path.join(figure_dir, fname[i].decode())), exist_ok=True)
+    plt.savefig(os.path.join(figure_dir, 
                 fname[i].decode().rstrip('.npz')+'.png'), 
                 bbox_inches='tight')
-  #plt.savefig(os.path.join(fig_dir, 
+  #plt.savefig(os.path.join(figure_dir, 
   #            fname[i].decode().split('/')[-1].rstrip('.npz')+'.png'), 
   #            bbox_inches='tight')
-  # plt.savefig(os.path.join(fig_dir, 
+  # plt.savefig(os.path.join(figure_dir, 
   #             fname[i].decode().split('/')[-1].rstrip('.npz')+'.pdf'), 
   #             bbox_inches='tight')
   plt.close(i)
   return 0
 
-def postprocessing_thread(i, pred, X, Y=None, itp=None, its=None, fname=None, result_dir=None, fig_dir=None, args=args):
+def postprocessing_thread(i, pred, X, Y=None, itp=None, its=None, fname=None, result_dir=None, figure_dir=None, args=None):
   (itp_pred, prob_p), (its_pred, prob_s) = detect_peaks_thread(i, pred, fname, result_dir, args)
-  if (fname is not None) and (fig_dir is not None):
-    plot_result_thread(i, pred, X, Y, itp, its, itp_pred, its_pred, fname, fig_dir)
+  if (fname is not None) and (figure_dir is not None):
+    plot_result_thread(i, pred, X, Y, itp, its, itp_pred, its_pred, fname, figure_dir)
   return [(itp_pred, prob_p), (its_pred, prob_s)]
 
 
