@@ -308,7 +308,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
     try:
       data_reader.coord.join(threads, stop_grace_period_secs=10, ignore_live_threads=True)
       if data_reader_valid is not None:
-        data_reader_valid.coord.join(threads, stop_grace_period_secs=10, ignore_live_threads=True)
+        data_reader_valid.coord.join(threads_valid, stop_grace_period_secs=10, ignore_live_threads=True)
     except:
       pass
     sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
