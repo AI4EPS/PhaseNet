@@ -6,7 +6,7 @@ import os
 import time
 import logging
 from model import Model
-from data_reader import Config, DataReader, DataReader_test, DataReader_pred
+from data_reader import Config, DataReader, DataReader_ds, DataReader_test, DataReader_pred
 from util import *
 from tqdm import tqdm
 import pandas as pd
@@ -229,12 +229,29 @@ def train_fn(args, data_reader, data_reader_valid=None):
     fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
 
   with tf.name_scope('Input_Batch'):
-    batch = data_reader.dequeue(args.batch_size)
+    # batch = data_reader.dequeue(args.batch_size)
+    dataset = tf.data.Dataset.from_tensor_slices(data_reader.data_list['fname'])
+    dataset = dataset.shuffle(data_reader.num_data).repeat()
+    dataset = dataset.interleave(lambda filename: tf.data.Dataset.from_generator(data_reader, 
+                                (tf.float32, tf.float32),
+                                (tf.TensorShape(data_reader.X_shape), tf.TensorShape(data_reader.Y_shape)), 
+                                args=(filename,)),
+                                cycle_length=args.batch_size,
+                                num_parallel_calls=multiprocessing.cpu_count()*2)
+    # dataset = dataset.apply(tf.data.experimental.parallel_interleave(lambda filename: tf.data.Dataset.from_generator(data_reader, 
+    #                             (tf.float32, tf.float32),
+    #                             (tf.TensorShape(data_reader.X_shape), tf.TensorShape(data_reader.Y_shape)), 
+    #                             args=(filename,)),
+    #                             cycle_length=args.batch_size))
+    # dataset = dataset.shuffle(data_reader.num_data).repeat().batch(args.batch_size).prefetch(args.batch_size*2)
+    dataset = dataset.batch(args.batch_size).prefetch(2*args.batch_size)
+    batch = dataset.make_one_shot_iterator().get_next()
+
     if data_reader_valid is not None:
       batch_valid = data_reader_valid.dequeue(args.batch_size)
 
   model = Model(config)
-  sess_config = tf.ConfigProto()
+  sess_config = tf.ConfigProto(inter_op_parallelism_threads=multiprocessing.cpu_count())
   sess_config.gpu_options.allow_growth = True
   sess_config.log_device_placement = False
 
@@ -250,19 +267,13 @@ def train_fn(args, data_reader, data_reader_valid=None):
       latest_check_point = tf.train.latest_checkpoint(args.model_dir)
       saver.restore(sess, latest_check_point)
 
-    threads = data_reader.start_threads(sess, n_threads=multiprocessing.cpu_count())
+    # threads = data_reader.start_threads(sess, n_threads=multiprocessing.cpu_count())
     if data_reader_valid is not None:
       threads_valid = data_reader_valid.start_threads(sess, n_threads=multiprocessing.cpu_count())
     flog = open(os.path.join(log_dir, 'loss.log'), 'w')
     total_step = 0
     mean_loss = 0
-    if args.plot_figure:
-      num_pool = multiprocessing.cpu_count()*2
-    elif args.save_result:
-      num_pool = multiprocessing.cpu_count()
-    else:
-      num_pool = 2
-    pool = multiprocessing.Pool(num_pool)
+    pool = multiprocessing.Pool(4)
     for epoch in range(args.epochs):
       progressbar = tqdm(range(0, data_reader.num_data, args.batch_size), desc="{}: epoch {}".format(log_dir.split("/")[-1], epoch))
       for step in progressbar:
@@ -306,12 +317,12 @@ def train_fn(args, data_reader, data_reader_valid=None):
     pool.close()
     data_reader.coord.request_stop()
     try:
-      data_reader.coord.join(threads, stop_grace_period_secs=10, ignore_live_threads=True)
+      # data_reader.coord.join(threads, stop_grace_period_secs=10, ignore_live_threads=True)
       if data_reader_valid is not None:
-        data_reader_valid.coord.join(threads, stop_grace_period_secs=10, ignore_live_threads=True)
+        data_reader_valid.coord.join(threads_valid, stop_grace_period_secs=10, ignore_live_threads=True)
     except:
       pass
-    sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
+    # sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
     if data_reader_valid is not None:
       sess.run(data_reader_valid.queue.close(cancel_pending_enqueues=True))
       
@@ -492,12 +503,11 @@ def main(args):
 
   if args.mode == "train":
     with tf.name_scope('create_inputs'):
-      data_reader = DataReader(
+      data_reader = DataReader_ds(
           data_dir=args.train_dir,
           data_list=args.train_list,
           mask_window=0.4,
-          queue_size=args.batch_size*3,
-          coord=coord)
+          queue_size=args.batch_size*3)
       data_reader_valid = DataReader(
           data_dir=args.valid_dir,
           data_list=args.valid_list,
@@ -530,8 +540,7 @@ def main(args):
   else:
     print("mode should be: train, valid, test, pred or debug")
 
-  return
-
+  return 0
 
 if __name__ == '__main__':
   args = read_args()
