@@ -38,7 +38,7 @@ The shape of "data" variable has a shape of 3000 x 3
 
 ~~~bash
 source .venv/bin/activate
-python run.py --mode=pred --ckdir=model/190703-214543 --data_dir=dataset/waveform_pred --data_list=dataset/waveform.csv --output_dir=output --plot_figure --save_result --batch_size=20
+python run.py --mode=pred --model_dir=model/190703-214543 --data_dir=dataset/waveform_pred --data_list=dataset/waveform.csv --output_dir=output --plot_figure --save_result --batch_size=20
 ~~~
 
 Notes:
@@ -68,7 +68,7 @@ python run.py --mode=train --data_dir=dataset/waveform_train --data_list=dataset
 ### 6. Valid and Test
 ~~~bash
 source .venv/bin/activate
-python run.py --mode=valid --ckdir=model/190703-214543 --data_dir=dataset/waveform_train --data_list=dataset/waveform.csv --plot_figure --save_result --batch_size=20
+python run.py --mode=valid --model_dir=model/190703-214543 --data_dir=dataset/waveform_train --data_list=dataset/waveform.csv --plot_figure --save_result --batch_size=20
 ~~~
 
 Please let us know of any bugs found in the code. Suggestions and collaborations are welcomed!

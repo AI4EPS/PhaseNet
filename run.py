@@ -499,13 +499,13 @@ def main(args):
           queue_size=args.batch_size*3,
           coord=coord)
       if args.valid_list is not None:
-	      data_reader_valid = DataReader(
-	          data_dir=args.valid_dir,
-	          data_list=args.valid_list,
-	          mask_window=0.4,
-	          queue_size=args.batch_size*3,
-	          coord=coord)
-      	logging.info("Dataset size: train {}, valid {}".format(data_reader.num_data, data_reader_valid.num_data))
+        data_reader_valid = DataReader(
+            data_dir=args.valid_dir,
+            data_list=args.valid_list,
+            mask_window=0.4,
+            queue_size=args.batch_size*3,
+            coord=coord)
+        logging.info("Dataset size: train {}, valid {}".format(data_reader.num_data, data_reader_valid.num_data))
       else:
       	data_reader_valid = None
       	logging.info("Dataset size: train {}".format(data_reader.num_data))
