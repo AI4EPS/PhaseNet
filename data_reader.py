@@ -384,8 +384,8 @@ class DataReader_pred(DataReader):
         logging.error("Failed reading {}".format(fname))
         continue
       shift = 0
-      sample = meta['data'][shift:shift+self.X_shape, np.newaxis, :]
-      # sample = meta['data'][:, np.newaxis, :]
+      # sample = meta['data'][shift:shift+self.X_shape, np.newaxis, :]
+      sample = meta['data'][:, np.newaxis, :]
       if np.array(sample.shape).all() != np.array(self.X_shape).all():
         logging.error("{}: shape {} is not same as input shape {}!".format(fname, sample.shape, self.X_shape))
         continue
