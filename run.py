@@ -137,27 +137,27 @@ def read_args():
                       help="input length")
 
   parser.add_argument("--data_dir",
-                      default="../Dataset/NPZ_PS/",
+                      default="./dataset/waveform_pred/",
                       help="Input file directory")
 
   parser.add_argument("--data_list",
-                      default="../Dataset/NPZ_PS/all_channels_clean_valid.csv",
+                      default="./dataset/waveform.csv",
                       help="Input csv file")
 
   parser.add_argument("--train_dir",
-                      default="../Dataset/NPZ_PS/",
+                      default="../dataset/waveform_train/",
                       help="Input file directory")
 
   parser.add_argument("--train_list",
-                      default="../Dataset/NPZ_PS/all_channels_clean_train.csv",
+                      default="./dataset/waveform.csv",
                       help="Input csv file")
 
   parser.add_argument("--valid_dir",
-                      default="../Dataset/NPZ_PS/",
+                      default=None,
                       help="Input file directory")
 
   parser.add_argument("--valid_list",
-                      default="../Dataset/NPZ_PS/all_channels_clean_valid.csv",
+                      default=None,
                       help="Input csv file")
 
   parser.add_argument("--output_dir",
@@ -498,13 +498,17 @@ def main(args):
           mask_window=0.4,
           queue_size=args.batch_size*3,
           coord=coord)
-      data_reader_valid = DataReader(
-          data_dir=args.valid_dir,
-          data_list=args.valid_list,
-          mask_window=0.4,
-          queue_size=args.batch_size*3,
-          coord=coord)
-      logging.info("Dataset size: train {}, valid {}".format(data_reader.num_data, data_reader_valid.num_data))
+      if args.valid_list is not None:
+	      data_reader_valid = DataReader(
+	          data_dir=args.valid_dir,
+	          data_list=args.valid_list,
+	          mask_window=0.4,
+	          queue_size=args.batch_size*3,
+	          coord=coord)
+      	logging.info("Dataset size: train {}, valid {}".format(data_reader.num_data, data_reader_valid.num_data))
+      else:
+      	data_reader_valid = None
+      	logging.info("Dataset size: train {}".format(data_reader.num_data))
     train_fn(args, data_reader, data_reader_valid)
   
   elif args.mode == "valid" or args.mode == "test":
