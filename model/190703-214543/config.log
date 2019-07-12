@@ -1,0 +1,20 @@
+X_shape: [3000, 1, 3]
+n_channel: 3
+Y_shape: [3000, 1, 3]
+n_class: 3
+depths: 5
+filters_root: 8
+kernel_size: [7, 1]
+pool_size: [4, 1]
+dilation_rate: [1, 1]
+batch_size: 200
+class_weights: [1, 1, 1]
+loss_type: cross_entropy
+weight_decay: 0
+optimizer: adam
+learning_rate: 0.01
+decay_step: 3546
+decay_rate: 0.9
+momentum: 0.9
+summary: True
+drop_rate: 0
