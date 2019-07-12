@@ -274,7 +274,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
           total_step += 1
           mean_loss += (loss_batch-mean_loss)/total_step
         progressbar.set_description("{}: epoch {}, loss={:.6f}, mean={:.6f}".format(log_dir.split("/")[-1], epoch, loss_batch, mean_loss))
-        flog.write("epoch: {}, step: {}, loss: {}, mean loss: {}\n".format(epoch, step//args.batch_size, loss_batch, mean_loss))
+      flog.write("epoch: {}, mean loss: {}\n".format(epoch, mean_loss))
       
       if data_reader_valid is not None:
         valid_step = 0
@@ -286,7 +286,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
           valid_step += 1
           valid_loss += (loss_batch-valid_loss)/valid_step
           progressbar.set_description("valid, loss={:.6f}, mean={:.6f}".format(loss_batch, valid_loss))
-          flog.write("Valid: loss: {}, mean loss: {}\n".format(loss_batch, valid_loss))
+        flog.write("Valid: mean loss: {}\n".format(valid_loss))
       else:
         loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer, args.drop_rate)
       # loss_batch, pred_batch, logits_batch, X_batch, Y_batch = model.train_on_batch(sess, summary_writer, args.drop_rate, raw_data=True)
@@ -382,8 +382,6 @@ def test_fn(args, data_reader, figure_dir=None, result_dir=None):
       total_step += 1
       mean_loss += (loss_batch-mean_loss)/total_step
       progressbar.set_description("{}, loss={:.6f}, mean loss={:6f}".format(args.mode, loss_batch, mean_loss))
-      flog.write("step: {}, loss: {}\n".format(step, loss_batch))
-      flog.flush()
 
       itp_batch = clean_queue(itp_batch)
       its_batch = clean_queue(its_batch)
@@ -401,6 +399,7 @@ def test_fn(args, data_reader, figure_dir=None, result_dir=None):
       itp.extend(itp_batch)
       its.extend(its_batch)
 
+    flog.write("mean loss: {}\n".format(mean_loss))
     metrics_p, metrics_s = calculate_metrics(picks, itp, its, tol=0.1)
     flog.write("P-phase: Precision={}, Recall={}, F1={}\n".format(metrics_p[0], metrics_p[1], metrics_p[2]))
     flog.write("S-phase: Precision={}, Recall={}, F1={}\n".format(metrics_s[0], metrics_s[1], metrics_s[2]))

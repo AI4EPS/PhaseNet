@@ -119,7 +119,7 @@ class DataReader(object):
     return data
 
   def add_event(self, data, itp_list, its_list, channels, normalize=False):
-    while np.random.uniform(0, 1) < 0.2:
+    while np.random.uniform(0, 1) < 0.5:
       shift = None
       if channels not in self.buffer_channels:
         self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
