@@ -145,7 +145,7 @@ def read_args():
                       help="Input csv file")
 
   parser.add_argument("--train_dir",
-                      default="../dataset/waveform_train/",
+                      default="./dataset/waveform_train/",
                       help="Input file directory")
 
   parser.add_argument("--train_list",

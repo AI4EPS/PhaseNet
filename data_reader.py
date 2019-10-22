@@ -103,7 +103,7 @@ class DataReader(object):
       try:
         if fname not in self.buffer:
           meta = np.load(fname)
-          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'snr':meta['snr'], 'channels': meta['channels']}
+          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
         meta = self.buffer[fname]
       except:
         logging.error("Failed reading {} in func add_noise".format(fname))
@@ -127,7 +127,7 @@ class DataReader(object):
       try:
         if fname not in self.buffer:
           meta = np.load(fname)
-          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'snr': meta['snr'], 'channels': meta['channels']}
+          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
         meta = self.buffer[fname]
       except:
         logging.error("Failed reading {} in func add_event".format(fname))
@@ -165,7 +165,7 @@ class DataReader(object):
         try:
           if fname not in self.buffer:
             meta = np.load(fname)
-            self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'snr': meta['snr'], 'channels': meta['channels']}
+            self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
           meta = self.buffer[fname]
         except:
           logging.error("Failed reading {}".format(fname))

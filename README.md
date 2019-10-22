@@ -62,7 +62,7 @@ The variables "itp" and "its" are the data points of first P&S arrivals picked b
 
 ~~~bash
 source .venv/bin/activate
-python run.py --mode=train --data_dir=dataset/waveform_train --data_list=dataset/waveform.csv --batch_size=20
+python run.py --mode=train --train_dir=dataset/waveform_train --train_list=dataset/waveform.csv --batch_size=20
 ~~~
 
 ### 6. Valid and Test
