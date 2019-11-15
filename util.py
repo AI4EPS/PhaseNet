@@ -13,8 +13,8 @@ def detect_peaks_thread(i, pred, fname=None, result_dir=None, args=None):
     itp = detect_peaks(pred[i,:,0,1], mph=0.5, mpd=0.5/Config().dt, show=False)
     its = detect_peaks(pred[i,:,0,2], mph=0.5, mpd=0.5/Config().dt, show=False)
   else:
-    itp = detect_peaks(pred[i,:,0,1], mph=args.tp_prob_min, mpd=0.5/Config().dt, show=False)
-    its = detect_peaks(pred[i,:,0,2], mph=args.ts_prob_min, mpd=0.5/Config().dt, show=False)
+    itp = detect_peaks(pred[i,:,0,1], mph=args.tp_prob, mpd=0.5/Config().dt, show=False)
+    its = detect_peaks(pred[i,:,0,2], mph=args.ts_prob, mpd=0.5/Config().dt, show=False)
   prob_p = pred[i,itp,0,1]
   prob_s = pred[i,its,0,2]
   if (fname is not None) and (result_dir is not None):

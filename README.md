@@ -45,7 +45,7 @@ Notes:
 1. For large dataset and GPUs, larger batch size can accelerate the prediction. 
 2. Plotting figures is slow. Removing the argument of **--plot_figure** can speed the prediction
 3. If using input data length other than 3000, specify argument **--input_length=**. But this is not suggested as the model is trained using input length of 3000. Too long input length would degrade the performance.
-4. The activation thresholds for P&S waves are set to 0.5 as default. These two values can be changed to improve the detection performance.  Specify **--tp_prob_min** and **--ts_prob_min** to change the two thresholds.
+4. The activation thresholds for P&S waves are set to 0.5 as default. These two values can be changed to improve the detection performance.  Specify **--tp_prob** and **--ts_prob** to change the two thresholds.
 
 ### 5. Train
 

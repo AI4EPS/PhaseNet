@@ -121,14 +121,14 @@ def read_args():
                       type=int,
                       help="Plotting trainning results")
 
-  parser.add_argument("--tp_prob_min",
+  parser.add_argument("--tp_prob",
                       default=0.3,
-                      type=int,
+                      type=float,
                       help="Probability threshold for P pick")
 
-  parser.add_argument("--ts_prob_min",
+  parser.add_argument("--ts_prob",
                       default=0.3,
-                      type=int,
+                      type=float,
                       help="Probability threshold for S pick")
 
   parser.add_argument("--input_length",
