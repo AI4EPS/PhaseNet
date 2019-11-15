@@ -472,7 +472,8 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                       X = X_batch,
                                       fname = fname_batch,
                                       result_dir = result_dir,
-                                      figure_dir = figure_dir),
+                                      figure_dir = figure_dir,
+                                      args=args),
                               range(len(pred_batch)))
   
       for i in range(len(fname_batch)):
