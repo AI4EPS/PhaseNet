@@ -456,16 +456,18 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     pool = multiprocessing.Pool(num_pool)
     fclog = open(os.path.join(log_dir, args.fpred+'.csv'), 'w')
     fclog.write("fname,itp,tp_prob,its,ts_prob\n") 
-    for step in tqdm(range(0, data_reader.num_data, args.batch_size), desc="Pred"):
-
-      if step + args.batch_size >= data_reader.num_data:
-        for t in threads:
-          t.join()
-        sess.run(data_reader.queue.close())
+    #for step in tqdm(range(0, data_reader.num_data, args.batch_size), desc="Pred"):
+    
+    while True:
+      #if step + args.batch_size >= data_reader.num_data:
+      #  for t in threads:
+      #    t.join()
+      #  sess.run(data_reader.queue.close())
 
       pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
                                                    feed_dict={model.drop_rate: 0,
-                                                              model.is_training: False})
+                                                              model.is_training: False},
+                                                   options=tf.RunOptions(timeout_in_ms=30000))
       
       picks_batch = pool.map(partial(postprocessing_thread,
                                       pred = pred_batch,

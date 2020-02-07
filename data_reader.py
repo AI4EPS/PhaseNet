@@ -7,6 +7,8 @@ import pandas as pd
 import logging
 import scipy.interpolate
 pd.options.mode.chained_assignment = None
+import obspy
+from tqdm import tqdm
 
 
 class Config():
@@ -333,7 +335,7 @@ class DataReader_test(DataReader):
     return 0
 
 
-class DataReader_pred(DataReader):
+class DataReader_pred_bak(DataReader):
 
   def __init__(self,
                data_dir,
@@ -401,6 +403,121 @@ class DataReader_pred(DataReader):
                                         self.fname_placeholder: fname})
 
 
+
+
+class DataReader_pred(DataReader):
+
+  def __init__(self,
+               data_dir,
+               data_list,
+               queue_size,
+               coord,
+               input_length=3000,
+               config=Config()):
+    self.config = config
+    tmp_list = pd.read_csv(data_list, header=0)
+    self.data_list = tmp_list
+    self.num_data = len(self.data_list)
+    self.data_dir = data_dir
+    self.queue_size = queue_size
+    self.X_shape = config.X_shape
+    self.Y_shape = config.Y_shape
+    self.input_length = config.X_shape[0]
+    if input_length is not None:
+      logging.warning("Using input length: {}".format(input_length))
+      self.X_shape[0] = input_length
+      self.Y_shape[0] = input_length
+      self.input_length = input_length
+
+    self.coord = coord
+    self.threads = []
+    self.add_placeholder()
+  
+  def add_placeholder(self):
+    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
+    self.fname_placeholder = tf.placeholder(dtype=tf.string, shape=None)
+    self.queue = tf.PaddingFIFOQueue(self.queue_size,
+                                     ['float32', 'string'],
+                                     shapes=[self.config.X_shape, []])
+
+    self.enqueue = self.queue.enqueue([self.sample_placeholder, 
+                                       self.fname_placeholder])
+
+  def dequeue(self, num_elements):
+    output = self.queue.dequeue_up_to(num_elements)
+    return output
+
+
+  ## 
+  def read_mseed(self, fp):
+
+    chn_type = [['E', 'N', 'Z'], ['3', '2', '1'], ['1', '2', 'Z']] ##todo
+    meta = obspy.read(fp)
+    meta = meta.detrend('constant')
+    meta = meta.merge(fill_value=0)
+    meta = meta.select(channel="BH*")
+    meta = meta.interpolate(sampling_rate=100)
+    data = []
+    ## todo: how to specify chn_type automatically
+    # for c in ["1", "2", "Z"]:
+    for c in chn_type[2]: 
+      tmp = meta.select(component=c)
+      assert(len(tmp) == 1)
+      data.append(meta.select(component=c)[0].data)
+    data = np.vstack(data)
+    pad_width = int((np.ceil((data.shape[1] - 1) // self.input_length))*self.input_length - data.shape[1])
+
+    if pad_width == -1:
+      data = data[:,:-1]
+    else:
+      data = np.pad(data, ((0,0), (0, pad_width)), 'constant', constant_values=(0,0))
+
+    data = np.reshape(data, (-1, 3, self.input_length))
+    data = data.transpose(0,2,1)[:,:,np.newaxis,:]
+
+    return data
+
+
+  def thread_main(self, sess, n_threads=1, start=0):
+    index = list(range(start, self.num_data, n_threads))
+    for i in index:
+      fname = self.data_list.iloc[i]['fname']
+      fp = os.path.join(self.data_dir, fname)
+      try:
+        # meta = np.load(fp)
+        meta = self.read_mseed(fp)
+      except:
+        logging.error("Failed reading {}".format(fname))
+        continue
+      # shift = 0
+      # sample = meta['data'][shift:shift+self.X_shape, np.newaxis, :]
+      # sample = meta['data'][:, np.newaxis, :]
+      for i in tqdm(range(meta.shape[0]), desc=f"{fp}"):
+        # if np.array(sample.shape).all() != np.array(self.X_shape).all():
+        #   logging.error("{}: shape {} is not same as input shape {}!".format(fname, sample.shape, self.X_shape))
+        #   continue
+
+        # if np.isnan(sample).any() or np.isinf(sample).any():
+        #   logging.warning("Data error: {}\nReplacing nan and inf with zeros".format(fname))
+        #   sample[np.isnan(sample)] = 0
+        #   sample[np.isinf(sample)] = 0
+
+        sample = meta[i]
+        sample = self.normalize(sample)
+        sample = self.adjust_amplitude_for_multichannels(sample)
+
+        sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
+                                          self.fname_placeholder: f"{fname}_{i:03d}"})
+
 if __name__ == "__main__":
-  pass
+  # pass
+
+  data_reader = DataReader_pred(
+    data_dir="/data/beroza/kaiwenw/Timpson/TimpsonData/0510_0526/",
+    data_list="/data/beroza/kaiwenw/Timpson/TimpsonData/0510_0526/name.csv",
+    queue_size=20,
+    coord=None,
+    input_length=3000)
+  data_reader.thread_main(None, n_threads=1, start=0)
+# pred_fn(args, data_reader, log_dir=args.output_dir)
 
