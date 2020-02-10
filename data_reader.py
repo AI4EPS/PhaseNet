@@ -460,7 +460,7 @@ class DataReader_pred(DataReader):
     meta = meta.trim(min([st.stats.starttime for st in meta]), 
                      max([st.stats.endtime for st in meta]), 
                      pad=True, fill_value=0)
-    meta = meta.interpolate(sampling_rate=100)
+    meta = meta.interpolate(sampling_rate=20)
     data = []
     ## if there is no z channel, i.e. borehole station: 3,2,1
     if meta[-1].stats.channel[-1] != 'Z': 
@@ -475,9 +475,10 @@ class DataReader_pred(DataReader):
       data = data[:,:-1]
     else:
       data = np.pad(data, ((0,0), (0, pad_width)), 'constant', constant_values=(0,0))
-
-    data = np.reshape(data, (-1, 3, self.input_length))
-    data = data.transpose(0,2,1)[:,:,np.newaxis,:]
+    
+    data = np.hstack([data, np.zeros_like(data[:,:self.input_length//2]), data[:,self.input_length//2:]])
+    data = np.reshape(data, (3, -1, self.input_length))
+    data = data.transpose(1,2,0)[:,:,np.newaxis,:]
 
     return data
 
@@ -490,8 +491,9 @@ class DataReader_pred(DataReader):
       try:
         # meta = np.load(fp)
         meta = self.read_mseed(fp)
-      except:
+      except Exception as e:
         logging.error("Failed reading {}".format(fname))
+        print(e)
         continue
       # shift = 0
       # sample = meta['data'][shift:shift+self.X_shape, np.newaxis, :]
