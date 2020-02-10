@@ -455,18 +455,22 @@ class DataReader_pred(DataReader):
     meta = obspy.read(fp)
     meta = meta.detrend('constant')
     meta = meta.merge(fill_value=0)
-    meta = meta.select(channel="BH*")
+    meta = meta.sort()
+    assert(len(meta) <= 3)
+    meta = meta.trim(min([st.stats.starttime for st in meta]), 
+                     max([st.stats.endtime for st in meta]), 
+                     pad=True, fill_value=0)
     meta = meta.interpolate(sampling_rate=100)
     data = []
-    ## todo: how to specify chn_type automatically
-    # for c in ["1", "2", "Z"]:
-    for c in chn_type[2]: 
-      tmp = meta.select(component=c)
-      assert(len(tmp) == 1)
-      data.append(meta.select(component=c)[0].data)
-    data = np.vstack(data)
-    pad_width = int((np.ceil((data.shape[1] - 1) // self.input_length))*self.input_length - data.shape[1])
+    ## if there is no z channel, i.e. borehole station: 3,2,1
+    if meta[-1].stats.channel[-1] != 'Z': 
+      meta = meta.sort(reverse=True)
 
+    for st in meta:
+      data.append(st.data)
+    data = np.vstack(data)
+
+    pad_width = int((np.ceil((data.shape[1] - 1) / self.input_length))*self.input_length - data.shape[1])
     if pad_width == -1:
       data = data[:,:-1]
     else:

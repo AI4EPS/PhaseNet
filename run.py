@@ -10,6 +10,7 @@ from data_reader import Config, DataReader, DataReader_test, DataReader_pred
 from util import *
 from tqdm import tqdm
 import pandas as pd
+import threading
 import multiprocessing
 from functools import partial
 
@@ -424,6 +425,7 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     if not os.path.exists(result_dir):
       os.makedirs(result_dir)
 
+
   config = set_config(args, data_reader)
   with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
     fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
@@ -438,6 +440,8 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
 
   with tf.Session(config=sess_config) as sess:
 
+    threads = data_reader.start_threads(sess, n_threads=8)
+
     saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
     init = tf.global_variables_initializer()
     sess.run(init)
@@ -446,7 +450,6 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     latest_check_point = tf.train.latest_checkpoint(args.model_dir)
     saver.restore(sess, latest_check_point)
 
-    threads = data_reader.start_threads(sess, n_threads=8)
     if args.plot_figure:
       num_pool = multiprocessing.cpu_count()*2
     elif args.save_result:
@@ -459,15 +462,28 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     #for step in tqdm(range(0, data_reader.num_data, args.batch_size), desc="Pred"):
     
     while True:
+       if sess.run(data_reader.queue.size()) >= args.batch_size:
+           break
+       time.sleep(1)
+    stop = False
+    while True:
       #if step + args.batch_size >= data_reader.num_data:
       #  for t in threads:
       #    t.join()
       #  sess.run(data_reader.queue.close())
-
-      pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
-                                                   feed_dict={model.drop_rate: 0,
-                                                              model.is_training: False},
-                                                   options=tf.RunOptions(timeout_in_ms=30000))
+      try:
+        pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
+                                                     feed_dict={model.drop_rate: 0,
+                                                                model.is_training: False},
+                                                     options=tf.RunOptions(timeout_in_ms=3000))
+      except Exception as e:
+        for t in threads:
+          t.join()
+        sess.run(data_reader.queue.close())
+        if sess.run(data_reader.queue.size()) == 0:
+          stop = True
+        else:
+          continue
       
       picks_batch = pool.map(partial(postprocessing_thread,
                                       pred = pred_batch,
@@ -481,8 +497,11 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
       for i in range(len(fname_batch)):
         fclog.write("{},{},{},{},{}\n".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1], picks_batch[i][1][0], picks_batch[i][1][1]))
       # fclog.flush()
+      if stop:
+        break
 
     fclog.close()
+    print("Done")
 
   return 0
 
@@ -505,7 +524,7 @@ def main(args):
             data_dir=args.valid_dir,
             data_list=args.valid_list,
             mask_window=0.4,
-            queue_size=args.batch_size*3,
+            queue_size=args.batch_size*2,
             coord=coord)
         logging.info("Dataset size: train {}, valid {}".format(data_reader.num_data, data_reader_valid.num_data))
       else:
@@ -519,7 +538,7 @@ def main(args):
           data_dir=args.data_dir,
           data_list=args.data_list,
           mask_window=0.4,
-          queue_size=args.batch_size*3,
+          queue_size=args.batch_size*2,
           coord=coord)
     test_fn(args, data_reader)
 
@@ -528,7 +547,7 @@ def main(args):
       data_reader = DataReader_pred(
           data_dir=args.data_dir,
           data_list=args.data_list,
-          queue_size=args.batch_size*3,
+          queue_size=args.batch_size*2,
           coord=coord,
           input_length=args.input_length)
     pred_fn(args, data_reader, log_dir=args.output_dir)
