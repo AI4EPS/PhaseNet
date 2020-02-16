@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import logging
 import scipy.interpolate
+from tqdm import tqdm
 pd.options.mode.chained_assignment = None
 
 
@@ -33,6 +34,10 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
+    ## case 1: random shift
+    selected_channel = ["HNE_HNN_HNZ", "HHE_HHN_HHZ", "DPE_DPN_DPZ", "EHE_EHN_EHZ", "BHE_BHN_BHZ"]
+    tmp_list = tmp_list[tmp_list['channels'].isin(selected_channel)]
+
     self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
@@ -178,36 +183,62 @@ class DataReader(object):
           stop = True
           break
 
+      ## case 1: random shift
+        # sample = np.zeros(self.X_shape)
+        # data = np.copy(meta['data'])
+        # itp = meta['itp']
+        # its = meta['its']
+        # ## wrong shifting
+        # shift = np.random.randint(-1500, -1000)
+        # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        # itp_list = [itp-start_tp-shift]
+        # its_list = [its-start_tp-shift]
+        # sample = self.normalize(sample)
+
+      ## case 2: stack noise
         sample = np.zeros(self.X_shape)
-        if np.random.random() < 0.95:
-          if np.random.random() < 0.5:
-            ratio = np.random.uniform(1, 5)
-            data, itp, its = self.interplate(meta['data'], meta['itp'].tolist(), meta['its'].tolist(), ratio)
-          else:
-            data = np.copy(meta['data'])
-            itp = meta['itp']
-            its = meta['its']
-
-          start_tp = itp
-          shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
-          sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
-          itp_list = [itp-start_tp-shift]
-          its_list = [its-start_tp-shift]
-
-          sample = self.normalize(sample)
-          sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-          #if meta['snr'] > 2:
-          #  sample = self.add_noise(sample, channels)
-          # sample = self.scale_amplitude(sample)
-          if len(channels.split('_')) == 3:
-            sample = self.drop_channel(sample)
-        else:  # pure noise
-          sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
-          itp_list = []
-          its_list = []
-
+        data = np.copy(meta['data'])
+        itp = meta['itp']
+        its = meta['its']
+        shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+        sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        itp_list = [itp-start_tp-shift]
+        its_list = [its-start_tp-shift]
         sample = self.normalize(sample)
-        sample = self.adjust_amplitude_for_multichannels(sample)
+
+
+
+#         sample = np.zeros(self.X_shape)
+#         if np.random.random() < 0.95:
+# #          if np.random.random() < 0.5:
+# #            ratio = np.random.uniform(1, 5)
+# #            data, itp, its = self.interplate(meta['data'], meta['itp'].tolist(), meta['its'].tolist(), ratio)
+# #          else:
+#           data = np.copy(meta['data'])
+#           itp = meta['itp']
+#           its = meta['its']
+
+#           start_tp = itp
+# #          shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+#           shift = -1000
+#           sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+#           itp_list = [itp-start_tp-shift]
+#           its_list = [its-start_tp-shift]
+
+#           #sample = self.normalize(sample)
+# #          sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
+#           #if meta['snr'] > 2:
+#           #  sample = self.add_noise(sample, channels)
+#           # sample = self.scale_amplitude(sample)
+# #          if len(channels.split('_')) == 3:
+# #            sample = self.drop_channel(sample)
+# #        else:  # pure noise
+# #          sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
+# #          itp_list = []
+# #          its_list = []
+
+#         sample = self.normalize(sample)
+# #        sample = self.adjust_amplitude_for_multichannels(sample)
 
         if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
           continue
@@ -285,51 +316,93 @@ class DataReader_test(DataReader):
         break
 
       sample = np.zeros(self.X_shape)
-
       np.random.seed(self.config.seed+i)
-      shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
-      sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
-      itp_list = [meta['itp'].tolist()-start_tp-shift]
-      its_list = [meta['its'].tolist()-start_tp-shift]
 
-      sample = self.normalize(sample)
-      sample = self.adjust_amplitude_for_multichannels(sample)
+      ## case 1: random shift
+      for shift in tqdm(range(-3000, 0, 10)):
+        sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+        itp_list = [meta['itp'].tolist()-start_tp-shift]
+        its_list = [meta['its'].tolist()-start_tp-shift]
+        sample = self.normalize(sample)
+        if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
+          continue
+        target = np.zeros(self.Y_shape)
+        itp_true = []
+        its_true = []
+        for itp, its in zip(itp_list, its_list):
+          if (itp >= target.shape[0]) or (itp < 0):
+            pass
+          elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
+            target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
+                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+            itp_true.append(itp)
+          elif (itp-self.mask_window//2 < target.shape[0]):
+            target[0:itp+self.mask_window//2, 0, 1] = \
+                np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+            itp_true.append(itp)
 
-      if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
-        continue
+          if (its >= target.shape[0]) or (its < 0):
+            pass
+          elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
+            target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
+                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+            its_true.append(its)
+          elif (its-self.mask_window//2 < target.shape[0]):
+            target[0:its+self.mask_window//2, 0, 2] = \
+                np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+            its_true.append(its)
+        target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
 
-      target = np.zeros(self.Y_shape)
-      itp_true = []
-      its_true = []
-      for itp, its in zip(itp_list, its_list):
-        if (itp >= target.shape[0]) or (itp < 0):
-          pass
-        elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
-          target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
-              np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-          itp_true.append(itp)
-        elif (itp-self.mask_window//2 < target.shape[0]):
-          target[0:itp+self.mask_window//2, 0, 1] = \
-              np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-          itp_true.append(itp)
+        sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
+                                          self.target_placeholder: target,
+                                          self.fname_placeholder: fname+f"_{abs(shift):04d}",
+                                          self.itp_placeholder: itp_true,
+                                          self.its_placeholder: its_true})
+    
 
-        if (its >= target.shape[0]) or (its < 0):
-          pass
-        elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
-          target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
-              np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-          its_true.append(its)
-        elif (its-self.mask_window//2 < target.shape[0]):
-          target[0:its+self.mask_window//2, 0, 2] = \
-              np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-          its_true.append(its)
-      target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
+      # # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+      # itp_list = [meta['itp'].tolist()-start_tp-shift]
+      # its_list = [meta['its'].tolist()-start_tp-shift]
 
-      sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
-                                        self.target_placeholder: target,
-                                        self.fname_placeholder: fname,
-                                        self.itp_placeholder: itp_true,
-                                        self.its_placeholder: its_true})
+      # sample = self.normalize(sample)
+      # # sample = self.adjust_amplitude_for_multichannels(sample)
+
+      # if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
+      #   continue
+
+      # target = np.zeros(self.Y_shape)
+      # itp_true = []
+      # its_true = []
+      # for itp, its in zip(itp_list, its_list):
+      #   if (itp >= target.shape[0]) or (itp < 0):
+      #     pass
+      #   elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
+      #     target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
+      #         np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+      #     itp_true.append(itp)
+      #   elif (itp-self.mask_window//2 < target.shape[0]):
+      #     target[0:itp+self.mask_window//2, 0, 1] = \
+      #         np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+      #     itp_true.append(itp)
+
+      #   if (its >= target.shape[0]) or (its < 0):
+      #     pass
+      #   elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
+      #     target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
+      #         np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+      #     its_true.append(its)
+      #   elif (its-self.mask_window//2 < target.shape[0]):
+      #     target[0:its+self.mask_window//2, 0, 2] = \
+      #         np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+      #     its_true.append(its)
+      # target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
+
+      # sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
+      #                                   self.target_placeholder: target,
+      #                                   self.fname_placeholder: fname,
+      #                                   self.itp_placeholder: itp_true,
+      #                                   self.its_placeholder: its_true})
     return 0
 
 

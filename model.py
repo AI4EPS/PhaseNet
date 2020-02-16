@@ -436,7 +436,7 @@ class Model:
   #     summary_writer.add_summary(step_summary, step)
   #     return loss
 
-  def test_on_batch(self, sess, summary_writer):
+  def test_on_batch(self, sess, summary_writer, options=None):
     feed = {self.drop_rate: 0,
             self.is_training: False}
     step_summary, step, loss, preds, \
@@ -450,7 +450,8 @@ class Model:
                                      self.input_batch[2],
                                      self.input_batch[3],
                                      self.input_batch[4]],
-                                     feed_dict=feed)
+                                     feed_dict=feed,
+                                     options=options)
     summary_writer.add_summary(step_summary, step)
     return loss, preds, X_batch, Y_batch, fname_batch, itp_batch, its_batch
 

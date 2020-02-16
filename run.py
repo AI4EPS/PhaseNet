@@ -22,12 +22,12 @@ def read_args():
                       help="train/valid/test/debug")
 
   parser.add_argument("--epochs",
-                      default=100,
+                      default=20,
                       type=int,
                       help="number of epochs (default: 10)")
 
   parser.add_argument("--batch_size",
-                      default=200,
+                      default=20,
                       type=int,
                       help="batch size")
 
@@ -42,7 +42,7 @@ def read_args():
                       help="decay step")
 
   parser.add_argument("--decay_rate",
-                      default=0.9,
+                      default=1,
                       type=float,
                       help="decay rate")
 
@@ -57,7 +57,7 @@ def read_args():
                       help="filters root")
 
   parser.add_argument("--depth",
-                      default=5,
+                      default=7,
                       type=int,
                       help="depth")
 
@@ -317,7 +317,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
       
   return 0
 
-def test_fn(args, data_reader, figure_dir=None, result_dir=None):
+def valid_fn(args, data_reader, figure_dir=None, result_dir=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
   logging.info("{} log: {}".format(args.mode, current_time))
   log_dir = os.path.join(args.log_dir, args.mode, current_time)
@@ -406,6 +406,94 @@ def test_fn(args, data_reader, figure_dir=None, result_dir=None):
     flog.close()
 
   return 0
+
+
+def test_fn(args, data_reader, figure_dir=None, result_dir=None):
+  current_time = time.strftime("%y%m%d-%H%M%S")
+  logging.info("{} log: {}".format(args.mode, current_time))
+  log_dir = os.path.join(args.log_dir, args.mode, current_time)
+  if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+  if (args.plot_figure == True ) and (figure_dir is None):
+    figure_dir = os.path.join(log_dir, 'figures')
+    if not os.path.exists(figure_dir):
+      os.makedirs(figure_dir)
+  if (args.save_result == True) and (result_dir is None):
+    result_dir = os.path.join(log_dir, 'results')
+    if not os.path.exists(result_dir):
+      os.makedirs(result_dir)
+
+  config = set_config(args, data_reader)
+  with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
+    fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
+
+  with tf.name_scope('Input_Batch'):
+    batch = data_reader.dequeue(args.batch_size)
+
+  model = Model(config, input_batch=batch, mode='valid')
+  sess_config = tf.ConfigProto()
+  sess_config.gpu_options.allow_growth = True
+  sess_config.log_device_placement = False
+
+  with tf.Session(config=sess_config) as sess:
+
+    summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
+    saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
+    init = tf.global_variables_initializer()
+    sess.run(init)
+
+    logging.info("restoring models...")
+    latest_check_point = tf.train.latest_checkpoint(args.model_dir)
+    saver.restore(sess, latest_check_point)
+    
+    threads = data_reader.start_threads(sess, n_threads=8)
+    flog = open(os.path.join(log_dir, 'loss.log'), 'w')
+    total_step = 0
+    mean_loss = 0
+    picks = []
+    itp = []
+    its = []
+    # progressbar = tqdm(range(0, data_reader.num_data, args.batch_size), desc=args.mode)
+    if args.plot_figure:
+      num_pool = multiprocessing.cpu_count()*2
+    elif args.save_result:
+      num_pool = multiprocessing.cpu_count()
+    else:
+      num_pool = 2
+    pool = multiprocessing.Pool(num_pool)
+    # for step in progressbar:
+    while True:
+
+      loss_batch, pred_batch, X_batch, Y_batch, \
+      fname_batch, itp_batch, its_batch = model.test_on_batch(sess, summary_writer, options=tf.RunOptions(timeout_in_ms=3000))
+      total_step += 1
+      mean_loss += (loss_batch-mean_loss)/total_step
+      # progressbar.set_description("{}, loss={:.6f}, mean loss={:6f}".format(args.mode, loss_batch, mean_loss))
+
+      itp_batch = clean_queue(itp_batch)
+      its_batch = clean_queue(its_batch)
+      picks_batch = pool.map(partial(postprocessing_thread,
+                               pred = pred_batch,
+                               X = X_batch,
+                               Y = Y_batch,
+                               itp = itp_batch,
+                               its = its_batch,
+                               fname = fname_batch,
+                               result_dir = result_dir,
+                               figure_dir = figure_dir),
+                       range(len(pred_batch)))
+      picks.extend(picks_batch)
+      itp.extend(itp_batch)
+      its.extend(its_batch)
+
+    flog.write("mean loss: {}\n".format(mean_loss))
+    metrics_p, metrics_s = calculate_metrics(picks, itp, its, tol=0.1)
+    flog.write("P-phase: Precision={}, Recall={}, F1={}\n".format(metrics_p[0], metrics_p[1], metrics_p[2]))
+    flog.write("S-phase: Precision={}, Recall={}, F1={}\n".format(metrics_s[0], metrics_s[1], metrics_s[2]))
+    flog.close()
+
+  return 0
+
 
 def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
