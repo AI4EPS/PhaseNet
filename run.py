@@ -22,7 +22,7 @@ def read_args():
                       help="train/valid/test/debug")
 
   parser.add_argument("--epochs",
-                      default=20,
+                      default=30,
                       type=int,
                       help="number of epochs (default: 10)")
 
@@ -57,7 +57,7 @@ def read_args():
                       help="filters root")
 
   parser.add_argument("--depth",
-                      default=7,
+                      default=5,
                       type=int,
                       help="depth")
 
@@ -117,7 +117,7 @@ def read_args():
                       help="Checkpoint directory (default: None)")
 
   parser.add_argument("--num_plots",
-                      default=10,
+                      default=0,
                       type=int,
                       help="Plotting trainning results")
 
@@ -250,7 +250,8 @@ def train_fn(args, data_reader, data_reader_valid=None):
       latest_check_point = tf.train.latest_checkpoint(args.model_dir)
       saver.restore(sess, latest_check_point)
 
-    threads = data_reader.start_threads(sess, n_threads=multiprocessing.cpu_count())
+    # threads = data_reader.start_threads(sess, n_threads=multiprocessing.cpu_count())
+    threads = data_reader.start_threads(sess, n_threads=4)
     if data_reader_valid is not None:
       threads_valid = data_reader_valid.start_threads(sess, n_threads=multiprocessing.cpu_count())
     flog = open(os.path.join(log_dir, 'loss.log'), 'w')
@@ -465,7 +466,7 @@ def test_fn(args, data_reader, figure_dir=None, result_dir=None):
     while True:
 
       loss_batch, pred_batch, X_batch, Y_batch, \
-      fname_batch, itp_batch, its_batch = model.test_on_batch(sess, summary_writer, options=tf.RunOptions(timeout_in_ms=3000))
+      fname_batch, itp_batch, its_batch = model.test_on_batch(sess, summary_writer, options=tf.RunOptions(timeout_in_ms=10000))
       total_step += 1
       mean_loss += (loss_batch-mean_loss)/total_step
       # progressbar.set_description("{}, loss={:.6f}, mean loss={:6f}".format(args.mode, loss_batch, mean_loss))
@@ -575,6 +576,10 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
 
 def main(args):
 
+  tf.reset_default_graph()
+  tf.set_random_seed(0)
+  np.random.seed(0)
+
   logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
   coord = tf.train.Coordinator()
 
@@ -607,7 +612,9 @@ def main(args):
           mask_window=0.4,
           queue_size=args.batch_size*3,
           coord=coord)
-    test_fn(args, data_reader)
+    
+    # test_fn(args, data_reader) ## modified for case 1: random shift
+    valid_fn(args, data_reader)
 
   elif args.mode == "pred":
     with tf.name_scope('create_inputs'):

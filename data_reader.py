@@ -34,9 +34,7 @@ class DataReader(object):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-    ## case 1: random shift
-    selected_channel = ["HNE_HNN_HNZ", "HHE_HHN_HHZ", "DPE_DPN_DPZ", "EHE_EHN_EHZ", "BHE_BHN_BHZ"]
-    tmp_list = tmp_list[tmp_list['channels'].isin(selected_channel)]
+
 
     self.data_list = tmp_list
     self.num_data = len(self.data_list)
@@ -82,61 +80,74 @@ class DataReader(object):
       data /= np.random.uniform(1, 3)
     return data
 
-  def drop_channel(self, data):
-    if np.random.uniform(0, 1) < 0.3:
+  def drop_channel(self, data, prob=0.5):
+    if np.random.uniform(0, 1) < prob:
       c1 = np.random.choice([0, 1])
       c2 = np.random.choice([0, 1])
       c3 = np.random.choice([0, 1])
       if c1 + c2 + c3 > 0:
         data[..., np.array([c1, c2, c3]) == 0] = 0
         # data *= 3/(c1+c2+c3)
+      else:
+        data[..., np.random.choice([0,1,2], size=2, replace=False)] = 0
+        # data *= 3/(c1+c2+c3)
     return data
 
-  def interplate(self, data, itp, its, ratio=1):
-    nt = data.shape[0]
-    t = np.linspace(0, 1, nt)
-    t_new = np.linspace(0, 1, nt*ratio)
-    f = scipy.interpolate.interp1d(t, data, axis=0)
-    data_new = f(t_new)
-    return data_new, round(itp*ratio), round(its*ratio)
+  def interplate(self, data, itp, its, start_tp, ratio=2, prob=0.5):
+    if (np.random.uniform(0, 1) < prob) and ((its-itp)*ratio < self.X_shape[0]*0.8):
+      nt = data.shape[0]
+      t = np.linspace(0, 1, nt)
+      f = scipy.interpolate.interp1d(t, data, axis=0)
+      t_new = np.linspace(0, 1, round(nt*ratio))
+      data_new = f(t_new)
+      return data_new, round(itp*ratio), round(its*ratio), round(start_tp*ratio)
+    else:
+      return data, itp, its, start_tp
 
-  def add_noise(self, data, channels):
-    if np.random.uniform(0, 1) < 0.1:
-      if channels not in self.buffer_channels:
-        self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
-      fname = os.path.join(self.data_dir, self.buffer_channels[channels].sample(n=1).iloc[0]['fname'])
+  def add_noise(self, data, channels, prob=0.3):
+    if np.random.uniform(0, 1) < prob:
+      # if channels not in self.buffer_channels:
+      #   self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
+      # fname = os.path.join(self.data_dir, self.buffer_channels[channels].sample(n=1).iloc[0]['fname'])
+      fname = os.path.join(self.data_dir, self.data_list.sample(n=1).iloc[0]['fname'])
       try:
         if fname not in self.buffer:
           meta = np.load(fname)
-          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
+          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 
+                                'snr': meta['snr'],  'channels': meta['channels']}
         meta = self.buffer[fname]
       except:
         logging.error("Failed reading {} in func add_noise".format(fname))
         return data
-      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * np.random.uniform(1, 5)
+      # data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * np.random.uniform(10, 100)
+      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * np.random.chisquare(100)
     return data
 
-  def adjust_amplitude_for_multichannels(self, data):
+  def adjust_missingchannels(self, data):
     tmp = np.max(np.abs(data), axis=0, keepdims=True)
     assert(tmp.shape[-1] == data.shape[-1])
     if np.count_nonzero(tmp) > 0:
       data *= data.shape[-1] / np.count_nonzero(tmp)
     return data
 
-  def add_event(self, data, itp_list, its_list, channels, normalize=False):
-    while np.random.uniform(0, 1) < 0.5:
+  def add_event(self, data, itp_list, its_list, channels, normalize=True, prob=0.5):
+    # while np.random.uniform(0, 1) < prob:
+    if np.random.uniform(0, 1) < prob:
       shift = None
-      if channels not in self.buffer_channels:
-        self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
-      fname = os.path.join(self.data_dir, self.buffer_channels[channels].sample(n=1).iloc[0]['fname'])
+      # if channels not in self.buffer_channels:
+      #   self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
+      # fname = os.path.join(self.data_dir, self.buffer_channels[channels].sample(n=1).iloc[0]['fname'])
+      fname = os.path.join(self.data_dir, self.data_list.sample(n=1).iloc[0]['fname'])
       try:
         if fname not in self.buffer:
           meta = np.load(fname)
-          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
+          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 
+                                'snr': meta['snr'], 'channels': meta['channels']}
         meta = self.buffer[fname]
       except:
         logging.error("Failed reading {} in func add_event".format(fname))
-        continue
+        # continue
+        return data, itp_list, its_list
 
       start_tp = meta['itp'].tolist()
       itp = meta['itp'].tolist() - start_tp
@@ -144,18 +155,23 @@ class DataReader(object):
 
       if (max(its_list) - itp + self.mask_window + self.min_event_gap >= self.X_shape[0]-self.mask_window) \
          and (its - min(itp_list) + self.mask_window + self.min_event_gap >= min([its, self.X_shape[0]]) - self.mask_window):
-        continue
+        # continue
+        return data, itp_list, its_list
       elif max(its_list) - itp + self.mask_window + self.min_event_gap >= self.X_shape[0]-self.mask_window:
         shift = np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)
       elif its - min(itp_list) + self.mask_window + self.min_event_gap >= min([its, self.X_shape[0]]) - self.mask_window:
         shift = -np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window)
       else:
         shift = np.random.choice([-np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0]-self.mask_window), 
-                               np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)])
+                                  np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)])
       if normalize:
-        data += self.normalize(np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])) * ( 1 + np.random.random()/2 )
+        ## chisquare
+        # data += self.normalize(np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])) * np.random.chisquare(1)
+        ## uniform
+        data += self.normalize(np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])) * np.random.uniform(1, 10)
       else:
         data += np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+
       itp_list.append(itp-shift)
       its_list.append(its-shift)
     return data, itp_list, its_list
@@ -170,7 +186,8 @@ class DataReader(object):
         try:
           if fname not in self.buffer:
             meta = np.load(fname)
-            self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
+            self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 
+                                  'snr': meta['snr'], 'channels': meta['channels']}
           meta = self.buffer[fname]
         except:
           logging.error("Failed reading {}".format(fname))
@@ -183,63 +200,101 @@ class DataReader(object):
           stop = True
           break
 
-      ## case 1: random shift
-        # sample = np.zeros(self.X_shape)
+        sample = np.zeros(self.X_shape)
+        itp_list = []
+        its_list = []
+
+      ############### base case ###############
+        # data = np.copy(meta['data'])
+        # itp = meta['itp']
+        # its = meta['its']
+        # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+        # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        # itp_list.append(itp-start_tp-shift)
+        # its_list.append(its-start_tp-shift)
+          # sample = self.normalize(sample)
+
+      ############### case 1: random shift  ###############
         # data = np.copy(meta['data'])
         # itp = meta['itp']
         # its = meta['its']
         # ## wrong shifting
         # shift = np.random.randint(-1500, -1000)
         # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        # itp_list.append(itp-start_tp-shift)
+        # its_list.append(its-start_tp-shift)
+        # sample = self.normalize(sample)
+
+      ############### case 2: stack events  ###############
+        # data = np.copy(meta['data'])
+        # itp = meta['itp']
+        # its = meta['its']
+        # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+        # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        # itp_list.append(itp-start_tp-shift)
+        # its_list.append(its-start_tp-shift)
+        # sample = self.normalize(sample)
+        # sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True, prob=0.5)
+        # sample = self.normalize(sample)
+
+      ############### case 3: stack noise   ###############
+        # data = np.copy(meta['data'])
+        # itp = meta['itp']
+        # its = meta['its']
+        # # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+        # shift = np.random.randint(-1500, -500)
+        # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        # itp_list = [itp-start_tp-shift]
+        # its_list = [its-start_tp-shift]
+        # sample = self.add_noise(sample, channels, prob=0.5)
+        # sample = self.normalize(sample)
+
+      ############### case 4: strech events  ###############
+        # data = np.copy(meta['data'])
+        # itp = meta['itp']
+        # its = meta['its']
+        # data, itp, its, start_tp = self.interplate(data, itp.tolist(), its.tolist(), start_tp, ratio=2, prob=0.5)
+        # shift = np.random.randint(-1500, -500)
+        # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
         # itp_list = [itp-start_tp-shift]
         # its_list = [its-start_tp-shift]
         # sample = self.normalize(sample)
 
-      ## case 2: stack noise
-        sample = np.zeros(self.X_shape)
-        data = np.copy(meta['data'])
-        itp = meta['itp']
-        its = meta['its']
-        shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
-        sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
-        itp_list = [itp-start_tp-shift]
-        its_list = [its-start_tp-shift]
+      ############### case 5: channel drop  ###############
+        # data = np.copy(meta['data'])
+        # itp = meta['itp']
+        # its = meta['its']
+        # # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+        # shift = np.random.randint(-1500, -500)
+        # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        # itp_list = [itp-start_tp-shift]
+        # its_list = [its-start_tp-shift]
+        # sample = self.normalize(sample)
+
+        # if len(channels.split('_')) == 3:
+        #   sample = self.drop_channel(sample, prob=0.5)
+        # sample = self.adjust_missingchannels(sample)
+
+      ############### case 6: pure noise  ###############
+        if np.random.uniform(0,1) >= 0.2: ## zero means no noise
+          data = np.copy(meta['data'])
+          itp = meta['itp']
+          its = meta['its']
+          # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+          shift = np.random.randint(-1500, -500)
+          sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+          itp_list = [itp-start_tp-shift]
+          its_list = [its-start_tp-shift]
+        else:
+          sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
+          if np.random.uniform(0, 1) > 0.5:
+            sample[:np.random.randint(0, 2000), :, :] = 0
+          itp_list = []
+          its_list = []
         sample = self.normalize(sample)
 
 
-
-#         sample = np.zeros(self.X_shape)
-#         if np.random.random() < 0.95:
-# #          if np.random.random() < 0.5:
-# #            ratio = np.random.uniform(1, 5)
-# #            data, itp, its = self.interplate(meta['data'], meta['itp'].tolist(), meta['its'].tolist(), ratio)
-# #          else:
-#           data = np.copy(meta['data'])
-#           itp = meta['itp']
-#           its = meta['its']
-
-#           start_tp = itp
-# #          shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
-#           shift = -1000
-#           sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
-#           itp_list = [itp-start_tp-shift]
-#           its_list = [its-start_tp-shift]
-
-#           #sample = self.normalize(sample)
-# #          sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-#           #if meta['snr'] > 2:
-#           #  sample = self.add_noise(sample, channels)
-#           # sample = self.scale_amplitude(sample)
-# #          if len(channels.split('_')) == 3:
-# #            sample = self.drop_channel(sample)
-# #        else:  # pure noise
-# #          sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
-# #          itp_list = []
-# #          its_list = []
-
-#         sample = self.normalize(sample)
-# #        sample = self.adjust_amplitude_for_multichannels(sample)
-
+        ## common
         if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
           continue
 
@@ -277,6 +332,58 @@ class DataReader(object):
 
 
 class DataReader_test(DataReader):
+
+  def __init__(self,
+               data_dir,
+               data_list,
+               mask_window,
+               queue_size,
+               coord,
+               config=Config()):
+    self.config = config
+    tmp_list = pd.read_csv(data_list, header=0)
+
+    # selected_channel = ["BHE_BHN_BHZ"]
+    # tmp_list = tmp_list[tmp_list['channels'].isin(selected_channel)]
+
+    ## case 1: random shift
+    # tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
+    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])>20) & (tmp_list['its-itp']<400)]
+
+    ## case 2: stack event
+
+    ## case 3: stack noise
+    # tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
+    # tmp_list = tmp_list[(tmp_list['its-itp']<400)]
+    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])>20) & (tmp_list['its-itp']<400)]
+
+    ## case 4: stetch event
+    # tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
+    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])>20) & (tmp_list['its-itp']<400)]
+
+    ## case 5: drop channel
+    # tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
+    # tmp_list = tmp_list[(tmp_list['its-itp']<400)]
+
+    ## case 6: pure noise
+    tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
+    tmp_list = tmp_list[(tmp_list['its-itp']<400)].sample(20)
+
+    self.data_list = tmp_list
+    self.num_data = len(self.data_list)
+    self.data_dir = data_dir
+    self.queue_size = queue_size
+    self.n_channel = config.n_channel
+    self.n_class = config.n_class
+    self.X_shape = config.X_shape
+    self.Y_shape = config.Y_shape
+    self.min_event_gap = config.min_event_gap
+    self.mask_window = int(mask_window * config.sampling_rate)
+    self.coord = coord
+    self.threads = []
+    self.buffer = {}
+    self.buffer_channels = {}
+    self.add_placeholder()
 
   def add_placeholder(self):
     self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
@@ -316,93 +423,152 @@ class DataReader_test(DataReader):
         break
 
       sample = np.zeros(self.X_shape)
+      itp_list = []
+      its_list = []
       np.random.seed(self.config.seed+i)
 
-      ## case 1: random shift
-      for shift in tqdm(range(-3000, 0, 10)):
-        sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
-        itp_list = [meta['itp'].tolist()-start_tp-shift]
-        its_list = [meta['its'].tolist()-start_tp-shift]
-        sample = self.normalize(sample)
-        if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
-          continue
-        target = np.zeros(self.Y_shape)
-        itp_true = []
-        its_true = []
-        for itp, its in zip(itp_list, its_list):
-          if (itp >= target.shape[0]) or (itp < 0):
-            pass
-          elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
-            target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
-                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-            itp_true.append(itp)
-          elif (itp-self.mask_window//2 < target.shape[0]):
-            target[0:itp+self.mask_window//2, 0, 1] = \
-                np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-            itp_true.append(itp)
+      ############### base case  ###############
+      # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+      # itp_list.append(meta['itp'].tolist()-start_tp-shift)
+      # its_list.append(meta['its'].tolist()-start_tp-shift)
+      # sample = self.normalize(sample)      
 
-          if (its >= target.shape[0]) or (its < 0):
-            pass
-          elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
-            target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
-                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-            its_true.append(its)
-          elif (its-self.mask_window//2 < target.shape[0]):
-            target[0:its+self.mask_window//2, 0, 2] = \
-                np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-            its_true.append(its)
-        target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
+      ############### case 1: random shift  ###############
+      # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+      # itp_list.append(meta['itp'].tolist()-start_tp-shift)
+      # its_list.append(meta['its'].tolist()-start_tp-shift)
 
-        sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
-                                          self.target_placeholder: target,
-                                          self.fname_placeholder: fname+f"_{abs(shift):04d}",
-                                          self.itp_placeholder: itp_true,
-                                          self.its_placeholder: its_true})
-    
+      # for shift in tqdm(range(-3000, 1000, 20)):
+      #   sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+      #   itp_list = [meta['itp'].tolist()-start_tp-shift]
+      #   its_list = [meta['its'].tolist()-start_tp-shift]
+      #   sample = self.normalize(sample)
+      #   if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
+      #     continue
+      #   target = np.zeros(self.Y_shape)
+      #   itp_true = []
+      #   its_true = []
+      #   for itp, its in zip(itp_list, its_list):
+      #     if (itp >= target.shape[0]) or (itp < 0):
+      #       pass
+      #     elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
+      #       target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
+      #           np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+      #       itp_true.append(itp)
+      #     elif (itp-self.mask_window//2 < target.shape[0]):
+      #       target[0:itp+self.mask_window//2, 0, 1] = \
+      #           np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+      #       itp_true.append(itp)
 
-      # # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      #     if (its >= target.shape[0]) or (its < 0):
+      #       pass
+      #     elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
+      #       target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
+      #           np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+      #       its_true.append(its)
+      #     elif (its-self.mask_window//2 < target.shape[0]):
+      #       target[0:its+self.mask_window//2, 0, 2] = \
+      #           np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+      #       its_true.append(its)
+      #   target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
+
+      #   sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
+      #                                     self.target_placeholder: target,
+      #                                     self.fname_placeholder: fname+f"_{abs(shift-1000):04d}",
+      #                                     self.itp_placeholder: itp_true,
+      #                                     self.its_placeholder: its_true})
+
+
+
+      ############### case 2: stack event  ###############
+      # # for shift in [-1000, -1500]:
+      # for shift, ratio in zip([-500, -1500], [3, 1]):
+      #   sample[:, :, :] += self.normalize(np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])) * ratio#np.random.uniform(1, 10)
+      #   itp_list.append(meta['itp'].tolist()-start_tp-shift)
+      #   its_list.append(meta['its'].tolist()-start_tp-shift)
+      # sample = self.normalize(sample)      
+
+      ############### case 3: stack noise  ###############
+      ############### case 4: time stretch ###############
+      # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      # shift = np.random.randint(-1500, -500)
       # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
       # itp_list = [meta['itp'].tolist()-start_tp-shift]
       # its_list = [meta['its'].tolist()-start_tp-shift]
+      # sample = self.normalize(sample)      
 
+      ############### case 5: drop channel  ###############
+      # # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      # shift = np.random.randint(-1500, -500)
+      # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+      # itp_list.append(meta['itp'].tolist()-start_tp-shift)
+      # its_list.append(meta['its'].tolist()-start_tp-shift)
       # sample = self.normalize(sample)
-      # # sample = self.adjust_amplitude_for_multichannels(sample)
+ 
+      # # sample[:, :, 0] = 0 ## no E
+      # # sample[:, :, 1] = 0 ## no N
+      # # sample[:, :, 2] = 0 ## no Z
+      # ## only E
+      # # sample[:, :, 1] = 0; sample[:, :, 2] = 0
+      # # ## only N
+      # # sample[:, :, 0] = 0; sample[:, :, 2] = 0
+      # # only Z
+      # # sample[:, :, 0] = 0; sample[:, :, 1] = 0
+  
+      # if len(channels.split('_')) == 3:
+      #   sample = self.drop_channel(sample, prob=0.5)
+      # sample = self.adjust_missingchannels(sample)
 
-      # if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
-      #   continue
+      ############### case 6: pure noise ###############
+      shift = -3000
+      sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+      sample[:1000, :, :] = 0
+      dum_tp = meta['itp'].tolist()-start_tp-shift 
+      dum_ts = meta['its'].tolist()-start_tp-shift
+      if self.mask_window//2 < dum_tp < 3000 - self.mask_window//2:
+        itp_list.append(dum_tp)
+      if self.mask_window//2 < dum_ts < 3000 - self.mask_window//2:
+        its_list.append(dum_ts)
+      sample = self.normalize(sample)      
 
-      # target = np.zeros(self.Y_shape)
-      # itp_true = []
-      # its_true = []
-      # for itp, its in zip(itp_list, its_list):
-      #   if (itp >= target.shape[0]) or (itp < 0):
-      #     pass
-      #   elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
-      #     target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
-      #         np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-      #     itp_true.append(itp)
-      #   elif (itp-self.mask_window//2 < target.shape[0]):
-      #     target[0:itp+self.mask_window//2, 0, 1] = \
-      #         np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-      #     itp_true.append(itp)
+      #########
+      if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
+        continue
+      target = np.zeros(self.Y_shape)
+      itp_true = []
+      its_true = []
+      for itp, its in zip(itp_list, its_list):
+        if (itp >= target.shape[0]) or (itp < 0):
+          pass
+        elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
+          target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
+              np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+          itp_true.append(itp)
+        elif (itp-self.mask_window//2 < target.shape[0]):
+          target[0:itp+self.mask_window//2, 0, 1] = \
+              np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+          itp_true.append(itp)
 
-      #   if (its >= target.shape[0]) or (its < 0):
-      #     pass
-      #   elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
-      #     target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
-      #         np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-      #     its_true.append(its)
-      #   elif (its-self.mask_window//2 < target.shape[0]):
-      #     target[0:its+self.mask_window//2, 0, 2] = \
-      #         np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-      #     its_true.append(its)
-      # target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
+        if (its >= target.shape[0]) or (its < 0):
+          pass
+        elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
+          target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
+              np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+          its_true.append(its)
+        elif (its-self.mask_window//2 < target.shape[0]):
+          target[0:its+self.mask_window//2, 0, 2] = \
+              np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+          its_true.append(its)
+      target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
 
-      # sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
-      #                                   self.target_placeholder: target,
-      #                                   self.fname_placeholder: fname,
-      #                                   self.itp_placeholder: itp_true,
-      #                                   self.its_placeholder: its_true})
+      sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
+                                        self.target_placeholder: target,
+                                        self.fname_placeholder: fname,
+                                        self.itp_placeholder: itp_true,
+                                        self.its_placeholder: its_true})
+    
     return 0
 
 
@@ -469,7 +635,7 @@ class DataReader_pred(DataReader):
         sample[np.isinf(sample)] = 0
 
       sample = self.normalize(sample)
-      sample = self.adjust_amplitude_for_multichannels(sample)
+      sample = self.adjust_missingchannels(sample)
       sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
                                         self.fname_placeholder: fname})
 

@@ -160,9 +160,20 @@ def metrics(TP, nP, nT):
   nP: number of positive picks
   nT: number of true picks
   '''
-  precision = TP / nP
-  recall = TP / nT
-  F1 = 2* precision * recall / (precision + recall)
+  if nP == 0:
+    print("Zero positive picks!!!")
+    precision = 0
+  else:
+    precision = TP / nP
+  if nT == 0:
+    print("Zero true picks!!!")
+    recall = 0
+  else:
+    recall = TP / nT
+  if precision + recall > 0:
+    F1 = 2* precision * recall / (precision + recall)
+  else:
+    F1 = 0
   return [precision, recall, F1]
 
 def correct_picks(picks, true_p, true_s, tol):
@@ -178,8 +189,8 @@ def correct_picks(picks, true_p, true_s, tol):
     nP_p += len(picks[i][0][0])
     nP_s += len(picks[i][1][0])
 
-    if len(true_p[i]) > 1 or len(true_s[i]) > 1:
-      print(i, picks[i], true_p[i], true_s[i])
+    # if len(true_p[i]) > 1 or len(true_s[i]) > 1:
+    #   print(i, picks[i], true_p[i], true_s[i])
     tmp_p = np.array(picks[i][0][0]) - np.array(true_p[i])[:,np.newaxis]
     tmp_s = np.array(picks[i][1][0]) - np.array(true_s[i])[:,np.newaxis]
     TP_p += np.sum(np.abs(tmp_p) < tol/dt)
