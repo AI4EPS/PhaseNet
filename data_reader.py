@@ -71,91 +71,12 @@ class DataReader(object):
     data /= std_data
     return data
 
-  def scale_amplitude(self, data):
-    tmp = np.random.uniform(0, 1)
-    if tmp < 0.2:
-      data *= np.random.uniform(1, 3)
-    elif tmp < 0.4:
-      data /= np.random.uniform(1, 3)
-    return data
-
-  def drop_channel(self, data):
-    if np.random.uniform(0, 1) < 0.3:
-      c1 = np.random.choice([0, 1])
-      c2 = np.random.choice([0, 1])
-      c3 = np.random.choice([0, 1])
-      if c1 + c2 + c3 > 0:
-        data[..., np.array([c1, c2, c3]) == 0] = 0
-        # data *= 3/(c1+c2+c3)
-    return data
-
-  def interplate(self, data, itp, its, ratio=1):
-    nt = data.shape[0]
-    t = np.linspace(0, 1, nt)
-    t_new = np.linspace(0, 1, nt*ratio)
-    f = scipy.interpolate.interp1d(t, data, axis=0)
-    data_new = f(t_new)
-    return data_new, round(itp*ratio), round(its*ratio)
-
-  def add_noise(self, data, channels):
-    if np.random.uniform(0, 1) < 0.1:
-      if channels not in self.buffer_channels:
-        self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
-      fname = os.path.join(self.data_dir, self.buffer_channels[channels].sample(n=1).iloc[0]['fname'])
-      try:
-        if fname not in self.buffer:
-          meta = np.load(fname)
-          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
-        meta = self.buffer[fname]
-      except:
-        logging.error("Failed reading {} in func add_noise".format(fname))
-        return data
-      data += self.normalize(np.copy(meta['data'][:self.X_shape[0], np.newaxis, :])) * np.random.uniform(1, 5)
-    return data
-
-  def adjust_amplitude_for_multichannels(self, data):
+  def adjust_missingchannels(self, data):
     tmp = np.max(np.abs(data), axis=0, keepdims=True)
     assert(tmp.shape[-1] == data.shape[-1])
     if np.count_nonzero(tmp) > 0:
       data *= data.shape[-1] / np.count_nonzero(tmp)
     return data
-
-  def add_event(self, data, itp_list, its_list, channels, normalize=False):
-    while np.random.uniform(0, 1) < 0.5:
-      shift = None
-      if channels not in self.buffer_channels:
-        self.buffer_channels[channels] = self.data_list[self.data_list['channels']==channels]
-      fname = os.path.join(self.data_dir, self.buffer_channels[channels].sample(n=1).iloc[0]['fname'])
-      try:
-        if fname not in self.buffer:
-          meta = np.load(fname)
-          self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
-        meta = self.buffer[fname]
-      except:
-        logging.error("Failed reading {} in func add_event".format(fname))
-        continue
-
-      start_tp = meta['itp'].tolist()
-      itp = meta['itp'].tolist() - start_tp
-      its = meta['its'].tolist() - start_tp
-
-      if (max(its_list) - itp + self.mask_window + self.min_event_gap >= self.X_shape[0]-self.mask_window) \
-         and (its - min(itp_list) + self.mask_window + self.min_event_gap >= min([its, self.X_shape[0]]) - self.mask_window):
-        continue
-      elif max(its_list) - itp + self.mask_window + self.min_event_gap >= self.X_shape[0]-self.mask_window:
-        shift = np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)
-      elif its - min(itp_list) + self.mask_window + self.min_event_gap >= min([its, self.X_shape[0]]) - self.mask_window:
-        shift = -np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0] - self.mask_window)
-      else:
-        shift = np.random.choice([-np.random.randint(max(its_list) - itp + self.mask_window + self.min_event_gap, self.X_shape[0]-self.mask_window), 
-                               np.random.randint(its - min(itp_list)+self.mask_window + self.min_event_gap, min([its, self.X_shape[0]])-self.mask_window)])
-      if normalize:
-        data += self.normalize(np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])) * ( 1 + np.random.random()/2 )
-      else:
-        data += np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
-      itp_list.append(itp-shift)
-      its_list.append(its-shift)
-    return data, itp_list, its_list
 
   def thread_main(self, sess, n_threads=1, start=0):
     stop = False
@@ -182,34 +103,22 @@ class DataReader(object):
 
         sample = np.zeros(self.X_shape)
         if np.random.random() < 0.95:
-          if np.random.random() < 0.5:
-            ratio = np.random.uniform(1, 5)
-            data, itp, its = self.interplate(meta['data'], meta['itp'].tolist(), meta['its'].tolist(), ratio)
-          else:
-            data = np.copy(meta['data'])
-            itp = meta['itp']
-            its = meta['its']
-
+          data = np.copy(meta['data'])
+          itp = meta['itp']
+          its = meta['its']
           start_tp = itp
+
           shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
           sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
           itp_list = [itp-start_tp-shift]
           its_list = [its-start_tp-shift]
-
-          sample = self.normalize(sample)
-          sample, itp_list, its_list = self.add_event(sample, itp_list, its_list, channels, normalize=True)
-          #if meta['snr'] > 2:
-          #  sample = self.add_noise(sample, channels)
-          # sample = self.scale_amplitude(sample)
-          if len(channels.split('_')) == 3:
-            sample = self.drop_channel(sample)
-        else:  # pure noise
+        else:
           sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
           itp_list = []
           its_list = []
 
         sample = self.normalize(sample)
-        sample = self.adjust_amplitude_for_multichannels(sample)
+        sample = self.adjust_missingchannels(sample)
 
         if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
           continue
@@ -295,7 +204,7 @@ class DataReader_test(DataReader):
       its_list = [meta['its'].tolist()-start_tp-shift]
 
       sample = self.normalize(sample)
-      sample = self.adjust_amplitude_for_multichannels(sample)
+      sample = self.adjust_missingchannels(sample)
 
       if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
         continue
@@ -335,7 +244,7 @@ class DataReader_test(DataReader):
     return 0
 
 
-class DataReader_pred_bak(DataReader):
+class DataReader_pred(DataReader):
 
   def __init__(self,
                data_dir,
@@ -398,14 +307,12 @@ class DataReader_pred_bak(DataReader):
         sample[np.isinf(sample)] = 0
 
       sample = self.normalize(sample)
-      sample = self.adjust_amplitude_for_multichannels(sample)
+      sample = self.adjust_missingchannels(sample)
       sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
                                         self.fname_placeholder: fname})
 
 
-
-
-class DataReader_pred(DataReader):
+class DataReader_mseed(DataReader):
 
   def __init__(self,
                data_dir,
@@ -448,28 +355,32 @@ class DataReader_pred(DataReader):
     return output
 
 
-  ## 
-  def read_mseed(self, fp):
+  ## mseed preprocessing here 
+  def read_mseed(self, fp, channels):
 
-    chn_type = [['E', 'N', 'Z'], ['3', '2', '1'], ['1', '2', 'Z']] ##todo
     meta = obspy.read(fp)
     meta = meta.detrend('constant')
     meta = meta.merge(fill_value=0)
-    meta = meta.sort()
-    assert(len(meta) <= 3)
     meta = meta.trim(min([st.stats.starttime for st in meta]), 
                      max([st.stats.endtime for st in meta]), 
                      pad=True, fill_value=0)
-    meta = meta.interpolate(sampling_rate=20)
-    data = []
-    ## if there is no z channel, i.e. borehole station: 3,2,1
-    if meta[-1].stats.channel[-1] != 'Z': 
-      meta = meta.sort(reverse=True)
+    nt = len(meta[0].data)
 
-    for st in meta:
-      data.append(st.data)
+    ## can test small sampling rate for longer distance
+    meta = meta.interpolate(sampling_rate=100)
+
+    data = [[] for ch in channels]
+    for i, ch in enumerate(channels):
+      tmp = meta.select(channel=ch)
+      if len(tmp) == 1:
+        data[i] = tmp[0].data
+      elif len(tmp) == 0:
+        print(f"Warning: Missing channel \"{ch}\" in {meta}")
+        data[i] = np.zeros(nt)
+      else:
+        print(f"Error in {tmp}")
     data = np.vstack(data)
-
+  
     pad_width = int((np.ceil((data.shape[1] - 1) / self.input_length))*self.input_length - data.shape[1])
     if pad_width == -1:
       data = data[:,:-1]
@@ -488,42 +399,29 @@ class DataReader_pred(DataReader):
     for i in index:
       fname = self.data_list.iloc[i]['fname']
       fp = os.path.join(self.data_dir, fname)
+      E = self.data_list.iloc[i]['E']
+      N = self.data_list.iloc[i]['N']
+      Z = self.data_list.iloc[i]['Z']
       try:
-        # meta = np.load(fp)
-        meta = self.read_mseed(fp)
+        meta = self.read_mseed(fp, [E, N, Z])
       except Exception as e:
         logging.error("Failed reading {}".format(fname))
         print(e)
         continue
-      # shift = 0
-      # sample = meta['data'][shift:shift+self.X_shape, np.newaxis, :]
-      # sample = meta['data'][:, np.newaxis, :]
       for i in tqdm(range(meta.shape[0]), desc=f"{fp}"):
-        # if np.array(sample.shape).all() != np.array(self.X_shape).all():
-        #   logging.error("{}: shape {} is not same as input shape {}!".format(fname, sample.shape, self.X_shape))
-        #   continue
-
-        # if np.isnan(sample).any() or np.isinf(sample).any():
-        #   logging.warning("Data error: {}\nReplacing nan and inf with zeros".format(fname))
-        #   sample[np.isnan(sample)] = 0
-        #   sample[np.isinf(sample)] = 0
-
         sample = meta[i]
         sample = self.normalize(sample)
-        sample = self.adjust_amplitude_for_multichannels(sample)
-
+        sample = self.adjust_missingchannels(sample)
         sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
                                           self.fname_placeholder: f"{fname}_{i:03d}"})
 
 if __name__ == "__main__":
-  # pass
-
-  data_reader = DataReader_pred(
-    data_dir="/data/beroza/kaiwenw/Timpson/TimpsonData/0510_0526/",
-    data_list="/data/beroza/kaiwenw/Timpson/TimpsonData/0510_0526/name.csv",
+  ## debug
+  data_reader = DataReader_mseed(
+    data_dir="/data/beroza/zhuwq/Project-PhaseNet-mseed/mseed/",
+    data_list="/data/beroza/zhuwq/Project-PhaseNet-mseed/fname.txt",
     queue_size=20,
-    coord=None,
-    input_length=3000)
+    coord=None)
   data_reader.thread_main(None, n_threads=1, start=0)
 # pred_fn(args, data_reader, log_dir=args.output_dir)
 

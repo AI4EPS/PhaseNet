@@ -6,7 +6,7 @@ import os
 import time
 import logging
 from model import Model
-from data_reader import Config, DataReader, DataReader_test, DataReader_pred
+from data_reader import Config, DataReader, DataReader_test, DataReader_pred, DataReader_mseed
 from util import *
 from tqdm import tqdm
 import pandas as pd
@@ -136,6 +136,10 @@ def read_args():
                       default=None,
                       type=int,
                       help="input length")
+
+  parser.add_argument("--input_mseed",
+                      action="store_true",
+                      help="mseed format")
 
   parser.add_argument("--data_dir",
                       default="./dataset/waveform_pred/",
@@ -544,12 +548,20 @@ def main(args):
 
   elif args.mode == "pred":
     with tf.name_scope('create_inputs'):
-      data_reader = DataReader_pred(
-          data_dir=args.data_dir,
-          data_list=args.data_list,
-          queue_size=args.batch_size*2,
-          coord=coord,
-          input_length=args.input_length)
+      if args.input_mseed:
+        data_reader = DataReader_mseed(
+            data_dir=args.data_dir,
+            data_list=args.data_list,
+            queue_size=args.batch_size*2,
+            coord=coord,
+            input_length=args.input_length)
+      else:
+        data_reader = DataReader_pred(
+            data_dir=args.data_dir,
+            data_list=args.data_list,
+            queue_size=args.batch_size*2,
+            coord=coord,
+            input_length=args.input_length)
     pred_fn(args, data_reader, log_dir=args.output_dir)
 
   else:
