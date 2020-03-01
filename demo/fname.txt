@@ -1,0 +1,3 @@
+fname,E,N,Z
+CCC.mseed,HHE,HHN,HHZ
+CLC.mseed,HHE,HHN,HHZ
