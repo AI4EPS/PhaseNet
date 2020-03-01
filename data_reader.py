@@ -205,21 +205,22 @@ class DataReader(object):
         its_list = []
 
       ############### base case ###############
-        # data = np.copy(meta['data'])
-        # itp = meta['itp']
-        # its = meta['its']
-        # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
-        # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
-        # itp_list.append(itp-start_tp-shift)
-        # its_list.append(its-start_tp-shift)
-          # sample = self.normalize(sample)
+        data = np.copy(meta['data'])
+        itp = meta['itp']
+        its = meta['its']
+        shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+        sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        itp_list.append(itp-start_tp-shift)
+        its_list.append(its-start_tp-shift)
+        sample = self.normalize(sample)
 
       ############### case 1: random shift  ###############
         # data = np.copy(meta['data'])
         # itp = meta['itp']
         # its = meta['its']
         # ## wrong shifting
-        # shift = np.random.randint(-1500, -1000)
+        # # shift = np.random.randint(-1500, -1000)
+        # shift = -1000
         # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
         # itp_list.append(itp-start_tp-shift)
         # its_list.append(its-start_tp-shift)
@@ -241,8 +242,7 @@ class DataReader(object):
         # data = np.copy(meta['data'])
         # itp = meta['itp']
         # its = meta['its']
-        # # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
-        # shift = np.random.randint(-1500, -500)
+        # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
         # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
         # itp_list = [itp-start_tp-shift]
         # its_list = [its-start_tp-shift]
@@ -254,7 +254,7 @@ class DataReader(object):
         # itp = meta['itp']
         # its = meta['its']
         # data, itp, its, start_tp = self.interplate(data, itp.tolist(), its.tolist(), start_tp, ratio=2, prob=0.5)
-        # shift = np.random.randint(-1500, -500)
+        # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
         # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
         # itp_list = [itp-start_tp-shift]
         # its_list = [its-start_tp-shift]
@@ -264,8 +264,7 @@ class DataReader(object):
         # data = np.copy(meta['data'])
         # itp = meta['itp']
         # its = meta['its']
-        # # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
-        # shift = np.random.randint(-1500, -500)
+        # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
         # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
         # itp_list = [itp-start_tp-shift]
         # its_list = [its-start_tp-shift]
@@ -276,22 +275,21 @@ class DataReader(object):
         # sample = self.adjust_missingchannels(sample)
 
       ############### case 6: pure noise  ###############
-        if np.random.uniform(0,1) >= 0.2: ## zero means no noise
-          data = np.copy(meta['data'])
-          itp = meta['itp']
-          its = meta['its']
-          # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
-          shift = np.random.randint(-1500, -500)
-          sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
-          itp_list = [itp-start_tp-shift]
-          its_list = [its-start_tp-shift]
-        else:
-          sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
-          if np.random.uniform(0, 1) > 0.5:
-            sample[:np.random.randint(0, 2000), :, :] = 0
-          itp_list = []
-          its_list = []
-        sample = self.normalize(sample)
+        # if np.random.uniform(0,1) >= 0.2: ## zero means no noise
+        #   data = np.copy(meta['data'])
+        #   itp = meta['itp']
+        #   its = meta['its']
+        #   shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+        #   sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        #   itp_list = [itp-start_tp-shift]
+        #   its_list = [its-start_tp-shift]
+        # else:
+        #   sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
+        #   if np.random.uniform(0, 1) > 0.5:
+        #     sample[:np.random.randint(0, 2000), :, :] = 0
+        #   itp_list = []
+        #   its_list = []
+        # sample = self.normalize(sample)
 
 
         ## common
@@ -342,33 +340,6 @@ class DataReader_test(DataReader):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-
-    # selected_channel = ["BHE_BHN_BHZ"]
-    # tmp_list = tmp_list[tmp_list['channels'].isin(selected_channel)]
-
-    ## case 1: random shift
-    # tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
-    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])>20) & (tmp_list['its-itp']<400)]
-
-    ## case 2: stack event
-
-    ## case 3: stack noise
-    # tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
-    # tmp_list = tmp_list[(tmp_list['its-itp']<400)]
-    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])>20) & (tmp_list['its-itp']<400)]
-
-    ## case 4: stetch event
-    # tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
-    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])>20) & (tmp_list['its-itp']<400)]
-
-    ## case 5: drop channel
-    # tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
-    # tmp_list = tmp_list[(tmp_list['its-itp']<400)]
-
-    ## case 6: pure noise
-    tmp_list["its-itp"] = tmp_list["its"] - tmp_list["itp"]
-    tmp_list = tmp_list[(tmp_list['its-itp']<400)].sample(20)
-
     self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
@@ -428,11 +399,11 @@ class DataReader_test(DataReader):
       np.random.seed(self.config.seed+i)
 
       ############### base case  ###############
-      # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
-      # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
-      # itp_list.append(meta['itp'].tolist()-start_tp-shift)
-      # its_list.append(meta['its'].tolist()-start_tp-shift)
-      # sample = self.normalize(sample)      
+      shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+      itp_list.append(meta['itp'].tolist()-start_tp-shift)
+      its_list.append(meta['its'].tolist()-start_tp-shift)
+      sample = self.normalize(sample)      
 
       ############### case 1: random shift  ###############
       # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
@@ -493,7 +464,6 @@ class DataReader_test(DataReader):
       ############### case 3: stack noise  ###############
       ############### case 4: time stretch ###############
       # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
-      # shift = np.random.randint(-1500, -500)
       # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
       # itp_list = [meta['itp'].tolist()-start_tp-shift]
       # its_list = [meta['its'].tolist()-start_tp-shift]
@@ -501,7 +471,6 @@ class DataReader_test(DataReader):
 
       ############### case 5: drop channel  ###############
       # # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
-      # shift = np.random.randint(-1500, -500)
       # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
       # itp_list.append(meta['itp'].tolist()-start_tp-shift)
       # its_list.append(meta['its'].tolist()-start_tp-shift)
@@ -522,16 +491,16 @@ class DataReader_test(DataReader):
       # sample = self.adjust_missingchannels(sample)
 
       ############### case 6: pure noise ###############
-      shift = -3000
-      sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
-      sample[:1000, :, :] = 0
-      dum_tp = meta['itp'].tolist()-start_tp-shift 
-      dum_ts = meta['its'].tolist()-start_tp-shift
-      if self.mask_window//2 < dum_tp < 3000 - self.mask_window//2:
-        itp_list.append(dum_tp)
-      if self.mask_window//2 < dum_ts < 3000 - self.mask_window//2:
-        its_list.append(dum_ts)
-      sample = self.normalize(sample)      
+      # shift = -3000
+      # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
+      # sample[:1000, :, :] = 0
+      # dum_tp = meta['itp'].tolist()-start_tp-shift 
+      # dum_ts = meta['its'].tolist()-start_tp-shift
+      # if self.mask_window//2 < dum_tp < 3000 - self.mask_window//2:
+      #   itp_list.append(dum_tp)
+      # if self.mask_window//2 < dum_ts < 3000 - self.mask_window//2:
+      #   its_list.append(dum_ts)
+      # sample = self.normalize(sample)      
 
       #########
       if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
