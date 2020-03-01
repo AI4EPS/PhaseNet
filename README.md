@@ -8,7 +8,7 @@ conda create --name venv python=3.6
 conda activate venv
 conda install tensorflow=1.10 matplotlib scipy pandas tqdm
 conda install libiconv
-conda install obpsy -c conda-forge
+conda install obspy -c conda-forge
 ```
 
 ### Using virtualenv
@@ -31,9 +31,7 @@ Located in directory: **model/190703-214543**
 
 ### 4. Prediction 
 
-#### a) Data format -- mseed with obpsy
-
-
+#### a) Data format -- mseed with obspy
 
 Required a csv file and a directory of mseed files.
 
@@ -52,7 +50,7 @@ Nots:
 1. **demo/demo-obspy.ipynb** has a simple example of downloading and preparing mseed data using obspy
 2. You can customze the preprocssing of mseed file, such as filtering, inside the function **read_mseed** in data_reader.py.
 3. On default, the mseed file is processed twice with 50% overlap to avoid phases being cutted in the middle.
-4. The output picks.csv file contains the deteced phases and probabilites of every 3000 samples. The second half predictions are from 50% shift by padding 1500 zeros in the beginning.
+4. The output picks.csv file contains the deteced phases and probabilites of every 3000 samples. The second half predictions (sorted) are from 50% shift by padding 1500 zeros in the beginning.
 5. The activation thresholds for P&S waves are set to 0.3 as default. Specify **--tp_prob** and **--ts_prob** to change the two thresholds. 
 
 #### b) Data format -- numpy array
