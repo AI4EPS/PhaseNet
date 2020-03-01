@@ -492,7 +492,6 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                         figure_dir = figure_dir,
                                         args=args),
                                 range(len(pred_batch)))
-    
         for i in range(len(fname_batch)):
           fclog.write("{},{},{},{},{}\n".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1], picks_batch[i][1][0], picks_batch[i][1][1]))
         # fclog.flush()
@@ -502,23 +501,23 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     else:
       for step in tqdm(range(0, data_reader.num_data, args.batch_size), desc="Pred"):
         if step + args.batch_size >= data_reader.num_data:
-         for t in threads:
-           t.join()
-         sess.run(data_reader.queue.close())
-      pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
-                                                  feed_dict={model.drop_rate: 0,
-                                                              model.is_training: False})
-      picks_batch = pool.map(partial(postprocessing_thread,
-                                      pred = pred_batch,
-                                      X = X_batch,
-                                      fname = fname_batch,
-                                      result_dir = result_dir,
-                                      figure_dir = figure_dir,
-                                      args=args),
-                              range(len(pred_batch)))
-      for i in range(len(fname_batch)):
-        fclog.write("{},{},{},{},{}\n".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1], picks_batch[i][1][0], picks_batch[i][1][1]))
-
+          for t in threads:
+            t.join()
+            sess.run(data_reader.queue.close())
+        pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
+                                                    feed_dict={model.drop_rate: 0,
+                                                                model.is_training: False})
+        picks_batch = pool.map(partial(postprocessing_thread,
+                                        pred = pred_batch,
+                                        X = X_batch,
+                                        fname = fname_batch,
+                                        result_dir = result_dir,
+                                        figure_dir = figure_dir,
+                                        args=args),
+                                range(len(pred_batch)))
+        for i in range(len(fname_batch)):
+          fclog.write("{},{},{},{},{}\n".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1], picks_batch[i][1][0], picks_batch[i][1][1]))
+        # fclog.flush()
     fclog.close()
     print("Done")
 
