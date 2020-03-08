@@ -31,7 +31,8 @@ class DataReader(object):
                mask_window,
                queue_size,
                coord,
-               config=Config()):
+               config=Config(),
+               use_seed=False):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
 
@@ -47,6 +48,7 @@ class DataReader(object):
     self.min_event_gap = config.min_event_gap
     self.mask_window = int(mask_window * config.sampling_rate)
     self.coord = coord
+    self.use_seed = use_seed
     self.threads = []
     self.buffer = {}
     self.buffer_channels = {}
@@ -71,6 +73,12 @@ class DataReader(object):
     std_data[std_data == 0] = 1
     data /= std_data
     return data
+
+  # def normalize(self, data):
+  #   data -= np.mean(data, axis=0, keepdims=True)
+  #   std_data = np.std(data)
+  #   data /= std_data
+  #   return data
 
   def scale_amplitude(self, data):
     tmp = np.random.uniform(0, 1)
@@ -203,7 +211,9 @@ class DataReader(object):
         sample = np.zeros(self.X_shape)
         itp_list = []
         its_list = []
-
+        if self.use_seed:
+          np.random.seed(self.config.seed+i)
+          
       ############### base case ###############
         data = np.copy(meta['data'])
         itp = meta['itp']
@@ -246,7 +256,7 @@ class DataReader(object):
         # sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
         # itp_list = [itp-start_tp-shift]
         # its_list = [its-start_tp-shift]
-        # sample = self.add_noise(sample, channels, prob=0.5)
+        # sample = self.add_noise(sample, channels, prob=0.3)
         # sample = self.normalize(sample)
 
       ############### case 4: strech events  ###############
@@ -271,7 +281,7 @@ class DataReader(object):
         # sample = self.normalize(sample)
 
         # if len(channels.split('_')) == 3:
-        #   sample = self.drop_channel(sample, prob=0.5)
+        #   sample = self.drop_channel(sample, prob=0.3)
         # sample = self.adjust_missingchannels(sample)
 
       ############### case 6: pure noise  ###############
@@ -329,6 +339,84 @@ class DataReader(object):
     return self.threads
 
 
+class DataReader_valid(DataReader):
+
+  def thread_main(self, sess, n_threads=1, start=0):
+    stop = False
+    while not stop:
+      index = list(range(start, self.num_data, n_threads))
+      for i in index:
+        fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
+        try:
+          if fname not in self.buffer:
+            meta = np.load(fname)
+            self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 
+                                  'snr': meta['snr'], 'channels': meta['channels']}
+          meta = self.buffer[fname]
+        except:
+          logging.error("Failed reading {}".format(fname))
+          continue
+
+        channels = meta['channels'].tolist()
+        start_tp = meta['itp'].tolist()
+
+        if self.coord.should_stop():
+          stop = True
+          break
+
+        sample = np.zeros(self.X_shape)
+        itp_list = []
+        its_list = []
+
+      ############### base case ###############
+        data = np.copy(meta['data'])
+        itp = meta['itp']
+        its = meta['its']
+        np.random.seed(self.config.seed+i)
+        shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
+        sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+        itp_list.append(itp-start_tp-shift)
+        its_list.append(its-start_tp-shift)
+        sample = self.normalize(sample)
+
+
+        ## common
+        if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
+          continue
+
+        target = np.zeros(self.Y_shape)
+        for itp, its in zip(itp_list, its_list):
+          if (itp >= target.shape[0]) or (itp < 0):
+            pass
+          elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
+            target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
+                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+          elif (itp-self.mask_window//2 < target.shape[0]):
+            target[0:itp+self.mask_window//2, 0, 1] = \
+                 np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+          if (its >= target.shape[0]) or (its < 0):
+            pass
+          elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
+            target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
+                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+          elif (its-self.mask_window//2 < target.shape[0]):
+            target[0:its+self.mask_window//2, 0, 2] = \
+                np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+        target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
+
+        sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
+                                          self.target_placeholder: target})
+    return 0
+
+  def start_threads(self, sess, n_threads=8):
+    for i in range(n_threads):
+      thread = threading.Thread(target=self.thread_main, args=(sess, n_threads, i))
+      thread.daemon = True
+      thread.start()
+      self.threads.append(thread)
+    return self.threads
+
+
 class DataReader_test(DataReader):
 
   def __init__(self,
@@ -340,6 +428,11 @@ class DataReader_test(DataReader):
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
+
+    ## case 3: stack noise
+    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])>20)]
+    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])<20)] 
+
     self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
@@ -470,21 +563,21 @@ class DataReader_test(DataReader):
       # sample = self.normalize(sample)      
 
       ############### case 5: drop channel  ###############
-      # # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      # shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
       # sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
       # itp_list.append(meta['itp'].tolist()-start_tp-shift)
       # its_list.append(meta['its'].tolist()-start_tp-shift)
       # sample = self.normalize(sample)
  
-      # # sample[:, :, 0] = 0 ## no E
-      # # sample[:, :, 1] = 0 ## no N
-      # # sample[:, :, 2] = 0 ## no Z
-      # ## only E
-      # # sample[:, :, 1] = 0; sample[:, :, 2] = 0
-      # # ## only N
-      # # sample[:, :, 0] = 0; sample[:, :, 2] = 0
-      # # only Z
-      # # sample[:, :, 0] = 0; sample[:, :, 1] = 0
+      # sample[:, :, 0] = 0 ## no E
+      # sample[:, :, 1] = 0 ## no N
+      # sample[:, :, 2] = 0 ## no Z
+      ## only E
+      # sample[:, :, 1] = 0; sample[:, :, 2] = 0
+      ## only N
+      # sample[:, :, 0] = 0; sample[:, :, 2] = 0
+      ## only Z
+      # sample[:, :, 0] = 0; sample[:, :, 1] = 0
   
       # if len(channels.split('_')) == 3:
       #   sample = self.drop_channel(sample, prob=0.5)

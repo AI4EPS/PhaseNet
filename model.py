@@ -397,10 +397,10 @@ class Model:
     summary_writer.add_summary(step_summary, step)
     return loss
 
-  def valid_on_batch(self, sess, inputs_batch, labels_batch, summary_writer, drop_rate=0.0):
+  def valid_on_batch(self, sess, inputs_batch, labels_batch, summary_writer):
     feed = {self.X: inputs_batch,
             self.Y: labels_batch,
-            self.drop_rate: drop_rate,
+            self.drop_rate: 0,
             self.is_training: False}
             
     step_summary, step, loss, preds = sess.run([self.summary_valid,

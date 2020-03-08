@@ -6,7 +6,7 @@ import os
 import time
 import logging
 from model import Model
-from data_reader import Config, DataReader, DataReader_test, DataReader_pred
+from data_reader import Config, DataReader, DataReader_valid, DataReader_test, DataReader_pred
 from util import *
 from tqdm import tqdm
 import pandas as pd
@@ -253,7 +253,8 @@ def train_fn(args, data_reader, data_reader_valid=None):
     # threads = data_reader.start_threads(sess, n_threads=multiprocessing.cpu_count())
     threads = data_reader.start_threads(sess, n_threads=4)
     if data_reader_valid is not None:
-      threads_valid = data_reader_valid.start_threads(sess, n_threads=multiprocessing.cpu_count())
+      # threads_valid = data_reader_valid.start_threads(sess, n_threads=multiprocessing.cpu_count())
+      threads_valid = data_reader_valid.start_threads(sess, n_threads=1)
     flog = open(os.path.join(log_dir, 'loss.log'), 'w')
     total_step = 0
     mean_loss = 0
@@ -264,6 +265,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
     else:
       num_pool = 2
     pool = multiprocessing.Pool(num_pool)
+    best_valid_loss = np.inf
     for epoch in range(args.epochs):
       progressbar = tqdm(range(0, data_reader.num_data, args.batch_size), desc="{}: epoch {}".format(log_dir.split("/")[-1], epoch))
       for step in progressbar:
@@ -283,11 +285,14 @@ def train_fn(args, data_reader, data_reader_valid=None):
         progressbar = tqdm(range(0, data_reader_valid.num_data, args.batch_size), desc="Valid:")
         for step in progressbar:
           X_batch, Y_batch = sess.run(batch_valid)
-          loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer, args.drop_rate)
+          loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer)
           valid_step += 1
           valid_loss += (loss_batch-valid_loss)/valid_step
           progressbar.set_description("valid, loss={:.6f}, mean={:.6f}".format(loss_batch, valid_loss))
         flog.write("Valid: mean loss: {}\n".format(valid_loss))
+        if valid_loss < best_valid_loss:
+          best_valid_loss = valid_loss
+          saver.save(sess, os.path.join(log_dir, f"model_{epoch}_loss_{best_valid_loss:.2e}.ckpt"))
       else:
         loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer, args.drop_rate)
       # loss_batch, pred_batch, logits_batch, X_batch, Y_batch = model.train_on_batch(sess, summary_writer, args.drop_rate, raw_data=True)
@@ -300,25 +305,27 @@ def train_fn(args, data_reader, data_reader_valid=None):
                         fname = ["{:03d}_{:03d}".format(epoch, x).encode() for x in range(args.num_plots)],
                         figure_dir = figure_dir),
                 range(args.num_plots))
-        saver.save(sess, os.path.join(log_dir, "model_{}.ckpt".format(epoch)))
+        # saver.save(sess, os.path.join(log_dir, "model_{}.ckpt".format(epoch)))
       except:
         pass
     flog.close()
     pool.close()
     data_reader.coord.request_stop()
+    # if data_reader_valid is not None:
+    # data_reader_valid.coord.request_stop()
     try:
       data_reader.coord.join(threads, stop_grace_period_secs=10, ignore_live_threads=True)
-      if data_reader_valid is not None:
-        data_reader_valid.coord.join(threads_valid, stop_grace_period_secs=10, ignore_live_threads=True)
+      # if data_reader_valid is not None:
+      # data_reader_valid.coord.join(threads_valid, stop_grace_period_secs=10, ignore_live_threads=True)
     except:
       pass
     sess.run(data_reader.queue.close(cancel_pending_enqueues=True))
-    if data_reader_valid is not None:
-      sess.run(data_reader_valid.queue.close(cancel_pending_enqueues=True))
+    # if data_reader_valid is not None:
+    # sess.run(data_reader_valid.queue.close(cancel_pending_enqueues=True))
       
   return 0
 
-def valid_fn(args, data_reader, figure_dir=None, result_dir=None):
+def test_fn(args, data_reader, figure_dir=None, result_dir=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
   logging.info("{} log: {}".format(args.mode, current_time))
   log_dir = os.path.join(args.log_dir, args.mode, current_time)
@@ -409,7 +416,7 @@ def valid_fn(args, data_reader, figure_dir=None, result_dir=None):
   return 0
 
 
-def test_fn(args, data_reader, figure_dir=None, result_dir=None):
+def valid_fn(args, data_reader, figure_dir=None, result_dir=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
   logging.info("{} log: {}".format(args.mode, current_time))
   log_dir = os.path.join(args.log_dir, args.mode, current_time)
@@ -592,12 +599,14 @@ def main(args):
           queue_size=args.batch_size*3,
           coord=coord)
       if args.valid_list is not None:
-        data_reader_valid = DataReader(
+        data_reader_valid = DataReader_valid(
+        # data_reader_valid = DataReader(
             data_dir=args.valid_dir,
             data_list=args.valid_list,
             mask_window=0.4,
             queue_size=args.batch_size*3,
-            coord=coord)
+            coord=coord,
+            use_seed=True)
         logging.info("Dataset size: train {}, valid {}".format(data_reader.num_data, data_reader_valid.num_data))
       else:
       	data_reader_valid = None
@@ -613,8 +622,8 @@ def main(args):
           queue_size=args.batch_size*3,
           coord=coord)
     
-    # test_fn(args, data_reader) ## modified for case 1: random shift
-    valid_fn(args, data_reader)
+    # valid_fn(args, data_reader) ## modified for case 1: random shift
+    test_fn(args, data_reader)
 
   elif args.mode == "pred":
     with tf.name_scope('create_inputs'):
