@@ -35,8 +35,6 @@ class DataReader(object):
                use_seed=False):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
-
-
     self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
@@ -74,11 +72,13 @@ class DataReader(object):
     data /= std_data
     return data
 
-  # def normalize(self, data):
-  #   data -= np.mean(data, axis=0, keepdims=True)
-  #   std_data = np.std(data)
-  #   data /= std_data
-  #   return data
+  def stretch(self, data, itp, its, ratio=1):
+    nt = data.shape[0]
+    t = np.linspace(0, 1, nt)
+    t_new = np.linspace(0, 1, int(round(nt*ratio)))
+    f = scipy.interpolate.interp1d(t, data, axis=0)
+    data_new = f(t_new)
+    return data_new, int(round(itp*ratio)), int(round(its*ratio))
 
   def scale_amplitude(self, data):
     tmp = np.random.uniform(0, 1)
@@ -367,12 +367,12 @@ class DataReader_valid(DataReader):
         sample = np.zeros(self.X_shape)
         itp_list = []
         its_list = []
+        np.random.seed(self.config.seed+i)
 
       ############### base case ###############
         data = np.copy(meta['data'])
         itp = meta['itp']
         its = meta['its']
-        np.random.seed(self.config.seed+i)
         shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
         sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
         itp_list.append(itp-start_tp-shift)
@@ -431,7 +431,14 @@ class DataReader_test(DataReader):
 
     ## case 3: stack noise
     # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])>20)]
-    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])<20)] 
+    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])<20)]
+     
+    ## case 5: channel drop
+    # tmp_list = tmp_list[(20*np.log10(tmp_list['snr'])>20)]
+
+    ## case 6: test time augmentation
+    # tmp_list = tmp_list[(tmp_list['its-itp'])>5*100]
+    # tmp_list = tmp_list[(tmp_list['distance'])>40]
 
     self.data_list = tmp_list
     self.num_data = len(self.data_list)
@@ -572,11 +579,11 @@ class DataReader_test(DataReader):
       # sample[:, :, 0] = 0 ## no E
       # sample[:, :, 1] = 0 ## no N
       # sample[:, :, 2] = 0 ## no Z
-      ## only E
+      # # only E
       # sample[:, :, 1] = 0; sample[:, :, 2] = 0
-      ## only N
+      # # only N
       # sample[:, :, 0] = 0; sample[:, :, 2] = 0
-      ## only Z
+      # # only Z
       # sample[:, :, 0] = 0; sample[:, :, 1] = 0
   
       # if len(channels.split('_')) == 3:
@@ -594,6 +601,18 @@ class DataReader_test(DataReader):
       # if self.mask_window//2 < dum_ts < 3000 - self.mask_window//2:
       #   its_list.append(dum_ts)
       # sample = self.normalize(sample)      
+
+
+      ############### case 7: test time augmentation ###############
+      # shift = 500
+      # tmp_data = np.copy(meta['data'])
+      # tmp_itp = meta['itp'].tolist()
+      # tmp_its = meta['its'].tolist()
+      # data, itp, its = self.stretch(tmp_data, tmp_itp, tmp_its, 1/2)
+      # sample[:, :, :] = data[shift:self.X_shape[0]+shift, np.newaxis, :]
+      # itp_list.append(itp-shift)
+      # its_list.append(its-shift)
+      # sample = self.normalize(sample)   
 
       #########
       if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
