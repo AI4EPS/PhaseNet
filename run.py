@@ -287,13 +287,13 @@ def train_fn(args, data_reader, data_reader_valid=None):
         progressbar = tqdm(range(0, data_reader_valid.num_data, args.batch_size), desc="Valid:")
         for step in progressbar:
           X_batch, Y_batch = sess.run(batch_valid)
-          loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer, args.drop_rate)
+          loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer)
           valid_step += 1
           valid_loss += (loss_batch-valid_loss)/valid_step
           progressbar.set_description("valid, loss={:.6f}, mean={:.6f}".format(loss_batch, valid_loss))
         flog.write("Valid: mean loss: {}\n".format(valid_loss))
       else:
-        loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer, args.drop_rate)
+        loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer)
       # loss_batch, pred_batch, logits_batch, X_batch, Y_batch = model.train_on_batch(sess, summary_writer, args.drop_rate, raw_data=True)
       try: ## IO Error on cluster
         flog.flush()
@@ -322,7 +322,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
       
   return 0
 
-def test_fn(args, data_reader, figure_dir=None, result_dir=None):
+def valid_fn(args, data_reader, figure_dir=None, result_dir=None):
   current_time = time.strftime("%y%m%d-%H%M%S")
   logging.info("{} log: {}".format(args.mode, current_time))
   log_dir = os.path.join(args.log_dir, args.mode, current_time)
@@ -558,7 +558,7 @@ def main(args):
           mask_window=0.4,
           queue_size=args.batch_size*2,
           coord=coord)
-    test_fn(args, data_reader)
+    valid_fn(args, data_reader)
 
   elif args.mode == "pred":
     with tf.name_scope('create_inputs'):
