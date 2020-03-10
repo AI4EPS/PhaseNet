@@ -294,7 +294,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
           best_valid_loss = valid_loss
           saver.save(sess, os.path.join(log_dir, f"model_{epoch}_loss_{best_valid_loss:.2e}.ckpt"))
       else:
-        loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer, args.drop_rate)
+        loss_batch, preds_batch = model.valid_on_batch(sess, X_batch, Y_batch, summary_writer)
       # loss_batch, pred_batch, logits_batch, X_batch, Y_batch = model.train_on_batch(sess, summary_writer, args.drop_rate, raw_data=True)
       try: ## IO Error on cluster
         flog.flush()
