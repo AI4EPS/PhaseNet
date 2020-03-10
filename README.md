@@ -47,7 +47,7 @@ python run.py --mode=pred --model_dir=model/190703-214543 --data_dir=demo/mseed 
 ~~~
 
 Notes:
-1. The detected P&S phases are stored to file **picks.csv** inside **--output_dir**. The picks.csv has three columns: file name with the beginning sample index (fname_index), P-phase index (itp), P-phase probability (tp_prob), S-phase index (its), S-phase probability (ts_prob).
+1. The detected P&S phases are stored to file **picks.csv** inside **--output_dir**. The picks.csv has three columns: file name with the beginning sample index (fname_index), P-phase index (itp), P-phase probability (tp_prob), S-phase index (its), S-phase probability (ts_prob). The absolute phase index = fname_index + itp/its.
 2. The activation thresholds for P&S phases are set to 0.3 as default. Specify **--tp_prob** and **--ts_prob** to change the two thresholds. 
 3. On default, the mseed file is processed twice with 50% overlap to avoid phases being cutted in the middle.
 4. The output picks.csv file contains the deteced phases and probabilites of every 3000 samples. The second half predictions (after sorting) are from 50% shift by padding 1500 zeros in the beginning.
