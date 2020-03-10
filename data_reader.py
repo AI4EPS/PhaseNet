@@ -413,7 +413,7 @@ class DataReader_mseed(DataReader):
         sample = self.normalize(sample)
         sample = self.adjust_missingchannels(sample)
         sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
-                                          self.fname_placeholder: f"{fname}_{i:03d}"})
+                                          self.fname_placeholder: f"{fname}_{i*self.input_length}"})
 
 if __name__ == "__main__":
   ## debug
