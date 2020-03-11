@@ -85,10 +85,20 @@ The shape of "data" variables has a shape of 9001 x 3
 
 The variables "itp" and "its" are the data points of first P&S arrivals picked by analysts. 
 
+- Training from scratch:
+
 ~~~bash
 source .venv/bin/activate
 python run.py --mode=train --train_dir=dataset/waveform_train --train_list=dataset/waveform.csv --batch_size=20
 ~~~
+
+- Training from the pretrain model:
+
+~~~bash
+source .venv/bin/activate
+python run.py --mode=train --model_dir=model/190703-214543 --train_dir=dataset/waveform_train --train_list=dataset/waveform.csv --batch_size=20
+~~~
+
 
 ####  Validation and Testing
 ~~~bash
