@@ -387,7 +387,7 @@ class DataReader_mseed(DataReader):
     else:
       data = np.pad(data, ((0,0), (0, pad_width)), 'constant', constant_values=(0,0))
     
-    data = np.hstack([data, np.zeros_like(data[:,:self.input_length//2]), data[:,self.input_length//2:]])
+    data = np.hstack([data, np.zeros_like(data[:,:self.input_length//2]), data[:,:-self.input_length//2]])
     data = np.reshape(data, (3, -1, self.input_length))
     data = data.transpose(1,2,0)[:,:,np.newaxis,:]
 
