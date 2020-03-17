@@ -367,7 +367,7 @@ class DataReader_mseed(DataReader):
     nt = len(meta[0].data)
 
     ## can test small sampling rate for longer distance
-    meta = meta.interpolate(sampling_rate=100)
+    # meta = meta.interpolate(sampling_rate=100)
 
     data = [[] for ch in channels]
     for i, ch in enumerate(channels):
