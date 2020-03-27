@@ -475,8 +475,12 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
         if last_batch:
           for t in threads:
             t.join()
-          print(f"Last batch: {sess.run(data_reader.queue.size())} samples")
+          last_size = sess.run(data_reader.queue.size())
+          print(f"Last batch: {last_size} samples")
           sess.run(data_reader.queue.close())
+          if last_size == 0:
+            break
+          
 
         pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
                                                     feed_dict={model.drop_rate: 0,
