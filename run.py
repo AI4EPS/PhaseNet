@@ -465,14 +465,20 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     fclog.write("fname,itp,tp_prob,its,ts_prob\n") 
     
     if args.input_mseed:
+
+      while True:
+        if sess.run(data_reader.queue.size()) >= args.batch_size:
+          break
+        time.sleep(2)
+        print("waiting data_reader...")
+
       while True:
         last_batch = True
-        while True:
+        for i in range(10):
           if sess.run(data_reader.queue.size()) >= args.batch_size:
             last_batch = False
             break
-          time.sleep(2)
-          print("waiting data_reader...")
+          time.sleep(1)
         if last_batch:
           for t in threads:
             t.join()
@@ -558,7 +564,7 @@ def main(args):
           data_dir=args.data_dir,
           data_list=args.data_list,
           mask_window=0.4,
-          queue_size=args.batch_size*2,
+          queue_size=args.batch_size*10,
           coord=coord)
     valid_fn(args, data_reader)
 
@@ -568,14 +574,14 @@ def main(args):
         data_reader = DataReader_mseed(
             data_dir=args.data_dir,
             data_list=args.data_list,
-            queue_size=args.batch_size*2,
+            queue_size=args.batch_size*10,
             coord=coord,
             input_length=args.input_length)
       else:
         data_reader = DataReader_pred(
             data_dir=args.data_dir,
             data_list=args.data_list,
-            queue_size=args.batch_size*2,
+            queue_size=args.batch_size*10,
             coord=coord,
             input_length=args.input_length)
     pred_fn(args, data_reader, log_dir=args.output_dir)
