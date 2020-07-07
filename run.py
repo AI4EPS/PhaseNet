@@ -500,7 +500,9 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                         args=args),
                                 range(len(pred_batch)))
         for i in range(len(fname_batch)):
-          fclog.write("{},{},{},{},{}\n".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1], picks_batch[i][1][0], picks_batch[i][1][1]))
+          row = "{},{},{},{},{}".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1],
+                                        picks_batch[i][1][0], picks_batch[i][1][1]).replace("\n", "")
+          fclog.write(row+"\n")
 
         if last_batch:
           break
@@ -523,7 +525,9 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                         args=args),
                                 range(len(pred_batch)))
         for i in range(len(fname_batch)):
-          fclog.write("{},{},{},{},{}\n".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1], picks_batch[i][1][0], picks_batch[i][1][1]))
+          row = "{},{},{},{},{}".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1],
+                                        picks_batch[i][1][0], picks_batch[i][1][1]).replace("\n", "")
+          fclog.write(row+"\n")
         # fclog.flush()
 
     fclog.close()
