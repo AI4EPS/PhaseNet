@@ -179,7 +179,7 @@ def read_args():
 
   parser.add_argument("--fpred",
                       default="picks",
-                      help="Ouput filename fo test")
+                      help="Ouput filename for test")
 
   args = parser.parse_args()
   return args
