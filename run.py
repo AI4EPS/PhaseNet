@@ -13,6 +13,7 @@ import pandas as pd
 import threading
 import multiprocessing
 from functools import partial
+import csv
 
 def read_args():
 
@@ -461,8 +462,10 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     else:
       num_pool = 2
     pool = multiprocessing.Pool(num_pool)
-    fclog = open(os.path.join(log_dir, args.fpred+'.csv'), 'w')
-    fclog.write("fname,itp,tp_prob,its,ts_prob\n") 
+    
+    with open(os.path.join(log_dir, args.fpred + '.csv'), 'w') as fclog:
+      writer = csv.writer(fclog)
+      writer.writerow(["fname", "itp", "tp_prob", "its", "ts_prob"])
     
     if args.input_mseed:
 
@@ -499,10 +502,13 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                         figure_dir = figure_dir,
                                         args=args),
                                 range(len(pred_batch)))
-        for i in range(len(fname_batch)):
-          row = "{},{},{},{},{}".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1],
-                                        picks_batch[i][1][0], picks_batch[i][1][1]).replace("\n", "")
-          fclog.write(row+"\n")
+        
+        with open(os.path.join(log_dir, args.fpred + '.csv'), 'a') as fclog:
+          writer = csv.writer(fclog)
+          for i in range(len(fname_batch)):
+            row = [fname_batch[i].decode(), picks_batch[i][0][0].tolist(), picks_batch[i][0][1].tolist(), 
+                   picks_batch[i][1][0].tolist(), picks_batch[i][1][1].tolist()]
+            writer.writerow(row)
 
         if last_batch:
           break
@@ -524,11 +530,13 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                         figure_dir = figure_dir,
                                         args=args),
                                 range(len(pred_batch)))
-        for i in range(len(fname_batch)):
-          row = "{},{},{},{},{}".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1],
-                                        picks_batch[i][1][0], picks_batch[i][1][1]).replace("\n", "")
-          fclog.write(row+"\n")
-        # fclog.flush()
+        
+    with open(os.path.join(log_dir, args.fpred + '.csv'), 'a') as fclog:
+      writer = csv.writer(fclog)
+      for i in range(len(fname_batch)):
+        row = [fname_batch[i].decode(), picks_batch[i][0][0].tolist(), picks_batch[i][0][1].tolist(), 
+               picks_batch[i][1][0].tolist(), picks_batch[i][1][1].tolist()]
+        writer.writerow(row)
 
     fclog.close()
     print("Done")
