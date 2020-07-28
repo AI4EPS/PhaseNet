@@ -13,6 +13,7 @@ import pandas as pd
 import threading
 import multiprocessing
 from functools import partial
+import pickle
 
 def read_args():
 
@@ -463,7 +464,8 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     pool = multiprocessing.Pool(num_pool)
     fclog = open(os.path.join(log_dir, args.fpred+'.csv'), 'w')
     fclog.write("fname,itp,tp_prob,its,ts_prob\n") 
-    
+    picks = {}
+
     if args.input_mseed:
 
       while True:
@@ -500,9 +502,10 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                         args=args),
                                 range(len(pred_batch)))
         for i in range(len(fname_batch)):
-          row = "{},{},{},{},{}".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1],
-                                        picks_batch[i][1][0], picks_batch[i][1][1]).replace("\n", "")
+          row = "{},[{}],[{}],[{}],[{}]".format(fname_batch[i].decode(), " ".join(map(str,picks_batch[i][0][0])), " ".join(map(str,picks_batch[i][0][1])),
+                                        " ".join(map(str,picks_batch[i][1][0])), " ".join(map(str,picks_batch[i][1][1])))
           fclog.write(row+"\n")
+          picks[fname_batch[i].decode()]={"itp":picks_batch[i][0][0], "tp_prob":picks_batch[i][0][1], "its":picks_batch[i][1][0], "ts_prob":picks_batch[i][1][1]}
 
         if last_batch:
           break
@@ -525,12 +528,15 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                         args=args),
                                 range(len(pred_batch)))
         for i in range(len(fname_batch)):
-          row = "{},{},{},{},{}".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1],
-                                        picks_batch[i][1][0], picks_batch[i][1][1]).replace("\n", "")
+          row = "{},[{}],[{}],[{}],[{}]".format(fname_batch[i].decode(), " ".join(map(str,picks_batch[i][0][0])), " ".join(map(str,picks_batch[i][0][1])),
+                                        " ".join(map(str,picks_batch[i][1][0])), " ".join(map(str,picks_batch[i][1][1])))
           fclog.write(row+"\n")
+          picks[fname_batch[i].decode()]={"itp":picks_batch[i][0][0], "tp_prob":picks_batch[i][0][1], "its":picks_batch[i][1][0], "ts_prob":picks_batch[i][1][1]}
         # fclog.flush()
 
     fclog.close()
+    with open(os.path.join(log_dir, args.fpred+'.pkl'), 'wb') as fp:
+      pickle.dump(picks, fp)
     print("Done")
 
   return 0
