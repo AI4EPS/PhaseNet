@@ -297,12 +297,14 @@ class DataReader_pred(DataReader):
       shift = 0
       # sample = meta['data'][shift:shift+self.X_shape, np.newaxis, :]
       sample = meta['data'][:, np.newaxis, :]
-      if np.array(sample.shape).all() != np.array(self.X_shape).all():
-        logging.error("{}: shape {} is not same as input shape {}!".format(fname, sample.shape, self.X_shape))
-        continue
+      if not np.array_equal(np.array(sample.shape), np.array(self.X_shape)):
+        logging.warning(f"Shape mismatch: {sample.shape} != {self.X_shape} in {fname}")
+        tmp = np.zeros(self.X_shape)
+        tmp[:sample.shape[0],0,:sample.shape[2]] = sample[:tmp.shape[0],0,:tmp.shape[2]]
+        sample = tmp
 
       if np.isnan(sample).any() or np.isinf(sample).any():
-        logging.warning("Data error: {}\nReplacing nan and inf with zeros".format(fname))
+        logging.warning(f"Data error: Nan or Inf found in {fname}")
         sample[np.isnan(sample)] = 0
         sample[np.isinf(sample)] = 0
 
