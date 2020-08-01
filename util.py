@@ -4,9 +4,36 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-from data_reader import Config
 from detect_peaks import detect_peaks
 import logging
+import tensorflow as tf
+
+def py_func_decorator(output_types=None, output_shapes=None, name=None):
+  def decorator(func):
+    def call(*args, **kwargs):
+      nonlocal output_shapes
+      flat_output_types = tf.nest.flatten(output_types)
+      # flat_values = tf.py_function(
+      flat_values = tf.numpy_function(
+        func, 
+        inp=args, 
+        Tout=flat_output_types,
+        name=name
+      )
+      if output_shapes is not None:
+        for v, s in zip(flat_values, output_shapes):
+          v.set_shape(s)
+      return tf.nest.pack_sequence_as(output_types, flat_values)
+    return call
+  return decorator
+
+def generator(iterator, output_types, output_shapes=None, num_parallel_calls=None, name=None):
+  dataset = tf.data.Dataset.range(len(iterator))
+  @py_func_decorator(output_types, output_shapes, name=name)
+  def index_to_entry(idx):
+    return iterator[idx]    
+  return dataset.map(index_to_entry, num_parallel_calls=num_parallel_calls)
+
 
 def detect_peaks_thread(i, pred, fname=None, result_dir=None, args=None):
   if args is None:

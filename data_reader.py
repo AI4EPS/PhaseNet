@@ -1,67 +1,51 @@
 from __future__ import division
 import os
-import threading
 import tensorflow as tf
 import numpy as np
-import pandas as pd
 import logging
 import scipy.interpolate
+import pandas as pd
 pd.options.mode.chained_assignment = None
 import obspy
 from tqdm import tqdm
+from util import py_func_decorator, generator
+from dataclasses import dataclass
 
-
-class Config():
+@dataclass
+class Config:
   seed = 100
   use_seed = False
   n_channel = 3
   n_class = 3
-  num_repeat_noise = 1
-  sampling_rate = 100
+  sampling_rate = 100.0
   dt = 1.0/sampling_rate
-  X_shape = [3000, 1, n_channel]
-  Y_shape = [3000, 1, n_class]
+  X_shape = (3000, 1, n_channel)
+  Y_shape = (3000, 1, n_class)
   min_event_gap = 3 * sampling_rate
+  label_width = 6
 
 
-class DataReader(object):
+class DataReader():
 
   def __init__(self,
                data_dir,
-               data_list,
-               mask_window,
-               queue_size,
-               coord,
-               config=Config()):
+               data_list):
+  
+    config = Config()
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
     self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
-    self.queue_size = queue_size
     self.n_channel = config.n_channel
     self.n_class = config.n_class
     self.X_shape = config.X_shape
     self.Y_shape = config.Y_shape
     self.min_event_gap = config.min_event_gap
-    self.mask_window = int(mask_window * config.sampling_rate)
-    self.coord = coord
-    self.threads = []
+    self.label_width = config.label_width
+
     self.buffer = {}
     self.buffer_channels = {}
-    self.add_placeholder()
-  
-  def add_placeholder(self):
-    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=self.config.X_shape)
-    self.target_placeholder = tf.placeholder(dtype=tf.float32, shape=self.config.Y_shape)
-    self.queue = tf.PaddingFIFOQueue(self.queue_size,
-                                     ['float32', 'float32'],
-                                     shapes=[self.config.X_shape, self.config.Y_shape])
-    self.enqueue = self.queue.enqueue([self.sample_placeholder, self.target_placeholder])
-
-  def dequeue(self, num_elements):
-    output = self.queue.dequeue_many(num_elements)
-    return output
 
   def normalize(self, data):
     data -= np.mean(data, axis=0, keepdims=True)
@@ -78,83 +62,69 @@ class DataReader(object):
       data *= data.shape[-1] / np.count_nonzero(tmp)
     return data
 
-  def thread_main(self, sess, n_threads=1, start=0):
-    stop = False
-    while not stop:
-      index = list(range(start, self.num_data, n_threads))
-      np.random.shuffle(index)
-      for i in index:
-        fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
-        try:
-          if fname not in self.buffer:
-            meta = np.load(fname)
-            self.buffer[fname] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
-          meta = self.buffer[fname]
-        except:
-          logging.error("Failed reading {}".format(fname))
-          continue
+  def __len__(self):
+    return self.num_data
 
-        channels = meta['channels'].tolist()
-        start_tp = meta['itp'].tolist()
+  def __getitem__(self, i):
+    fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
+    try:
+      if fname not in self.buffer:
+        meta = np.load(fname)
+        self.buffer[fname] = {'data': meta['data'].astype(np.float32), 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
+      meta = self.buffer[fname]
+    except:
+      logging.error("Failed reading {}".format(fname))
+      return (np.zeros(self.Y_shape, dtype=np.float32), np.zeros(self.X_shape, dtype=np.float32))
 
-        if self.coord.should_stop():
-          stop = True
-          break
+    channels = meta['channels'].tolist()
+    start_tp = meta['itp'].tolist()
 
-        sample = np.zeros(self.X_shape)
-        if np.random.random() < 0.95:
-          data = np.copy(meta['data'])
-          itp = meta['itp']
-          its = meta['its']
-          start_tp = itp
 
-          shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([its-start_tp, self.X_shape[0]])-self.mask_window)
-          sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
-          itp_list = [itp-start_tp-shift]
-          its_list = [its-start_tp-shift]
-        else:
-          sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
-          itp_list = []
-          its_list = []
 
-        sample = self.normalize(sample)
-        sample = self.adjust_missingchannels(sample)
+    sample = np.zeros(self.X_shape, dtype=np.float32)
+    if np.random.random() < 0.95:
+      data = np.copy(meta['data'])
+      itp = meta['itp']
+      its = meta['its']
+      start_tp = itp
 
-        if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
-          continue
+      shift = np.random.randint(-(self.X_shape[0]-self.label_width), min([its-start_tp, self.X_shape[0]])-self.label_width)
+      sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+      itp_list = [itp-start_tp-shift]
+      its_list = [its-start_tp-shift]
+    else:
+      sample[:, :, :] = np.copy(meta['data'][start_tp-self.X_shape[0]:start_tp, np.newaxis, :])
+      itp_list = []
+      its_list = []
 
-        target = np.zeros(self.Y_shape)
-        for itp, its in zip(itp_list, its_list):
-          if (itp >= target.shape[0]) or (itp < 0):
-            pass
-          elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
-            target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
-                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-          elif (itp-self.mask_window//2 < target.shape[0]):
-            target[0:itp+self.mask_window//2, 0, 1] = \
-                 np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
-          if (its >= target.shape[0]) or (its < 0):
-            pass
-          elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
-            target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
-                np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-          elif (its-self.mask_window//2 < target.shape[0]):
-            target[0:its+self.mask_window//2, 0, 2] = \
-                np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
-        target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
+    sample = self.normalize(sample)
+    sample = self.adjust_missingchannels(sample)
 
-        sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
-                                          self.target_placeholder: target})
-    return 0
+    if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
+      return (np.zeros(self.Y_shape, dtype=np.float32), np.zeros(self.X_shape, dtype=np.float32))
 
-  def start_threads(self, sess, n_threads=8):
-    for i in range(n_threads):
-      thread = threading.Thread(target=self.thread_main, args=(sess, n_threads, i))
-      thread.daemon = True
-      thread.start()
-      self.threads.append(thread)
-    return self.threads
+    target = np.zeros(self.Y_shape, dtype=np.float32)
+    for itp, its in zip(itp_list, its_list):
+      if (itp >= target.shape[0]) or (itp < 0):
+        pass
+      elif (itp-self.label_width//2 >= 0) and (itp-self.label_width//2 < target.shape[0]):
+        target[itp-self.label_width//2:itp+self.label_width//2, 0, 1] = \
+            np.exp(-(np.arange(-self.label_width//2,self.label_width//2))**2/(2*(self.label_width//4)**2))[:target.shape[0]-(itp-self.label_width//2)]
+      elif (itp-self.label_width//2 < target.shape[0]):
+        target[0:itp+self.label_width//2, 0, 1] = \
+              np.exp(-(np.arange(0,itp+self.label_width//2)-itp)**2/(2*(self.label_width//4)**2))[:target.shape[0]-(itp-self.label_width//2)]
+      if (its >= target.shape[0]) or (its < 0):
+        pass
+      elif (its-self.label_width//2 >= 0) and (its-self.label_width//2 < target.shape[0]):
+        target[its-self.label_width//2:its+self.label_width//2, 0, 2] = \
+            np.exp(-(np.arange(-self.label_width//2,self.label_width//2))**2/(2*(self.label_width//4)**2))[:target.shape[0]-(its-self.label_width//2)]
+      elif (its-self.label_width//2 < target.shape[0]):
+        target[0:its+self.label_width//2, 0, 2] = \
+            np.exp(-(np.arange(0,its+self.label_width//2)-its)**2/(2*(self.label_width//4)**2))[:target.shape[0]-(its-self.label_width//2)]
+    target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
 
+    # time.sleep(0.5)
+    return (sample, target)
 
 class DataReader_test(DataReader):
 
@@ -198,7 +168,7 @@ class DataReader_test(DataReader):
       sample = np.zeros(self.X_shape)
 
       np.random.seed(self.config.seed+i)
-      shift = np.random.randint(-(self.X_shape[0]-self.mask_window), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.mask_window)
+      shift = np.random.randint(-(self.X_shape[0]-self.label_width), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.label_width)
       sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
       itp_list = [meta['itp'].tolist()-start_tp-shift]
       its_list = [meta['its'].tolist()-start_tp-shift]
@@ -215,24 +185,24 @@ class DataReader_test(DataReader):
       for itp, its in zip(itp_list, its_list):
         if (itp >= target.shape[0]) or (itp < 0):
           pass
-        elif (itp-self.mask_window//2 >= 0) and (itp-self.mask_window//2 < target.shape[0]):
-          target[itp-self.mask_window//2:itp+self.mask_window//2, 0, 1] = \
-              np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+        elif (itp-self.label_width//2 >= 0) and (itp-self.label_width//2 < target.shape[0]):
+          target[itp-self.label_width//2:itp+self.label_width//2, 0, 1] = \
+              np.exp(-(np.arange(-self.label_width//2,self.label_width//2))**2/(2*(self.label_width//4)**2))[:target.shape[0]-(itp-self.label_width//2)]
           itp_true.append(itp)
-        elif (itp-self.mask_window//2 < target.shape[0]):
-          target[0:itp+self.mask_window//2, 0, 1] = \
-              np.exp(-(np.arange(0,itp+self.mask_window//2)-itp)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(itp-self.mask_window//2)]
+        elif (itp-self.label_width//2 < target.shape[0]):
+          target[0:itp+self.label_width//2, 0, 1] = \
+              np.exp(-(np.arange(0,itp+self.label_width//2)-itp)**2/(2*(self.label_width//4)**2))[:target.shape[0]-(itp-self.label_width//2)]
           itp_true.append(itp)
 
         if (its >= target.shape[0]) or (its < 0):
           pass
-        elif (its-self.mask_window//2 >= 0) and (its-self.mask_window//2 < target.shape[0]):
-          target[its-self.mask_window//2:its+self.mask_window//2, 0, 2] = \
-              np.exp(-(np.arange(-self.mask_window//2,self.mask_window//2))**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+        elif (its-self.label_width//2 >= 0) and (its-self.label_width//2 < target.shape[0]):
+          target[its-self.label_width//2:its+self.label_width//2, 0, 2] = \
+              np.exp(-(np.arange(-self.label_width//2,self.label_width//2))**2/(2*(self.label_width//4)**2))[:target.shape[0]-(its-self.label_width//2)]
           its_true.append(its)
-        elif (its-self.mask_window//2 < target.shape[0]):
-          target[0:its+self.mask_window//2, 0, 2] = \
-              np.exp(-(np.arange(0,its+self.mask_window//2)-its)**2/(2*(self.mask_window//4)**2))[:target.shape[0]-(its-self.mask_window//2)]
+        elif (its-self.label_width//2 < target.shape[0]):
+          target[0:its+self.label_width//2, 0, 2] = \
+              np.exp(-(np.arange(0,its+self.label_width//2)-its)**2/(2*(self.label_width//4)**2))[:target.shape[0]-(its-self.label_width//2)]
           its_true.append(its)
       target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
 
@@ -418,12 +388,42 @@ class DataReader_mseed(DataReader):
                                           self.fname_placeholder: f"{fname}_{i*self.input_length}"})
 
 if __name__ == "__main__":
-  ## debug
-  data_reader = DataReader_mseed(
-    data_dir="/data/beroza/zhuwq/Project-PhaseNet-mseed/mseed/",
-    data_list="/data/beroza/zhuwq/Project-PhaseNet-mseed/fname.txt",
-    queue_size=20,
-    coord=None)
-  data_reader.thread_main(None, n_threads=1, start=0)
-# pred_fn(args, data_reader, log_dir=args.output_dir)
+  import time
 
+  tf.executing_eagerly()
+  data_reader = DataReader(
+    data_dir="dataset/waveform_train",
+    data_list="dataset/waveform.csv")
+
+
+  def benchmark(dataset, num_batch=10):
+    start_time = time.perf_counter()
+    num = 0
+    for sample in dataset:
+      time.sleep(0.5)
+      num += 1
+      if num > num_batch:
+        break
+    print("Execution time:", time.perf_counter() - start_time)
+
+  dateset = generator(data_reader, 
+                      output_types=(tf.float32, tf.float32),
+                      output_shapes=(data_reader.X_shape, data_reader.Y_shape), 
+                      num_parallel_calls=None)
+  print("Base case:")
+  benchmark(dateset)
+  print("Prefetch:")
+  benchmark(dateset.prefetch(tf.data.experimental.AUTOTUNE))
+  dateset = generator(data_reader, 
+                      output_types=(tf.float32, tf.float32),
+                      output_shapes=(data_reader.X_shape, data_reader.Y_shape), 
+                      num_parallel_calls=4)
+  print("Parallel calls:")
+  benchmark(dateset)
+  benchmark(dateset.prefetch(tf.data.experimental.AUTOTUNE))
+
+  # it = ds.make_one_shot_iterator()
+  # entry = it.get_next()
+  # with tf.Session() as sess:
+  #     print(sess.run(entry).shape)
+  #     print(sess.run(entry).shape)
