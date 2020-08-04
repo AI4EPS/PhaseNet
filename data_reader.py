@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import multiprocessing
 import h5py
 
+
 @dataclass
 class Config:
   seed = 100
@@ -130,92 +131,49 @@ class DataReader():
     # time.sleep(0.5)
     return (sample, target)
 
-class DataReader_test(DataReader):
+class DataReader_valid(DataReader):
 
-  def add_placeholder(self):
-    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
-    self.target_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
-    self.fname_placeholder = tf.placeholder(dtype=tf.string, shape=None)
-    self.itp_placeholder = tf.placeholder(dtype=tf.int32, shape=None)
-    self.its_placeholder = tf.placeholder(dtype=tf.int32, shape=None)
-    self.queue = tf.PaddingFIFOQueue(self.queue_size,
-                                     ['float32', 'float32', 'string', 'int32', 'int32'],
-                                     shapes=[self.config.X_shape, self.config.Y_shape, [], [None], [None]])
-    self.enqueue = self.queue.enqueue([self.sample_placeholder, self.target_placeholder, 
-                                       self.fname_placeholder, 
-                                       self.itp_placeholder, self.its_placeholder])
+  def __getitem__(self, i):
+    fname = os.path.join(self.data_dir, self.data_list.iloc[i]['fname'])
+    try:
+      if fname not in self.buffer:
+        meta = np.load(fname)
+        self.buffer[fname] = {'data': meta['data'].astype(self.dtype), 'itp': meta['itp'].astype("int32"), 'its': meta['its'].astype("int32"), 'channels': meta['channels']}
+      meta = self.buffer[fname]
+    except:
+      logging.error("Failed reading {}".format(fname))
+      return (np.zeros(self.Y_shape, dtype=self.dtype), np.zeros(self.X_shape, dtype=self.dtype))
 
-  def dequeue(self, num_elements):
-    output = self.queue.dequeue_up_to(num_elements)
-    return output
+    channels = meta['channels'].tolist()
+    start_tp = meta['itp'].tolist()
 
-  def thread_main(self, sess, n_threads=1, start=0):
-    index = list(range(start, self.num_data, n_threads))
-    for i in index:
-      fname = self.data_list.iloc[i]['fname']
-      fp = os.path.join(self.data_dir, fname)
-      try:
-        if fp not in self.buffer:
-          meta = np.load(fp)
-          self.buffer[fp] = {'data': meta['data'], 'itp': meta['itp'], 'its': meta['its'], 'channels': meta['channels']}
-        meta = self.buffer[fp]
-      except:
-        logging.error("Failed reading {}".format(fp))
-        continue
+    sample = np.zeros(self.X_shape, dtype=self.dtype)
+    if np.random.random() < 0.95:
+      data = np.copy(meta['data'])
+      itp = meta['itp']
+      its = meta['its']
+      start_tp = itp
 
-      channels = meta['channels'].tolist()
-      start_tp = meta['itp'].tolist()
-      
-      if self.coord.should_stop():
-        break
+      shift = np.random.randint(-(self.X_shape[0]-self.label_width), min([its-start_tp, self.X_shape[0]])-self.label_width, dtype="int32")
+      sample[:, :, :] = data[start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :]
+      itp_list = [itp-start_tp-shift]
+      its_list = [its-start_tp-shift]
+    else:
+      sample[:, :, :] = np.copy(meta['data'])[start_tp-self.X_shape[0]:start_tp, np.newaxis, :]
+      itp_list = []
+      its_list = []
 
-      sample = np.zeros(self.X_shape)
+    sample = self.normalize(sample)
+    sample = self.adjust_missingchannels(sample)
 
-      np.random.seed(self.config.seed+i)
-      shift = np.random.randint(-(self.X_shape[0]-self.label_width), min([meta['its'].tolist()-start_tp, self.X_shape[0]])-self.label_width)
-      sample[:, :, :] = np.copy(meta['data'][start_tp+shift:start_tp+self.X_shape[0]+shift, np.newaxis, :])
-      itp_list = [meta['itp'].tolist()-start_tp-shift]
-      its_list = [meta['its'].tolist()-start_tp-shift]
+    if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
+      return (np.zeros(self.Y_shape, dtype=self.dtype), np.zeros(self.X_shape, dtype=self.dtype))
 
-      sample = self.normalize(sample)
-      sample = self.adjust_missingchannels(sample)
+    target = self.generate_label(itp_list, its_list)
 
-      if (np.isnan(sample).any() or np.isinf(sample).any() or (not sample.any())):
-        continue
-
-      target = np.zeros(self.Y_shape)
-      itp_true = []
-      its_true = []
-      for itp, its in zip(itp_list, its_list):
-        if (itp >= target.shape[0]) or (itp < 0):
-          pass
-        elif (itp-self.label_width//2 >= 0) and (itp-self.label_width//2 < target.shape[0]):
-          target[itp-self.label_width//2:itp+self.label_width//2, 0, 1] = \
-              np.exp(-(np.arange(-self.label_width//2,self.label_width//2))**2/(2*(self.label_width//4)**2))[:target.shape[0]-(itp-self.label_width//2)]
-          itp_true.append(itp)
-        elif (itp-self.label_width//2 < target.shape[0]):
-          target[0:itp+self.label_width//2, 0, 1] = \
-              np.exp(-(np.arange(0,itp+self.label_width//2)-itp)**2/(2*(self.label_width//4)**2))[:target.shape[0]-(itp-self.label_width//2)]
-          itp_true.append(itp)
-
-        if (its >= target.shape[0]) or (its < 0):
-          pass
-        elif (its-self.label_width//2 >= 0) and (its-self.label_width//2 < target.shape[0]):
-          target[its-self.label_width//2:its+self.label_width//2, 0, 2] = \
-              np.exp(-(np.arange(-self.label_width//2,self.label_width//2))**2/(2*(self.label_width//4)**2))[:target.shape[0]-(its-self.label_width//2)]
-          its_true.append(its)
-        elif (its-self.label_width//2 < target.shape[0]):
-          target[0:its+self.label_width//2, 0, 2] = \
-              np.exp(-(np.arange(0,its+self.label_width//2)-its)**2/(2*(self.label_width//4)**2))[:target.shape[0]-(its-self.label_width//2)]
-          its_true.append(its)
-      target[:, :, 0] = 1 - target[:, :, 1] - target[:, :, 2]
-
-      sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
-                                        self.target_placeholder: target,
-                                        self.fname_placeholder: fname,
-                                        self.itp_placeholder: itp_true,
-                                        self.its_placeholder: its_true})
-    return 0
+    itp_list = np.array(itp_list, dtype="int32")
+    its_list = np.array(its_list, dtype="int32")
+    return (sample, target, itp_list, its_list)
 
 
 class DataReader_pred(DataReader):
@@ -223,69 +181,49 @@ class DataReader_pred(DataReader):
   def __init__(self,
                data_dir,
                data_list,
-               queue_size,
-               coord,
-               input_length=None,
+               input_length=9001,
                config=Config()):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
     self.data_list = tmp_list
     self.num_data = len(self.data_list)
     self.data_dir = data_dir
-    self.queue_size = queue_size
     self.X_shape = config.X_shape
-    self.Y_shape = config.Y_shape
-    if input_length is not None:
+    if input_length != config.X_shape[0]:
       logging.warning("Using input length: {}".format(input_length))
-      self.X_shape[0] = input_length
-      self.Y_shape[0] = input_length
+      self.X_shape = (input_length, config.X_shape[1], config.X_shape[2])
+    self.dtype = config.dtype
 
-    self.coord = coord
-    self.threads = []
-    self.add_placeholder()
-  
-  def add_placeholder(self):
-    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
-    self.fname_placeholder = tf.placeholder(dtype=tf.string, shape=None)
-    self.queue = tf.PaddingFIFOQueue(self.queue_size,
-                                     ['float32', 'string'],
-                                     shapes=[self.config.X_shape, []])
+  def __len__(self):
+    return self.num_data
 
-    self.enqueue = self.queue.enqueue([self.sample_placeholder, 
-                                       self.fname_placeholder])
+  def __getitem__(self, i):
+    fname = self.data_list.iloc[i]['fname']
+    fp = os.path.join(self.data_dir, fname)
+    try:
+      meta = np.load(fp)
+    except:
+      logging.error("Failed reading {}".format(fname))
+      return (np.zeros(self.Y_shape, dtype=self.dtype), np.zeros(self.X_shape, dtype=self.dtype))
 
-  def dequeue(self, num_elements):
-    output = self.queue.dequeue_up_to(num_elements)
-    return output
+    shift = 0
+    # sample = meta['data'][shift:shift+self.X_shape, np.newaxis, :]
+    sample = meta['data'][:, np.newaxis, :].astype(self.dtype)
+    if not np.array_equal(np.array(sample.shape), np.array(self.X_shape)):
+      logging.warning(f"Shape mismatch: {sample.shape} != {self.X_shape} in {fname}")
+      tmp = np.zeros(self.X_shape, dtype=self.dtype)
+      tmp[:sample.shape[0],0,:sample.shape[2]] = sample[:tmp.shape[0],0,:tmp.shape[2]]
+      sample = tmp
 
-  def thread_main(self, sess, n_threads=1, start=0):
-    index = list(range(start, self.num_data, n_threads))
-    for i in index:
-      fname = self.data_list.iloc[i]['fname']
-      fp = os.path.join(self.data_dir, fname)
-      try:
-        meta = np.load(fp)
-      except:
-        logging.error("Failed reading {}".format(fname))
-        continue
-      shift = 0
-      # sample = meta['data'][shift:shift+self.X_shape, np.newaxis, :]
-      sample = meta['data'][:, np.newaxis, :]
-      if not np.array_equal(np.array(sample.shape), np.array(self.X_shape)):
-        logging.warning(f"Shape mismatch: {sample.shape} != {self.X_shape} in {fname}")
-        tmp = np.zeros(self.X_shape)
-        tmp[:sample.shape[0],0,:sample.shape[2]] = sample[:tmp.shape[0],0,:tmp.shape[2]]
-        sample = tmp
+    if np.isnan(sample).any() or np.isinf(sample).any():
+      logging.warning(f"Data error: Nan or Inf found in {fname}")
+      sample[np.isnan(sample)] = 0
+      sample[np.isinf(sample)] = 0
 
-      if np.isnan(sample).any() or np.isinf(sample).any():
-        logging.warning(f"Data error: Nan or Inf found in {fname}")
-        sample[np.isnan(sample)] = 0
-        sample[np.isinf(sample)] = 0
+    sample = self.normalize(sample)
+    sample = self.adjust_missingchannels(sample)
+    return (sample, fname)
 
-      sample = self.normalize(sample)
-      sample = self.adjust_missingchannels(sample)
-      sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
-                                        self.fname_placeholder: fname})
 
 class DataReader_hdf5(DataReader):
 
@@ -462,25 +400,27 @@ class DataReader_mseed(DataReader):
       yield (sample, f"{fname}_{i*self.X_shape[0]}")
 
 
+def benchmark(dataset, num_batch=10):
+  import time
+  start_time = time.perf_counter()
+  num = 0
+  for sample in dataset:
+    # time.sleep(0.5)
+    num += 1
+    if num > num_batch:
+      break
+  print("Execution time:", time.perf_counter() - start_time)
+
+
 def test_DataReader():
-  import time 
+  print("test_DataReader:")
 
   data_reader = DataReader(
     data_dir="dataset/waveform_train",
     data_list="dataset/waveform.csv")
 
-  def benchmark(dataset, num_batch=10):
-    start_time = time.perf_counter()
-    num = 0
-    for sample in dataset:
-      # time.sleep(0.5)
-      num += 1
-      if num > num_batch:
-        break
-    print("Execution time:", time.perf_counter() - start_time)
-
   dataset = generator(data_reader, 
-                      output_types=(tf.float32, tf.float32),
+                      output_types=("float32", "float32",),
                       output_shapes=(data_reader.X_shape, data_reader.Y_shape), 
                       num_parallel_calls=None)
 
@@ -489,8 +429,58 @@ def test_DataReader():
   print("Prefetch:")
   benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
   dataset = generator(data_reader, 
-                      output_types=(tf.float32, tf.float32),
+                      output_types=("float32", "float32",),
                       output_shapes=(data_reader.X_shape, data_reader.Y_shape), 
+                      num_parallel_calls=4)
+  print("Parallel calls:")
+  benchmark(dataset)
+  benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
+
+
+def test_DataReader_valid():
+  print("test_DataReader_valid:")
+
+  data_reader = DataReader_valid(
+    data_dir="dataset/waveform_train",
+    data_list="dataset/waveform.csv")
+
+  dataset = generator(data_reader, 
+                      output_types=("float32", "float32", "int32", "int32"),
+                      output_shapes=(data_reader.X_shape, data_reader.Y_shape, None, None), 
+                      num_parallel_calls=None)
+  
+  print("Base case:")
+  benchmark(dataset)
+  print("Prefetch:")
+  benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
+  dataset = generator(data_reader, 
+                      output_types=("float32", "float32", "int32", "int32"),
+                      output_shapes=(data_reader.X_shape, data_reader.Y_shape, None, None), 
+                      num_parallel_calls=4)
+  print("Parallel calls:")
+  benchmark(dataset)
+  benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
+
+
+def test_DataReader_pred():
+  print("test_DataReader_pred:")
+
+  data_reader = DataReader_pred(
+    data_dir="dataset/waveform_train",
+    data_list="dataset/waveform.csv")
+
+  dataset = generator(data_reader, 
+                      output_types=("float32", "string"),
+                      output_shapes=(data_reader.X_shape, None), 
+                      num_parallel_calls=None)
+
+  print("Base case:")
+  benchmark(dataset)
+  print("Prefetch:")
+  benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
+  dataset = generator(data_reader, 
+                      output_types=("float32", "string"),
+                      output_shapes=(data_reader.X_shape, None), 
                       num_parallel_calls=4)
   print("Parallel calls:")
   benchmark(dataset)
@@ -498,23 +488,12 @@ def test_DataReader():
 
 
 def test_DataReader_hdf5():
-  import time 
-
+  print("test_DataReader_hdf5:")
   data_reader = DataReader_hdf5(hdf5="dataset/data.hdf5", 
                                 data_dir="data")
 
-  def benchmark(dataset, num_batch=10):
-    start_time = time.perf_counter()
-    num = 0
-    for sample in dataset:
-      # time.sleep(0.5)
-      num += 1
-      if num > num_batch:
-        break
-    print("Execution time:", time.perf_counter() - start_time)
-
   dataset = generator(data_reader, 
-                      output_types=(tf.float32, "string"),
+                      output_types=("float32", "string"),
                       output_shapes=(data_reader.X_shape, None), 
                       num_parallel_calls=None)
 
@@ -523,14 +502,16 @@ def test_DataReader_hdf5():
   print("Prefetch:")
   benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
   dataset = generator(data_reader, 
-                      output_types=(tf.float32, "string"),
+                      output_types=("float32", "string"),
                       output_shapes=(data_reader.X_shape, None), 
                       num_parallel_calls=4)
   print("Parallel calls:")
   benchmark(dataset)
   benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
 
+
 def test_DataReader_mseed_v2():
+  print("test_DataReader_mseed_v2:")
   import timeit
   data_reader = DataReader_mseed_v2(
     data_list = "demo/fname.csv",
@@ -549,7 +530,9 @@ def test_DataReader_mseed_v2():
   print("Multiprocessing:\nexecution time = ", timeit.default_timer() - start_time)
   return data
 
+
 def test_DataReader_mseed():
+  print("test_DataReader_mseed:")
   import timeit
   data_reader = DataReader_mseed(
     data_list = "demo/fname.csv",
@@ -570,5 +553,7 @@ def test_DataReader_mseed():
     pass
   
   print("Tensorflow Dataset:\nexecution time = ", timeit.default_timer() - start_time)
+
+
 if __name__ == "__main__":
   pass
