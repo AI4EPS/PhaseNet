@@ -11,6 +11,7 @@ from tqdm import tqdm
 from util import py_func_decorator, generator
 from dataclasses import dataclass
 import multiprocessing
+import h5py
 
 @dataclass
 class Config:
@@ -289,54 +290,39 @@ class DataReader_pred(DataReader):
 class DataReader_hdf5(DataReader):
 
   def __init__(self,
-               file,
+               hdf5,
+               data_dir = "data",
                config=Config()):
     self.config = config
+    self.h5_data = h5py.File(hdf5, 'r', libver='latest', swmr=True)[data_dir]
+    self.data_list = list(self.h5_data.keys())
     self.num_data = len(self.data_list)
     self.X_shape = config.X_shape
-  
-  def add_placeholder(self):
-    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
-    self.fname_placeholder = tf.placeholder(dtype=tf.string, shape=None)
-    self.queue = tf.PaddingFIFOQueue(self.queue_size,
-                                     ['float32', 'string'],
-                                     shapes=[self.config.X_shape, []])
+    self.Y_shape = config.Y_shape
+    self.dtype = config.dtype
 
-    self.enqueue = self.queue.enqueue([self.sample_placeholder, 
-                                       self.fname_placeholder])
+  def __len__(self):
+    return self.num_data
 
-  def dequeue(self, num_elements):
-    output = self.queue.dequeue_up_to(num_elements)
-    return output
+  def __getitem__(self, i):
+    fname = self.data_list[i]
+    sample = self.h5_data[fname].value
+    sample = sample[:,np.newaxis,:]
 
-  def thread_main(self, sess, n_threads=1, start=0):
-    index = list(range(start, self.num_data, n_threads))
-    for i in index:
-      fname = self.data_list.iloc[i]['fname']
-      fp = os.path.join(self.data_dir, fname)
-      try:
-        meta = np.load(fp)
-      except:
-        logging.error("Failed reading {}".format(fname))
-        continue
-      shift = 0
-      # sample = meta['data'][shift:shift+self.X_shape, np.newaxis, :]
-      sample = meta['data'][:, np.newaxis, :]
-      if not np.array_equal(np.array(sample.shape), np.array(self.X_shape)):
-        logging.warning(f"Shape mismatch: {sample.shape} != {self.X_shape} in {fname}")
-        tmp = np.zeros(self.X_shape)
-        tmp[:sample.shape[0],0,:sample.shape[2]] = sample[:tmp.shape[0],0,:tmp.shape[2]]
-        sample = tmp
+    if not np.array_equal(np.array(sample.shape), np.array(self.X_shape)):
+      logging.warning(f"Shape mismatch: {sample.shape} != {self.X_shape} in {fname}")
+      tmp = np.zeros(self.X_shape, dtype=self.dtype)
+      tmp[:sample.shape[0],0,:sample.shape[2]] = sample[:tmp.shape[0],0,:tmp.shape[2]]
+      sample = tmp
 
-      if np.isnan(sample).any() or np.isinf(sample).any():
-        logging.warning(f"Data error: Nan or Inf found in {fname}")
-        sample[np.isnan(sample)] = 0
-        sample[np.isinf(sample)] = 0
+    if np.isnan(sample).any() or np.isinf(sample).any():
+      logging.warning(f"Data error: Nan or Inf found in {fname}")
+      sample[np.isnan(sample)] = 0
+      sample[np.isinf(sample)] = 0
 
-      sample = self.normalize(sample)
-      sample = self.adjust_missingchannels(sample)
-      sess.run(self.enqueue, feed_dict={self.sample_placeholder: sample,
-                                        self.fname_placeholder: fname})
+    sample = self.normalize(sample)
+    sample = self.adjust_missingchannels(sample)
+    return (sample, fname)
 
 
 class DataReader_mseed_v2(DataReader):
@@ -510,6 +496,40 @@ def test_DataReader():
   benchmark(dataset)
   benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
 
+
+def test_DataReader_hdf5():
+  import time 
+
+  data_reader = DataReader_hdf5(hdf5="dataset/data.hdf5", 
+                                data_dir="data")
+
+  def benchmark(dataset, num_batch=10):
+    start_time = time.perf_counter()
+    num = 0
+    for sample in dataset:
+      # time.sleep(0.5)
+      num += 1
+      if num > num_batch:
+        break
+    print("Execution time:", time.perf_counter() - start_time)
+
+  dataset = generator(data_reader, 
+                      output_types=(tf.float32, "string"),
+                      output_shapes=(data_reader.X_shape, None), 
+                      num_parallel_calls=None)
+
+  print("Base case:")
+  benchmark(dataset)
+  print("Prefetch:")
+  benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
+  dataset = generator(data_reader, 
+                      output_types=(tf.float32, "string"),
+                      output_shapes=(data_reader.X_shape, None), 
+                      num_parallel_calls=4)
+  print("Parallel calls:")
+  benchmark(dataset)
+  benchmark(dataset.prefetch(tf.data.experimental.AUTOTUNE))
+
 def test_DataReader_mseed_v2():
   import timeit
   data_reader = DataReader_mseed_v2(
@@ -552,5 +572,3 @@ def test_DataReader_mseed():
   print("Tensorflow Dataset:\nexecution time = ", timeit.default_timer() - start_time)
 if __name__ == "__main__":
   pass
-
-
