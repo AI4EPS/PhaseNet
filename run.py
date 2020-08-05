@@ -6,7 +6,7 @@ import os
 import time
 import logging
 from model import Model
-from data_reader import Config, DataReader, DataReader_test, DataReader_pred, DataReader_mseed
+from data_reader import DataReader, DataReader_valid, DataReader_pred, DataReader_mseed, DataReader_hdf5
 from util import *
 from tqdm import tqdm
 import pandas as pd
@@ -14,6 +14,21 @@ import threading
 import multiprocessing
 from functools import partial
 import pickle
+from dataclasses import dataclass
+
+@dataclass
+class Config:
+  seed = 100
+  use_seed = False
+  n_channel = 3
+  n_class = 3
+  sampling_rate = 100.0
+  dt = 1.0/sampling_rate
+  X_shape = (3000, 1, n_channel)
+  Y_shape = (3000, 1, n_class)
+  min_event_gap = 3 * sampling_rate
+  label_width = 6
+  dtype="float32"
 
 def read_args():
 
@@ -141,6 +156,14 @@ def read_args():
   parser.add_argument("--input_mseed",
                       action="store_true",
                       help="mseed format")
+
+  parser.add_argument("--input_hdf5",
+                      action="store_true",
+                      help="hdf5 format")
+
+  parser.add_argument("--file_hdf5",
+                      default="./dataset/data.hdf5",
+                      help="location of hdf5 file")
 
   parser.add_argument("--data_dir",
                       default="./dataset/waveform_pred/",
@@ -429,25 +452,25 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     result_dir = os.path.join(log_dir, 'results')
     if not os.path.exists(result_dir):
       os.makedirs(result_dir)
-
+  
 
   config = set_config(args, data_reader)
   with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
     fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
 
   with tf.name_scope('Input_Batch'):
-    batch = data_reader.dequeue(args.batch_size)
+    batch = data_reader(args.batch_size).make_one_shot_iterator().get_next()
+  #   batch = data_reader.dequeue(args.batch_size)
 
   model = Model(config, batch, "pred")
+
   sess_config = tf.ConfigProto()
   sess_config.gpu_options.allow_growth = True
   sess_config.log_device_placement = False
 
   with tf.Session(config=sess_config) as sess:
 
-    threads = data_reader.start_threads(sess, n_threads=8)
-
-    saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
+    saver = tf.train.Saver(tf.global_variables())
     init = tf.global_variables_initializer()
     sess.run(init)
 
@@ -461,6 +484,7 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
       num_pool = multiprocessing.cpu_count()
     else:
       num_pool = 2
+    multiprocessing.set_start_method('spawn')
     pool = multiprocessing.Pool(num_pool)
     fclog = open(os.path.join(log_dir, args.fpred+'.csv'), 'w')
     fclog.write("fname,itp,tp_prob,its,ts_prob\n") 
@@ -512,14 +536,11 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     
     else:
       for step in tqdm(range(0, data_reader.num_data, args.batch_size), desc="Pred"):
-        if step + args.batch_size >= data_reader.num_data:
-          for t in threads:
-            t.join()
-          sess.run(data_reader.queue.close())
         pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
                                                     feed_dict={model.drop_rate: 0,
                                                                 model.is_training: False})
         picks_batch = pool.map(partial(postprocessing_thread,
+                                        config = Config(),
                                         pred = pred_batch,
                                         X = X_batch,
                                         fname = fname_batch,
@@ -587,6 +608,10 @@ def main(args):
             queue_size=args.batch_size*10,
             coord=coord,
             input_length=args.input_length)
+      elif args.input_hdf5:
+        data_reader = DataReader_hdf5(hdf5=args.file_hdf5,
+                                      group="data",
+                                      config=Config())
       else:
         data_reader = DataReader_pred(
             data_dir=args.data_dir,

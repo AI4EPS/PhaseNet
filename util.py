@@ -7,14 +7,16 @@ import os
 from detect_peaks import detect_peaks
 import logging
 import tensorflow as tf
+from tensorflow.python.util import nest
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
   def decorator(func):
     def call(*args, **kwargs):
       nonlocal output_shapes
-      flat_output_types = tf.nest.flatten(output_types)
-      # flat_values = tf.py_function(
-      flat_values = tf.numpy_function(
+      flat_output_types = nest.flatten(output_types)
+      # flat_output_types = tf.nest.flatten(output_types)
+      flat_values = tf.py_func(
+      # flat_values = tf.numpy_function(
         func, 
         inp=args, 
         Tout=flat_output_types,
@@ -23,7 +25,8 @@ def py_func_decorator(output_types=None, output_shapes=None, name=None):
       if output_shapes is not None:
         for v, s in zip(flat_values, output_shapes):
           v.set_shape(s)
-      return tf.nest.pack_sequence_as(output_types, flat_values)
+      return nest.pack_sequence_as(output_types, flat_values)
+      # return tf.nest.pack_sequence_as(output_types, flat_values)
     return call
   return decorator
 
@@ -35,13 +38,13 @@ def generator(iterator, output_types, output_shapes=None, num_parallel_calls=Non
   return dataset.map(index_to_entry, num_parallel_calls=num_parallel_calls)
 
 
-def detect_peaks_thread(i, pred, fname=None, result_dir=None, args=None):
+def detect_peaks_thread(i, config, pred, fname=None, result_dir=None, args=None):
   if args is None:
-    itp = detect_peaks(pred[i,:,0,1], mph=0.5, mpd=0.5/Config().dt, show=False)
-    its = detect_peaks(pred[i,:,0,2], mph=0.5, mpd=0.5/Config().dt, show=False)
+    itp = detect_peaks(pred[i,:,0,1], mph=0.5, mpd=0.5/config.dt, show=False)
+    its = detect_peaks(pred[i,:,0,2], mph=0.5, mpd=0.5/config.dt, show=False)
   else:
-    itp = detect_peaks(pred[i,:,0,1], mph=args.tp_prob, mpd=0.5/Config().dt, show=False)
-    its = detect_peaks(pred[i,:,0,2], mph=args.ts_prob, mpd=0.5/Config().dt, show=False)
+    itp = detect_peaks(pred[i,:,0,1], mph=args.tp_prob, mpd=0.5/config.dt, show=False)
+    its = detect_peaks(pred[i,:,0,2], mph=args.ts_prob, mpd=0.5/config.dt, show=False)
   prob_p = pred[i,itp,0,1]
   prob_s = pred[i,its,0,2]
   if (fname is not None) and (result_dir is not None):
@@ -54,9 +57,9 @@ def detect_peaks_thread(i, pred, fname=None, result_dir=None, args=None):
       np.savez(os.path.join(result_dir, fname[i].decode()), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
   return [(itp, prob_p), (its, prob_s)]
 
-def plot_result_thread(i, pred, X, Y=None, itp=None, its=None, 
+def plot_result_thread(i, config, pred, X, Y=None, itp=None, its=None, 
                        itp_pred=None, its_pred=None, fname=None, figure_dir=None):
-  dt = Config().dt
+  dt = config.dt
   t = np.arange(0, pred.shape[1]) * dt
   box = dict(boxstyle='round', facecolor='white', alpha=1)
   text_loc = [0.05, 0.77]
@@ -156,8 +159,8 @@ def plot_result_thread(i, pred, X, Y=None, itp=None, its=None,
   plt.close(i)
   return 0
 
-def postprocessing_thread(i, pred, X, Y=None, itp=None, its=None, fname=None, result_dir=None, figure_dir=None, args=None):
-  (itp_pred, prob_p), (its_pred, prob_s) = detect_peaks_thread(i, pred, fname, result_dir, args)
+def postprocessing_thread(i, config, pred, X, Y=None, itp=None, its=None, fname=None, result_dir=None, figure_dir=None, args=None):
+  (itp_pred, prob_p), (its_pred, prob_s) = detect_peaks_thread(i, config, pred, fname, result_dir, args)
   if (fname is not None) and (figure_dir is not None):
     plot_result_thread(i, pred, X, Y, itp, its, itp_pred, its_pred, fname, figure_dir)
   return [(itp_pred, prob_p), (its_pred, prob_s)]
@@ -192,8 +195,8 @@ def metrics(TP, nP, nT):
   F1 = 2* precision * recall / (precision + recall)
   return [precision, recall, F1]
 
-def correct_picks(picks, true_p, true_s, tol):
-  dt = Config().dt
+def correct_picks(config, picks, true_p, true_s, tol):
+  dt = config.dt
   if len(true_p) != len(true_s):
     print("The length of true P and S pickers are not the same")
   num = len(true_p)
@@ -216,8 +219,8 @@ def correct_picks(picks, true_p, true_s, tol):
 
   return [TP_p, TP_s, nP_p, nP_s, nT_p, nT_s, diff_p, diff_s]
 
-def calculate_metrics(picks, itp, its, tol=0.1):
-  TP_p, TP_s, nP_p, nP_s,  nT_p, nT_s, diff_p, diff_s = correct_picks(picks, itp, its, tol)
+def calculate_metrics(config, picks, itp, its, tol=0.1):
+  TP_p, TP_s, nP_p, nP_s,  nT_p, nT_s, diff_p, diff_s = correct_picks(config, picks, itp, its, tol)
   precision_p, recall_p, f1_p = metrics(TP_p, nP_p, nT_p)
   precision_s, recall_s, f1_s = metrics(TP_s, nP_s, nT_s)
   

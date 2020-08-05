@@ -9,32 +9,15 @@ pd.options.mode.chained_assignment = None
 import obspy
 from tqdm import tqdm
 from util import py_func_decorator, generator
-from dataclasses import dataclass
 import multiprocessing
 import h5py
-
-
-@dataclass
-class Config:
-  seed = 100
-  use_seed = False
-  n_channel = 3
-  n_class = 3
-  sampling_rate = 100.0
-  dt = 1.0/sampling_rate
-  X_shape = (3000, 1, n_channel)
-  Y_shape = (3000, 1, n_class)
-  min_event_gap = 3 * sampling_rate
-  label_width = 6
-  dtype="float32"
-
 
 class DataReader():
 
   def __init__(self,
                data_dir,
                data_list,
-               config = Config()):
+               config):
     
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
@@ -181,8 +164,8 @@ class DataReader_pred(DataReader):
   def __init__(self,
                data_dir,
                data_list,
-               input_length=9001,
-               config=Config()):
+               config,
+               input_length=9001):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
     self.data_list = tmp_list
@@ -229,10 +212,10 @@ class DataReader_hdf5(DataReader):
 
   def __init__(self,
                hdf5,
-               data_dir = "data",
-               config=Config()):
+               group,
+               config):
     self.config = config
-    self.h5_data = h5py.File(hdf5, 'r', libver='latest', swmr=True)[data_dir]
+    self.h5_data = h5py.File(hdf5, 'r', libver='latest', swmr=True)[group]
     self.data_list = list(self.h5_data.keys())
     self.num_data = len(self.data_list)
     self.X_shape = config.X_shape
@@ -262,14 +245,21 @@ class DataReader_hdf5(DataReader):
     sample = self.adjust_missingchannels(sample)
     return (sample, fname)
 
+  def __call__(self, batch_size):
+    dataset = generator(self, 
+                    output_types=("float32", "string"),
+                    output_shapes=(self.X_shape, None), 
+                    num_parallel_calls=2)
+    dataset = dataset.batch(batch_size).prefetch(batch_size*2)
+    return dataset
 
 class DataReader_mseed_v2(DataReader):
 
   def __init__(self,
                data_dir,
                data_list,
-               batch_size = 32,
-               config=Config()):
+               batch_size,
+               config):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
     self.data_list = tmp_list
@@ -344,7 +334,7 @@ class DataReader_mseed(DataReader):
   def __init__(self,
                data_dir,
                data_list,
-               config=Config()):
+               config):
     self.config = config
     tmp_list = pd.read_csv(data_list, header=0)
     self.data_list = tmp_list
