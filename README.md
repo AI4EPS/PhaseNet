@@ -113,4 +113,6 @@ Please let us know of any bugs found in the code.
 - Zhu, W., & Beroza, G. C. (2018). PhaseNet: A Deep-Neural-Network-Based Seismic Arrival Time Picking Method. arXiv preprint arXiv:1803.03211.
 - Liu, M., Zhang, M., Zhu, W., Ellsworth, W. L., & Li, H. Rapid Characterization of the July 2019 Ridgecrest, California Earthquake Sequence from Raw Seismic Data using Machine Learning Phase Picker. Geophysical Research Letters, e2019GL086189.
 - Park, Y., Mousavi, S. M., Zhu, W., Ellsworth, W. L., & Beroza, G. C. (2020). Machine learning based analysis of the Guy-Greenbrier, Arkansas earthquakes: a tale of two sequences.
+- Chai, C., Maceira, M., Santos‐Villalobos, H. J., Venkatakrishnan, S. V., Schoenball, M., Zhu, W., ... & EGS Collab Team. (2020). Using a Deep Neural Network and Transfer Learning to Bridge Scales for Seismic Phase Picking. Geophysical Research Letters, e2020GL088651.
+- 
 
