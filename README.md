@@ -35,7 +35,7 @@ Located in directory: **model/190703-214543**
 
 Required a csv file and a directory of mseed files.
 
-The csv file contains foure column: "fname, E, N, Z"
+The csv file contains four column: "fname, E, N, Z"
 
 The mseed file contains the continous data with ENZ channels.
 
