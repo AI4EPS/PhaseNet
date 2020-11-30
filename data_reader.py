@@ -2,6 +2,7 @@ from __future__ import division
 import os
 import threading
 import tensorflow as tf
+tf.compat.v1.disable_eager_execution()
 import numpy as np
 import pandas as pd
 import logging
@@ -52,9 +53,9 @@ class DataReader(object):
     self.add_placeholder()
   
   def add_placeholder(self):
-    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=self.config.X_shape)
-    self.target_placeholder = tf.placeholder(dtype=tf.float32, shape=self.config.Y_shape)
-    self.queue = tf.PaddingFIFOQueue(self.queue_size,
+    self.sample_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=self.config.X_shape)
+    self.target_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=self.config.Y_shape)
+    self.queue = tf.queue.PaddingFIFOQueue(self.queue_size,
                                      ['float32', 'float32'],
                                      shapes=[self.config.X_shape, self.config.Y_shape])
     self.enqueue = self.queue.enqueue([self.sample_placeholder, self.target_placeholder])
@@ -159,12 +160,12 @@ class DataReader(object):
 class DataReader_test(DataReader):
 
   def add_placeholder(self):
-    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
-    self.target_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
-    self.fname_placeholder = tf.placeholder(dtype=tf.string, shape=None)
-    self.itp_placeholder = tf.placeholder(dtype=tf.int32, shape=None)
-    self.its_placeholder = tf.placeholder(dtype=tf.int32, shape=None)
-    self.queue = tf.PaddingFIFOQueue(self.queue_size,
+    self.sample_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=None)
+    self.target_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=None)
+    self.fname_placeholder = tf.compat.v1.placeholder(dtype=tf.string, shape=None)
+    self.itp_placeholder = tf.compat.v1.placeholder(dtype=tf.int32, shape=None)
+    self.its_placeholder = tf.compat.v1.placeholder(dtype=tf.int32, shape=None)
+    self.queue = tf.queue.PaddingFIFOQueue(self.queue_size,
                                      ['float32', 'float32', 'string', 'int32', 'int32'],
                                      shapes=[self.config.X_shape, self.config.Y_shape, [], [None], [None]])
     self.enqueue = self.queue.enqueue([self.sample_placeholder, self.target_placeholder, 
@@ -271,9 +272,9 @@ class DataReader_pred(DataReader):
     self.add_placeholder()
   
   def add_placeholder(self):
-    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
-    self.fname_placeholder = tf.placeholder(dtype=tf.string, shape=None)
-    self.queue = tf.PaddingFIFOQueue(self.queue_size,
+    self.sample_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=None)
+    self.fname_placeholder = tf.compat.v1.placeholder(dtype=tf.string, shape=None)
+    self.queue = tf.queue.PaddingFIFOQueue(self.queue_size,
                                      ['float32', 'string'],
                                      shapes=[self.config.X_shape, []])
 
@@ -341,9 +342,9 @@ class DataReader_mseed(DataReader):
     self.add_placeholder()
   
   def add_placeholder(self):
-    self.sample_placeholder = tf.placeholder(dtype=tf.float32, shape=None)
-    self.fname_placeholder = tf.placeholder(dtype=tf.string, shape=None)
-    self.queue = tf.PaddingFIFOQueue(self.queue_size,
+    self.sample_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=None)
+    self.fname_placeholder = tf.compat.v1.placeholder(dtype=tf.string, shape=None)
+    self.queue = tf.queue.PaddingFIFOQueue(self.queue_size,
                                      ['float32', 'string'],
                                      shapes=[self.config.X_shape, []])
 
