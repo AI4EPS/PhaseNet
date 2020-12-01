@@ -507,7 +507,14 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
           row = "{},[{}],[{}],[{}],[{}]".format(fname_batch[i].decode(), " ".join(map(str,picks_batch[i][0][0])), " ".join(map(str,picks_batch[i][0][1])),
                                         " ".join(map(str,picks_batch[i][1][0])), " ".join(map(str,picks_batch[i][1][1])))
           fclog.write(row+"\n")
-          picks[fname_batch[i].decode()]={"itp":picks_batch[i][0][0], "tp_prob":picks_batch[i][0][1], "its":picks_batch[i][1][0], "ts_prob":picks_batch[i][1][1]}
+          picks[fname_batch[i].decode()]={
+            "itp":picks_batch[i][0][0],
+            "tp_prob":picks_batch[i][0][1],
+            "its":picks_batch[i][1][0],
+            "ts_prob":picks_batch[i][1][1],
+            "sigma_itp":picks_batch[i][0][2],
+            "sigma_its":picks_batch[i][1][2],
+          }
 
         if last_batch:
           break
@@ -533,7 +540,14 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
           row = "{},[{}],[{}],[{}],[{}]".format(fname_batch[i].decode(), " ".join(map(str,picks_batch[i][0][0])), " ".join(map(str,picks_batch[i][0][1])),
                                         " ".join(map(str,picks_batch[i][1][0])), " ".join(map(str,picks_batch[i][1][1])))
           fclog.write(row+"\n")
-          picks[fname_batch[i].decode()]={"itp":picks_batch[i][0][0], "tp_prob":picks_batch[i][0][1], "its":picks_batch[i][1][0], "ts_prob":picks_batch[i][1][1]}
+          picks[fname_batch[i].decode()]={
+            "itp":picks_batch[i][0][0],
+            "tp_prob":picks_batch[i][0][1],
+            "its":picks_batch[i][1][0],
+            "ts_prob":picks_batch[i][1][1],
+            "sigma_itp":picks_batch[i][0][2],
+            "sigma_its":picks_batch[i][1][2],
+          }
         # fclog.flush()
 
     fclog.close()

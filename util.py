@@ -8,6 +8,26 @@ from data_reader import Config
 from detect_peaks import detect_peaks
 import logging
 
+
+def gauss_sigma(pred, it):
+  if len(it) == 0:
+      return np.empty(0)
+  # get peak widths to cut `pred` aroud each pick
+  from scipy.signal import peak_widths
+  _, _, left, right = peak_widths(pred, it, rel_height=0.8)
+  sigma = []
+  for ii, li, ri in zip(it, left, right):
+      li = int(li)
+      ri = int(ri)
+      pred_cut = pred.copy()
+      pred_cut[:li] = 0
+      pred_cut[ri:] = 0
+      samples = np.arange(len(pred_cut))
+      # get gaussian sigma of `pred_cut`
+      sigma.append((sum(((samples-ii) * pred_cut)**2)/sum(pred_cut))**0.5)
+  return np.array(sigma)
+
+
 def detect_peaks_thread(i, pred, fname=None, result_dir=None, args=None):
   if args is None:
     itp = detect_peaks(pred[i,:,0,1], mph=0.5, mpd=0.5/Config().dt, show=False)
@@ -17,6 +37,8 @@ def detect_peaks_thread(i, pred, fname=None, result_dir=None, args=None):
     its = detect_peaks(pred[i,:,0,2], mph=args.ts_prob, mpd=0.5/Config().dt, show=False)
   prob_p = pred[i,itp,0,1]
   prob_s = pred[i,its,0,2]
+  sigma_itp = gauss_sigma(pred[i,:,0,1], itp)
+  sigma_its = gauss_sigma(pred[i,:,0,2], its)
   if (fname is not None) and (result_dir is not None):
 #    np.savez(os.path.join(result_dir, fname[i].decode().split('/')[-1]), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
     try:
@@ -25,7 +47,7 @@ def detect_peaks_thread(i, pred, fname=None, result_dir=None, args=None):
       #if not os.path.exists(os.path.dirname(os.path.join(result_dir, fname[i].decode()))):
       os.makedirs(os.path.dirname(os.path.join(result_dir, fname[i].decode())), exist_ok=True)
       np.savez(os.path.join(result_dir, fname[i].decode()), pred=pred[i], itp=itp, its=its, prob_p=prob_p, prob_s=prob_s)
-  return [(itp, prob_p), (its, prob_s)]
+  return [(itp, prob_p, sigma_itp), (its, prob_s, sigma_its)]
 
 def plot_result_thread(i, pred, X, Y=None, itp=None, its=None, 
                        itp_pred=None, its_pred=None, fname=None, figure_dir=None):
@@ -130,10 +152,10 @@ def plot_result_thread(i, pred, X, Y=None, itp=None, its=None,
   return 0
 
 def postprocessing_thread(i, pred, X, Y=None, itp=None, its=None, fname=None, result_dir=None, figure_dir=None, args=None):
-  (itp_pred, prob_p), (its_pred, prob_s) = detect_peaks_thread(i, pred, fname, result_dir, args)
+  (itp_pred, prob_p, sigma_itp), (its_pred, prob_s, sigma_its) = detect_peaks_thread(i, pred, fname, result_dir, args)
   if (fname is not None) and (figure_dir is not None):
     plot_result_thread(i, pred, X, Y, itp, its, itp_pred, its_pred, fname, figure_dir)
-  return [(itp_pred, prob_p), (its_pred, prob_s)]
+  return [(itp_pred, prob_p, sigma_itp), (its_pred, prob_s, sigma_its)]
 
 
 def clean_queue(picks):
