@@ -3,6 +3,39 @@ import tensorflow as tf
 import numpy as np
 import logging
 
+class ModelConfig:
+
+  batch_size = 20
+  depths = 5
+  filters_root = 8
+  kernel_size = [7, 1]
+  pool_size = [4, 1]
+  dilation_rate = [1, 1]
+  class_weights = [1.0, 1.0, 1.0]
+  loss_type = "cross_entropy"
+  weight_decay = 0.0
+  optimizer = "adam"
+  momentum = 0.9
+  learning_rate = 0.01
+  decay_step = 1e9
+  decay_rate = 0.9
+  drop_rate = 0.0
+  summary = True
+  
+  X_shape = [3000, 1, 3]
+  n_channel = X_shape[-1]
+  Y_shape = [3000, 1, 3]
+  n_class = Y_shape[-1]
+
+  def __init__(self, **kwargs):
+    for k,v in kwargs.items():
+      setattr(self, k, v)
+
+  def update_args(self, args):
+    for k,v in vars(args).items():
+      setattr(self, k, v)
+
+
 def crop_and_concat(net1, net2):
   """
   the size(net1) <= size(net2)
@@ -22,6 +55,7 @@ def crop_and_concat(net1, net2):
   #     net1_resize = tf.slice(net1, offsets, size)
   #     return tf.concat([net1_resize, net2], 3)
 
+
 def crop_only(net1, net2):
   """
   the size(net1) <= size(net2)
@@ -37,8 +71,8 @@ def crop_only(net1, net2):
   #return tf.concat([net1, net2_resize], 3)
   return net2_resize
 
-class Model:
-  def __init__(self, config, input_batch=None, mode='train'):
+class UNet:
+  def __init__(self, config=ModelConfig(), input_batch=None, mode='train'):
     self.depths = config.depths
     self.filters_root = config.filters_root
     self.kernel_size = config.kernel_size
@@ -65,8 +99,8 @@ class Model:
 
   def add_placeholders(self, input_batch=None, mode="train"):
     if input_batch is None:
-      self.X = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, self.X_shape[0], self.X_shape[1], self.X_shape[2]], name='X')
-      self.Y = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, self.Y_shape[0], self.Y_shape[1], self.n_class], name='y')
+      self.X = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, self.X_shape[-3], self.X_shape[-2], self.X_shape[-1]], name='X')
+      self.Y = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None, self.Y_shape[-3], self.Y_shape[-2], self.n_class], name='y')
     else:
       self.X = input_batch[0]
       if mode in ["train", "valid", "test"]:
@@ -74,9 +108,8 @@ class Model:
       self.input_batch = input_batch
 
     self.is_training = tf.compat.v1.placeholder(dtype=tf.bool, name="is_training")
-    # self.keep_prob = tf.placeholder(dtype=tf.float32, name="keep_prob")
+    # self.keep_prob = tf.compat.v1.placeholder(dtype=tf.float32, name="keep_prob")
     self.drop_rate = tf.compat.v1.placeholder(dtype=tf.float32, name="drop_rate")
-
 
   def add_prediction_op(self):
     logging.info("Model: depths {depths}, filters {filters}, "
@@ -110,7 +143,6 @@ class Model:
                    dilation_rate=self.dilation_rate,
                    kernel_initializer=self.initializer,
                    kernel_regularizer=self.regularizer,
-                   #bias_regularizer=self.regularizer,
                    name="input_conv")
       net = tf.compat.v1.layers.batch_normalization(net,
                         training=self.is_training,
@@ -137,7 +169,6 @@ class Model:
                      dilation_rate=self.dilation_rate,
                      kernel_initializer=self.initializer,
                      kernel_regularizer=self.regularizer,
-                     #bias_regularizer=self.regularizer,
                      name="down_conv1_{}".format(depth + 1))
         net = tf.compat.v1.layers.batch_normalization(net,
                           training=self.is_training,
@@ -162,7 +193,6 @@ class Model:
                        dilation_rate=self.dilation_rate,
                        kernel_initializer=self.initializer,
                        kernel_regularizer=self.regularizer,
-                       #bias_regularizer=self.regularizer,
                        name="down_conv3_{}".format(depth + 1))
           net = tf.compat.v1.layers.batch_normalization(net,
                             training=self.is_training,
@@ -188,7 +218,6 @@ class Model:
                          padding="same",
                          kernel_initializer=self.initializer,
                          kernel_regularizer=self.regularizer,
-                         #bias_regularizer=self.regularizer,
                          name="up_conv0_{}".format(depth+1))
         net = tf.compat.v1.layers.batch_normalization(net,
                           training=self.is_training,
@@ -214,7 +243,6 @@ class Model:
                      dilation_rate=self.dilation_rate,
                      kernel_initializer=self.initializer,
                      kernel_regularizer=self.regularizer,
-                     #bias_regularizer=self.regularizer,
                      name="up_conv1_{}".format(depth + 1))
         net = tf.compat.v1.layers.batch_normalization(net,
                           training=self.is_training,
@@ -237,15 +265,14 @@ class Model:
                    #dilation_rate=self.dilation_rate,
                    kernel_initializer=self.initializer,
                    kernel_regularizer=self.regularizer,
-                   #bias_regularizer=self.regularizer,
                    name="output_conv")
       # net = tf.nn.relu(net,
       #                     name="output_relu")
-      # net = tf.layers.dropout(net,
+      # net = tf.compat.v1.layers.dropout(net,
       #                         rate=self.drop_rate,
       #                         training=self.is_training,
       #                         name="output_dropout")
-      # net = tf.layers.batch_normalization(net,
+      # net = tf.compat.v1.layers.batch_normalization(net,
       #                                    training=self.is_training,
       #                                    name="output_bn")
       output = net
@@ -274,15 +301,13 @@ class Model:
           weight_map = tf.reduce_sum(input_tensor=weight_map, axis=1)
           loss_map = tf.nn.softmax_cross_entropy_with_logits(logits=flat_logits,
                                      labels=flat_labels)
-#                     loss_map = tf.nn.sigmoid_cross_entropy_with_logits(logits=flat_logits,
-#                                                                       labels=flat_labels)
+
           weighted_loss = tf.multiply(loss_map, weight_map)
           loss = tf.reduce_mean(input_tensor=weighted_loss)
         else:
           loss = tf.reduce_mean(input_tensor=tf.nn.softmax_cross_entropy_with_logits(logits=flat_logits,
                                          labels=flat_labels))
-#                     loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=flat_logits,
-#                                                                                   labels=flat_labels))
+
     elif self.loss_type == "IOU":
       with tf.compat.v1.variable_scope("IOU"):
         eps = 1e-7
@@ -388,7 +413,6 @@ class Model:
             self.Y: labels_batch,
             self.drop_rate: drop_rate,
             self.is_training: True}
-            
 
     _, step_summary, step, loss = sess.run([self.train_op,
                                             self.summary_train,
@@ -411,31 +435,6 @@ class Model:
                                                 feed_dict=feed)
     summary_writer.add_summary(step_summary, step)
     return loss, preds
-
-  # def train_on_batch(self, sess, summary_writer, drop_rate=0.0, raw_data=False):
-  #   feed = {self.drop_rate: drop_rate,
-  #           self.is_training: True}
-  #   if raw_data:
-  #     _, step_summary, step, loss, preds, logits, \
-  #     X_batch, Y_batch = sess.run([self.train_op, 
-  #                                  self.summary_train,
-  #                                  self.global_step,
-  #                                  self.loss,
-  #                                  self.preds,
-  #                                  self.logits,
-  #                                  self.X,
-  #                                  self.Y],
-  #                                  feed_dict=feed)
-  #     summary_writer.add_summary(step_summary, step)
-  #     return loss, preds, logits, X_batch, Y_batch
-  #   else:
-  #     _, step_summary, step, loss = sess.run([self.train_op,
-  #                         self.summary_train,
-  #                         self.global_step,
-  #                         self.loss],
-  #                         feed_dict=feed)
-  #     summary_writer.add_summary(step_summary, step)
-  #     return loss
 
   def test_on_batch(self, sess, summary_writer):
     feed = {self.drop_rate: 0,

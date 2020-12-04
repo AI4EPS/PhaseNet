@@ -142,7 +142,7 @@ def detect_peaks(x, mph=None, mpd=1, threshold=0, edge='rising',
             x = -x
         _plot(x, mph, mpd, threshold, edge, valley, ax, ind)
 
-    return ind
+    return ind, x[ind]
 
 
 def _plot(x, mph, mpd, threshold, edge, valley, ax, ind):
