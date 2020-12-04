@@ -11,7 +11,7 @@ conda activate venv
 or
 
 ```bash
-conda create --name venv python=3.8
+conda create --name venv
 conda activate venv
 conda install tensorflow=2.3 matplotlib scipy pandas tqdm
 conda install libiconv
@@ -21,7 +21,7 @@ conda install obspy -c conda-forge
 ### Using virtualenv
 ```bash
 pip install virtualenv
-virtualenv .venv -p python3.8
+virtualenv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
