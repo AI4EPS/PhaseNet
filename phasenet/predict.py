@@ -10,28 +10,31 @@ import multiprocessing
 from functools import partial
 import pickle
 from model import UNet, ModelConfig
-from data_reader import DataReader_pred, DataReader_mseed
+from data_reader import DataReader_pred, DataReader_mseed, DataReader_s3
 from util import *
 
 def read_args():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_dir", help="Checkpoint directory (default: None)")
-    parser.add_argument("--data_dir", default="./dataset/waveform_pred/", help="Input file directory")
-    parser.add_argument("--data_list", default="./dataset/waveform.csv", help="Input csv file")
-    parser.add_argument("--result_dir", default="./results", help="Output directory")
+    parser.add_argument("--data_dir", default="", help="Input file directory")
+    parser.add_argument("--data_list", default="", help="Input csv file")
+    parser.add_argument("--result_dir", default="results", help="Output directory")
+    parser.add_argument("--result_name", default="picks.csv", help="Output file")
     parser.add_argument("--batch_size", default=20, type=int, help="batch size")
     parser.add_argument("--tp_prob", default=0.3, type=float, help="Probability threshold for P pick")
     parser.add_argument("--ts_prob", default=0.3, type=float, help="Probability threshold for S pick")
     parser.add_argument("--input_mseed", action="store_true", help="mseed format")
-    parser.add_argument("--stations", default="./dataset/waveform.csv", help="seismic station info")
+    parser.add_argument("--input_s3", action="store_true", help="s3 format")
+    parser.add_argument("--s3_url", default="localhost:9000", help="s3 url")
+    parser.add_argument("--stations", default="", help="seismic station info")
     parser.add_argument("--plot_figure", action="store_true", help="If plot figure for test")
     parser.add_argument("--save_prob", action="store_true", help="If save result for test")
     args = parser.parse_args()
     return args
 
 
-def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
+def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
     current_time = time.strftime("%y%m%d-%H%M%S")
     if log_dir is None:
         log_dir = os.path.join(args.log_dir, "pred", current_time)
@@ -43,10 +46,10 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
         figure_dir = os.path.join(log_dir, 'figures')
         if not os.path.exists(figure_dir):
             os.makedirs(figure_dir)
-    if (args.save_prob == True) and (result_dir is None):
-        result_dir = os.path.join(log_dir, 'results')
-        if not os.path.exists(result_dir):
-            os.makedirs(result_dir)
+    if (args.save_prob == True) and (prob_dir is None):
+        prob_dir = os.path.join(log_dir, 'results')
+        if not os.path.exists(prob_dir):
+            os.makedirs(prob_dir)
 
     with tf.compat.v1.name_scope('Input_Batch'):
         dataset = data_reader.dataset().prefetch(10)
@@ -72,8 +75,8 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
         init = tf.compat.v1.global_variables_initializer()
         sess.run(init)
 
-        logging.info("restoring models...")
         latest_check_point = tf.train.latest_checkpoint(args.model_dir)
+        logging.info(f"restoring model {latest_check_point}")
         saver.restore(sess, latest_check_point)
 
         if args.plot_figure:
@@ -84,7 +87,7 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
             num_pool = 2
         pool = multiprocessing.Pool(num_pool)
 
-        fclog = open(os.path.join(log_dir, 'picks.csv'), 'w')
+        fclog = open(os.path.join(log_dir, args.result_fname+'.csv'), 'w')
         fclog.write("fname,itp,tp_prob,its,ts_prob\n") 
         picks = {}
 
@@ -99,7 +102,7 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                            pred = pred_batch,
                                            X = X_batch,
                                            fname = fname_batch,
-                                           result_dir = result_dir,
+                                           result_dir = prob_dir,
                                            figure_dir = figure_dir,
                                            args=args), range(len(pred_batch)))
 
@@ -112,7 +115,7 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
             fclog.flush()
 
     fclog.close()
-    with open(os.path.join(log_dir, 'picks.pkl'), 'wb') as fp:
+    with open(os.path.join(log_dir, args.result_fname+'.pkl'), 'wb') as fp:
         pickle.dump(picks, fp)
     print("Done")
 
@@ -129,6 +132,18 @@ def main(args):
             data_reader = DataReader_mseed(data_dir=args.data_dir,
                                            data_list=args.data_list,
                                            stations=args.stations)
+        elif args.input_s3:
+            args.input_mseed = True
+            from minio import Minio            
+            s3_client = Minio(f'{args.s3_url}',
+                        access_key='quakeflow',
+                        secret_key='quakeflow',
+                        secure=False)
+            data_reader = DataReader_s3(data_dir=args.data_dir,
+                                           data_list=args.data_list,
+                                           stations=args.stations,
+                                           s3_client=s3_client,
+                                           bucket="waveforms")
         else:
             data_reader = DataReader_pred(data_dir=args.data_dir,
                                           data_list=args.data_list)

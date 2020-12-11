@@ -75,35 +75,35 @@ def normalize(data, window=3000):
 
 
 def normalize_batch(data, window=3000):
-        """
-        data: nsta, nt, nch
-        """
-        shift = window//2
-        nsta, nt, nch = data.shape
-
-        ## std in slide windows
-        data_pad = np.pad(data, ((0,0), (window//2, window//2), (0,0)), mode="reflect")
-        t = np.arange(0, nt, shift, dtype="int")
-        std = np.zeros([nsta, len(t)+1, nch])
-        mean = np.zeros([nsta, len(t)+1, nch])
-        for i in range(1, len(t)):
-            std[:, i, :] = np.std(data_pad[:, i*shift:i*shift+window, :], axis=1)
-            mean[:, i, :] = np.mean(data_pad[:, i*shift:i*shift+window, :], axis=1)
-        
-        t = np.append(t, nt)
-        # std[:, -1, :] = np.std(data_pad[:, -window:, :], axis=1)
-        # mean[:, -1, :] = np.mean(data_pad[:, -window:, :], axis=1)
-        std[:, -1, :], mean[:, -1, :] = std[:, -2, :], mean[:, -2, :]
-        std[:, 0, :], mean[:, 0, :] = std[:, 1, :], mean[:, 1, :]
-        std[std == 0] = 1
-
-        # ## normalize data with interplated std 
-        t_interp = np.arange(nt, dtype="int")
-        std_interp = interp1d(t, std, axis=1, kind="slinear")(t_interp)
-        mean_interp = interp1d(t, mean, axis=1, kind="slinear")(t_interp)
-        data = (data - mean_interp)/std_interp
-
-        return data
+    """
+    data: nsta, nt, nch
+    """
+    shift = window//2
+    nsta, nt, nch = data.shape
+    
+    ## std in slide windows
+    data_pad = np.pad(data, ((0,0), (window//2, window//2), (0,0)), mode="reflect")
+    t = np.arange(0, nt, shift, dtype="int")
+    std = np.zeros([nsta, len(t)+1, nch])
+    mean = np.zeros([nsta, len(t)+1, nch])
+    for i in range(1, len(t)):
+        std[:, i, :] = np.std(data_pad[:, i*shift:i*shift+window, :], axis=1)
+        mean[:, i, :] = np.mean(data_pad[:, i*shift:i*shift+window, :], axis=1)
+    
+    t = np.append(t, nt)
+    # std[:, -1, :] = np.std(data_pad[:, -window:, :], axis=1)
+    # mean[:, -1, :] = np.mean(data_pad[:, -window:, :], axis=1)
+    std[:, -1, :], mean[:, -1, :] = std[:, -2, :], mean[:, -2, :]
+    std[:, 0, :], mean[:, 0, :] = std[:, 1, :], mean[:, 1, :]
+    std[std == 0] = 1
+    
+    # ## normalize data with interplated std 
+    t_interp = np.arange(nt, dtype="int")
+    std_interp = interp1d(t, std, axis=1, kind="slinear")(t_interp)
+    mean_interp = interp1d(t, mean, axis=1, kind="slinear")(t_interp)
+    data = (data - mean_interp)/std_interp
+    
+    return data
 
 class DataConfig():
 
@@ -454,6 +454,49 @@ class DataReader_mseed(DataReader):
                               num_parallel_calls=num_parallel)
         return dataset
 
+
+class DataReader_s3(DataReader_mseed):
+
+    def __init__(self, 
+                 data_list, 
+                 stations, 
+                 s3_client,
+                 bucket,
+                 data_dir="/tmp/"):
+
+        self.data_list = pd.read_csv(data_list, header=0)
+        self.num_data = len(self.data_list)
+        self.data_dir = data_dir
+        self.s3_client = s3_client
+        self.bucket = bucket
+        self.stations = pd.read_csv(stations, delimiter="\t")
+        self.dtype = "float32"
+        self.X_shape = self.get_data_shape()
+
+    def __getitem__(self, i):
+        
+        fname = self.data_list.iloc[i]['fname']
+        self.s3_client.fget_object(self.bucket, fname, os.path.join(self.data_dir, fname))
+        fp = os.path.join(self.data_dir, fname)
+
+        try:
+            data = self.read_mseed(fp)
+            os.remove(os.path.join(self.data_dir, fname))
+        except Exception as e:
+            logging.error(f"Failed reading {fname}: {e}")
+            return (np.zeros(self.X_shape, dtype=self.dtype), fname)
+        
+        sample = normalize_batch(data)[:,:,np.newaxis,:]
+
+        return (sample.astype(self.dtype), fname)
+
+
+    def dataset(self, num_parallel=2):
+        dataset = dataset_map(self, 
+                              output_types=("float32", "string"),
+                              output_shapes=(self.X_shape, None), 
+                              num_parallel_calls=num_parallel)
+        return dataset
 
 # def test_DataReader_mseed(data_list, data_dir, stations):
 #     print("test_DataReader_mseed:")
