@@ -1,4 +1,9 @@
 __pycache__
-log
-output
+build/
+mseed/
+log/
+output*/
+result*/
 *.pyc
+*.png
+*.egg-info
