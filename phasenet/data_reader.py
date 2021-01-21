@@ -8,6 +8,7 @@ pd.options.mode.chained_assignment = None
 import obspy
 from tqdm import tqdm
 from scipy.interpolate import interp1d
+import s3fs
 
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
@@ -387,20 +388,21 @@ class DataReader_pred(DataReader):
 
 class DataReader_mseed(DataReader):
 
-    def __init__(self, 
-                 data_list, 
-                 stations, 
-                 data_dir=""):
+    def __init__(self, data_list, stations, data_dir="", amplitude=False):
 
         self.data_list = pd.read_csv(data_list, header=0)
         self.num_data = len(self.data_list)
         self.data_dir = data_dir
         self.stations = pd.read_csv(stations, delimiter="\t")
         self.dtype = "float32"
+        self.amplitude = amplitude
         self.X_shape = self.get_data_shape()
-
+        
     def get_data_shape(self):
-        (data, fname) = self[0]
+        if self.amplitude:
+            (data, _, _) = self[0]
+        else:
+            (data, _) = self[0]
         return data.shape
 
     def read_mseed(self, fp):
@@ -408,80 +410,92 @@ class DataReader_mseed(DataReader):
         meta = meta.detrend("spline", order=2, dspline=5*meta[0].stats.sampling_rate)
         meta = meta.merge(fill_value=0)
         meta = meta.trim(min([st.stats.starttime for st in meta]), 
-                                         max([st.stats.endtime for st in meta]), 
-                                         pad=True, fill_value=0)
+                         max([st.stats.endtime for st in meta]), 
+                         pad=True, fill_value=0)
 
         if meta[0].stats.sampling_rate != 100:
             logging.warning(f"Sampling rate {meta[0].stats.sampling_rate} != 100 Hz")
 
-        order = ['3','2','1','E','N','Z']
-        order = {key: i for i, key in enumerate(order)}
-
+        # order = ['3','2','1','E','N','Z']
+        # order = {key: i for i, key in enumerate(order)}
         nsta = len(self.stations)
         nt = len(meta[0].data)
         data = np.zeros([nsta, nt, 3], dtype=self.dtype)
+        if self.amplitude:
+            raw = np.zeros([nsta, nt, 3], dtype=self.dtype)
         for i in range(nsta):
             sta = self.stations.iloc[i]["station"]
-            cmp = sorted(self.stations.iloc[i]["component"].split(","), key=lambda x: order[x])
-            for j, c in enumerate(cmp):
-                    data[i, :, j] = meta.select(id=sta+c)[0].data.astype(self.dtype)
-                        
-        return data
+            comp = self.stations.iloc[i]["component"].split(",")
+            resp = self.stations.iloc[i]["response"].split(",")
+            for j in range(len(comp)):
+                data[i, :, j] = meta.select(id=sta+comp[j])[0].data.astype(self.dtype) / float(resp[j])
+                if self.amplitude:
+                    # raw[i, :, j] = meta.select(id=sta+comp[j])[0].integrate().data.astype(self.dtype) / float(resp[j])
+                    raw[i, :, j] = meta.select(id=sta+comp[j])[0].data.astype(self.dtype) / float(resp[j])
+        if self.amplitude:
+            return data, raw
+        else:
+            return data
 
     def __len__(self):
         return self.num_data
 
     def __getitem__(self, i):
         
-        fname = self.data_list.iloc[i]['fname']
-        fp = os.path.join(self.data_dir, fname)
-
+        fname_base = self.data_list.iloc[i]['fname']
+        fname = [fname_base.split('/')[-1].rstrip(".mseed")+"."+self.stations.iloc[i]["station"] for i in range(len(self.stations))]
+        fp = os.path.join(self.data_dir, fname_base)
         try:
-            data = self.read_mseed(fp)
+            if self.amplitude:
+                data, raw = self.read_mseed(fp)
+            else:
+                data = self.read_mseed(fp)
         except Exception as e:
             logging.error(f"Failed reading {fname}: {e}")
             return (np.zeros(self.X_shape, dtype=self.dtype), fname)
         
         sample = normalize_batch(data)[:,:,np.newaxis,:]
 
-        return (sample.astype(self.dtype), fname)
-
+        if self.amplitude:
+            return (sample.astype(self.dtype), fname, raw[:,:,np.newaxis,:])
+        else:
+            return (sample.astype(self.dtype), fname)
 
     def dataset(self, num_parallel=2):
-        dataset = dataset_map(self, 
-                              output_types=("float32", "string"),
-                              output_shapes=(self.X_shape, None), 
-                              num_parallel_calls=num_parallel)
+        if self.amplitude:
+            dataset = dataset_map(self, 
+                                output_types=("float32", "string", "float32"),
+                                output_shapes=(self.X_shape, None, self.X_shape), 
+                                num_parallel_calls=num_parallel)
+        else:
+            dataset = dataset_map(self, 
+                                output_types=("float32", "string"),
+                                output_shapes=(self.X_shape, None), 
+                                num_parallel_calls=num_parallel)
         return dataset
 
 
 class DataReader_s3(DataReader_mseed):
 
-    def __init__(self, 
-                 data_list, 
-                 stations, 
-                 s3_client,
-                 bucket,
-                 data_dir="/tmp/"):
+    def __init__(self, data_list, stations, s3_url, bucket="waveforms", amplitude=False):
 
         self.data_list = pd.read_csv(data_list, header=0)
         self.num_data = len(self.data_list)
-        self.data_dir = data_dir
-        self.s3_client = s3_client
-        self.bucket = bucket
         self.stations = pd.read_csv(stations, delimiter="\t")
+        self.s3_url = s3_url
+        self.bucket = bucket
         self.dtype = "float32"
+        self.amplitude = amplitude
         self.X_shape = self.get_data_shape()
 
     def __getitem__(self, i):
         
         fname = self.data_list.iloc[i]['fname']
-        self.s3_client.fget_object(self.bucket, fname, os.path.join(self.data_dir, fname))
-        fp = os.path.join(self.data_dir, fname)
+        fs = s3fs.S3FileSystem(anon=False, key="quakeflow", secret="quakeflow", use_ssl=False, client_kwargs={'endpoint_url': self.s3_url})
 
         try:
-            data = self.read_mseed(fp)
-            os.remove(os.path.join(self.data_dir, fname))
+            with fs.open(self.bucket+"/"+fname, 'rb') as fp:
+                data = self.read_mseed(fp)
         except Exception as e:
             logging.error(f"Failed reading {fname}: {e}")
             return (np.zeros(self.X_shape, dtype=self.dtype), fname)
