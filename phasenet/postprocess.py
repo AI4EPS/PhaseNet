@@ -23,12 +23,18 @@ def extract_picks(preds, fnames=None, t0=None, config=None):
         if (fnames is None):
             fname = f"{i:04d}"
         else:
-            fname = fnames[i].decode()
+            if isinstance(fnames[i], str):
+                fname = fnames[i]
+            else:
+                fname = fnames[i].decode()
             
         if (t0 is None):
             start_time = "0"
         else:
-            start_time = t0[i].decode()
+            if isinstance(t0[i], str):
+                start_time = t0[i]
+            else:
+                start_time = t0[i].decode()
 
         idx_p, prob_p, idx_s, prob_s = [], [], [], []
         for j in range(pred.shape[1]):
