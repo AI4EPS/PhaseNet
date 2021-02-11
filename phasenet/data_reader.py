@@ -141,6 +141,7 @@ class DataReader(object):
         self.n_class = config.n_class
         self.X_shape = config.X_shape
         self.Y_shape = config.Y_shape
+        self.dt = config.dt
         self.min_event_gap = config.min_event_gap
         self.mask_window = int(mask_window * config.sampling_rate)
         self.coord = coord

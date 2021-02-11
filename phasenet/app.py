@@ -39,14 +39,14 @@ def calc_timestamp(timestamp, sec):
 def format_picks(picks, dt, amplitudes):
     picks_ = []
     for pick, amplitude in zip(picks, amplitudes):
-        for idxs, probs, amps in zip(pick.idx_p, pick.prob_p, amplitude.amp_p):
+        for idxs, probs, amps in zip(pick.p_idx, pick.p_prob, amplitude.p_amp):
             for idx, prob, amp in zip(idxs, probs, amps):
                 picks_.append({"id": pick.fname, 
                                "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
                                "prob": prob, 
                                "amp": amp,
                                "type": "p"})
-        for idxs, probs, amps in zip(pick.idx_s, pick.prob_s, amplitude.amp_s):
+        for idxs, probs, amps in zip(pick.s_idx, pick.s_prob, amplitude.s_amp):
             for idx, prob, amp in zip(idxs, probs, amps):
                 picks_.append({"id": pick.fname, 
                                "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
