@@ -58,8 +58,18 @@ def extract_amplitude(data, picks, window_p=8, window_s=5, config=None):
         amp_p, amp_s = [], []
         for j in range(da.shape[1]):
             amp = np.max(np.abs(da[:,j,:]), axis=-1)
-            amp_p.append([np.max(amp[idx:idx+window_p]) for idx in pi.idx_p[j]])
-            amp_s.append([np.max(amp[idx:idx+window_s]) for idx in pi.idx_s[j]])
+            tmp = []
+            for k in range(len(pi.idx_p[j])-1):
+                tmp.append(np.max(amp[pi.idx_p[j][k]:min(pi.idx_p[j][k]+window_p, pi.idx_p[j][k+1])]))
+            if len(pi.idx_p[j]) >= 1:
+                tmp.append(np.max(amp[pi.idx_p[j][-1]:pi.idx_p[j][-1]+window_p]))
+            amp_p.append(tmp)
+            tmp = []
+            for k in range(len(pi.idx_s[j])-1):
+                tmp.append(np.max(amp[pi.idx_s[j][k]:min(pi.idx_s[j][k]+window_s, pi.idx_s[j][k+1])]))
+            if len(pi.idx_s[j]) >= 1:
+                tmp.append(np.max(amp[pi.idx_s[j][-1]:pi.idx_s[j][-1]+window_s]))
+            amp_s.append(tmp)
         amps.append(record(amp_p, amp_s))
     return amps
 
