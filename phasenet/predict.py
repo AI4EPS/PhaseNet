@@ -85,16 +85,16 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
         for _ in tqdm(range(0, data_reader.num_data, batch_size), desc="Pred"):
             if args.amplitude:
-                pred_batch, X_batch, fname_batch, disp = sess.run([model.preds, batch[0], batch[1], batch[2]], 
+                pred_batch, X_batch, fname_batch, t0_batch, amp_batch = sess.run([model.preds, batch[0], batch[1], batch[2], batch[3]], 
                                                                         feed_dict={model.drop_rate: 0, model.is_training: False})
             else:
-                pred_batch, X_batch, fname_batch = sess.run([model.preds, batch[0], batch[1]], 
+                pred_batch, X_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2]], 
                                                              feed_dict={model.drop_rate: 0, model.is_training: False})
 
-            picks_ = extract_picks(preds=pred_batch, fnames=fname_batch)
+            picks_ = extract_picks(preds=pred_batch, fnames=fname_batch, t0=t0_batch)
             picks.extend(picks_)
             if args.amplitude:
-                amps_ = extract_amplitude(disp, picks_)
+                amps_ = extract_amplitude(amp_batch, picks_)
                 amps.extend(amps_)
 
         save_picks(picks, args.result_dir, amps=amps)

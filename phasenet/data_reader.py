@@ -389,30 +389,32 @@ class DataReader_pred(DataReader):
 
 class DataReader_mseed(DataReader):
 
-    def __init__(self, data_list, stations, data_dir="", amplitude=False):
+    def __init__(self, data_list, stations, data_dir="", amplitude=False, config=DataConfig()):
 
         self.data_list = pd.read_csv(data_list, header=0)
         self.num_data = len(self.data_list)
         self.data_dir = data_dir
         self.stations = pd.read_csv(stations, delimiter="\t")
-        self.dtype = "float32"
         self.amplitude = amplitude
+        self.config = config
+        self.dtype = config.dtype
+        self.dt = config.dt
         self.X_shape = self.get_data_shape()
         
     def get_data_shape(self):
         if self.amplitude:
-            (data, _, _) = self[0]
+            (data, _, _, _) = self[0]
         else:
-            (data, _) = self[0]
+            (data, _, _) = self[0]
         return data.shape
 
     def read_mseed(self, fp):
         meta = obspy.read(fp)
         meta = meta.detrend("spline", order=2, dspline=5*meta[0].stats.sampling_rate)
         meta = meta.merge(fill_value=0)
-        meta = meta.trim(min([st.stats.starttime for st in meta]), 
-                         max([st.stats.endtime for st in meta]), 
-                         pad=True, fill_value=0)
+        starttime = min([st.stats.starttime for st in meta])
+        endtime = max([st.stats.endtime for st in meta])
+        meta = meta.trim(starttime, endtime, pad=True, fill_value=0)
 
         if meta[0].stats.sampling_rate != 100:
             logging.warning(f"Sampling rate {meta[0].stats.sampling_rate} != 100 Hz")
@@ -422,21 +424,28 @@ class DataReader_mseed(DataReader):
         nsta = len(self.stations)
         nt = len(meta[0].data)
         data = np.zeros([nsta, nt, 3], dtype=self.dtype)
+        t0 = []
         if self.amplitude:
             raw = np.zeros([nsta, nt, 3], dtype=self.dtype)
         for i in range(nsta):
             sta = self.stations.iloc[i]["station"]
             comp = self.stations.iloc[i]["component"].split(",")
             resp = self.stations.iloc[i]["response"].split(",")
+            t0.append(starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
             for j in range(len(comp)):
                 data[i, :, j] = meta.select(id=sta+comp[j])[0].data.astype(self.dtype) / float(resp[j])
                 if self.amplitude:
-                    # raw[i, :, j] = meta.select(id=sta+comp[j])[0].integrate().data.astype(self.dtype) / float(resp[j])
-                    raw[i, :, j] = meta.select(id=sta+comp[j])[0].data.astype(self.dtype) / float(resp[j])
+                    if self.stations.iloc[i]["unit"] == "m/s**2":
+                        raw[i, :, j] = meta.select(id=sta+comp[j])[0].integrate().data.astype(self.dtype) / float(resp[j])
+                    elif self.stations.iloc[i]["unit"] == "m/s":
+                        raw[i, :, j] = meta.select(id=sta+comp[j])[0].data.astype(self.dtype) / float(resp[j])
+                    else:
+                        raise(f"{self.stations.iloc[i]['unit']} should be m/s**2 or m/s!")
+
         if self.amplitude:
-            return data, raw
+            return data, t0, raw
         else:
-            return data
+            return data, t0
 
     def __len__(self):
         return self.num_data
@@ -444,34 +453,37 @@ class DataReader_mseed(DataReader):
     def __getitem__(self, i):
         
         fname_base = self.data_list.iloc[i]['fname']
-        fname = [fname_base.split('/')[-1].rstrip(".mseed")+"."+self.stations.iloc[i]["station"] for i in range(len(self.stations))]
+        fname = [self.stations.iloc[i]["station"] +"."+ fname_base.split('/')[-1].rstrip(".mseed") for i in range(len(self.stations))]
         fp = os.path.join(self.data_dir, fname_base)
         try:
             if self.amplitude:
-                data, raw = self.read_mseed(fp)
+                data, t0, raw = self.read_mseed(fp)
             else:
-                data = self.read_mseed(fp)
+                data, t0 = self.read_mseed(fp)
         except Exception as e:
             logging.error(f"Failed reading {fname}: {e}")
-            return (np.zeros(self.X_shape, dtype=self.dtype), fname)
+            if self.amplitude:
+                return (None, None, None, None)
+            else:
+                return (None, None, None)
         
         sample = normalize_batch(data)[:,:,np.newaxis,:]
 
         if self.amplitude:
-            return (sample.astype(self.dtype), fname, raw[:,:,np.newaxis,:])
+            return (sample.astype(self.dtype), fname, t0, raw[:,:,np.newaxis,:])
         else:
-            return (sample.astype(self.dtype), fname)
+            return (sample.astype(self.dtype), fname, t0)
 
     def dataset(self, num_parallel=2):
         if self.amplitude:
             dataset = dataset_map(self, 
-                                output_types=("float32", "string", "float32"),
-                                output_shapes=(self.X_shape, None, self.X_shape), 
+                                output_types=("float32", "string", "string", "float32"),
+                                output_shapes=(self.X_shape, None, None, self.X_shape), 
                                 num_parallel_calls=num_parallel)
         else:
             dataset = dataset_map(self, 
-                                output_types=("float32", "string"),
-                                output_shapes=(self.X_shape, None), 
+                                output_types=("float32", "string", "string"),
+                                output_shapes=(self.X_shape, None, None), 
                                 num_parallel_calls=num_parallel)
         return dataset
 

@@ -121,17 +121,16 @@ def save_picks_json(picks, output_dir, dt=0.01, amps=None):
             for idx, prob, amp in zip(idxs, probs, amps):
                 picks_.append({"id": pick.fname, 
                                "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
-                               "prob": prob, 
-                               "amp": amp,
+                               "prob": prob.astype(float), 
+                               "amp": amp.astype(float),
                                "type": "p"})
         for idxs, probs, amps in zip(pick.s_idx, pick.s_prob, amplitude.s_amp):
             for idx, prob, amp in zip(idxs, probs, amps):
                 picks_.append({"id": pick.fname, 
                                "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
-                               "prob": prob, 
-                               "amp": amp,
+                               "prob": prob.astype(float), 
+                               "amp": amp.astype(float),
                                "type": "s"})
-
     with open(os.path.join(output_dir, "picks.json"), "w") as fp:
         json.dump(picks_, fp)
 
