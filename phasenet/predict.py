@@ -11,7 +11,7 @@ import pickle
 from model import UNet, ModelConfig
 from data_reader import DataReader_pred, DataReader_mseed, DataReader_s3
 # from util import *
-from postprocess import extract_picks, save_picks, extract_amplitude
+from postprocess import extract_picks, save_picks, save_picks_json, extract_amplitude
 
 def read_args():
 
@@ -98,6 +98,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 amps.extend(amps_)
 
         save_picks(picks, args.result_dir, amps=amps)
+        save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps)
 
     print("Done")
     return 0
