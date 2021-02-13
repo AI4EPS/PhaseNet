@@ -8,7 +8,7 @@ pd.options.mode.chained_assignment = None
 import obspy
 from tqdm import tqdm
 from scipy.interpolate import interp1d
-import s3fs
+#import s3fs
 
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
