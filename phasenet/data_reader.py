@@ -453,7 +453,8 @@ class DataReader_mseed(DataReader):
     def __getitem__(self, i):
         
         fname_base = self.data_list.iloc[i]['fname']
-        fname = [self.stations.iloc[i]["station"] +"."+ fname_base.split('/')[-1].rstrip(".mseed") for i in range(len(self.stations))]
+        # fname = [self.stations.iloc[i]["station"] +"."+ fname_base.split('/')[-1].rstrip(".mseed") for i in range(len(self.stations))]
+        fname = [self.stations.iloc[i]["station"] for i in range(len(self.stations))]
         fp = os.path.join(self.data_dir, fname_base)
         try:
             if self.amplitude:
