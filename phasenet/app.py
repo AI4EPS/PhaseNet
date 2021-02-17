@@ -1,3 +1,4 @@
+import requests
 from fastapi import FastAPI
 import numpy as np
 import tensorflow as tf
@@ -13,7 +14,7 @@ from typing import List, Any
 app = FastAPI()
 
 ## load model
-config = ModelConfig(X_shape=[10000,1,3])
+config = ModelConfig(X_shape=[3000, 1, 3])
 model = UNet(config=config, mode="pred")
 sess_config = tf.compat.v1.ConfigProto()
 sess_config.gpu_options.allow_growth = True
@@ -25,6 +26,9 @@ sess.run(init)
 latest_check_point = tf.train.latest_checkpoint("../model/190703-214543")
 print(f"restoring model {latest_check_point}")
 saver.restore(sess, latest_check_point)
+
+# GMMA API Endpoint
+GMMA_API_URL = 'http://localhost:8001'
 
 def preprocess(data):
     data = normalize_batch(data)
@@ -82,4 +86,20 @@ def predict(data: Data):
     picks = get_prediction(data)
 
     return picks
+
+@app.get('/predict2gmma')
+def predict(data: Data):
+
+    picks = get_prediction(data)
+
+    # TODO
+    # push prediction results to Kafka
+
+    try:
+        catalog = requests.get(f'{GMMA_API_URL}/predict', json={"picks": picks})
+        print(catalog.json())
+        return catalog.json()
+    except Exception as error:
+        print(error)
+    return {}
 
