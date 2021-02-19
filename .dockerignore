@@ -1,5 +1,4 @@
-rawdata/*
-# output/*
+dataset/*
 
 # Python
 .git/
