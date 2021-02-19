@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from typing import List, Any
 from scipy.interpolate import interp1d
 import os
+from json import dumps
+from kafka import KafkaProducer
 PROJECT_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 
 
@@ -32,6 +34,11 @@ saver.restore(sess, latest_check_point)
 
 # GMMA API Endpoint
 GMMA_API_URL = 'http://localhost:8001'
+
+# Kafak producer
+producer = KafkaProducer(bootstrap_servers=['localhost:9092'],
+                             key_serializer=lambda x: dumps(x).encode('utf-8'),
+                             value_serializer=lambda x: dumps(x).encode('utf-8'))
 
 def normalize_batch(data, window=3000):
     """
@@ -128,6 +135,7 @@ def predict(data: Data):
 
     # TODO
     # push prediction results to Kafka
+    producer.send('phasenet_picks', value=picks)
 
     try:
         catalog = requests.get(f'{GMMA_API_URL}/predict', json={"picks": picks})
