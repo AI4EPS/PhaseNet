@@ -135,7 +135,8 @@ def predict(data: Data):
 
     # TODO
     # push prediction results to Kafka
-    producer.send('phasenet_picks', value=picks)
+    for pick in picks:
+        producer.send('phasenet_picks', key=pick["id"], value=pick)
 
     try:
         catalog = requests.get(f'{GMMA_API_URL}/predict', json={"picks": picks})
