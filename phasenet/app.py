@@ -36,9 +36,13 @@ saver.restore(sess, latest_check_point)
 GMMA_API_URL = 'http://localhost:8001'
 
 # Kafak producer
-producer = KafkaProducer(bootstrap_servers=['localhost:9092'],
-                             key_serializer=lambda x: dumps(x).encode('utf-8'),
-                             value_serializer=lambda x: dumps(x).encode('utf-8'))
+use_kafka = True
+try:
+    producer = KafkaProducer(bootstrap_servers=['localhost:9092'],
+                                 key_serializer=lambda x: dumps(x).encode('utf-8'),
+                                 value_serializer=lambda x: dumps(x).encode('utf-8'))
+except:
+    use_kafka = False
 
 def normalize_batch(data, window=3000):
     """
@@ -137,8 +141,9 @@ def predict(data: Data):
 
     # TODO
     # push prediction results to Kafka
-    for pick in picks:
-        producer.send('phasenet_picks', key=pick["id"], value=pick)
+    if use_kafka:
+        for pick in picks:
+            producer.send('phasenet_picks', key=pick["id"], value=pick)
 
     try:
         catalog = requests.get(f'{GMMA_API_URL}/predict', json={"picks": picks})
@@ -146,5 +151,6 @@ def predict(data: Data):
         return catalog.json()
     except Exception as error:
         print(error)
+
     return {}
 
