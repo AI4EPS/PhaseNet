@@ -1,6 +1,22 @@
 
+## 1. Deploy with Docker
 
-## 1. Install
+Build the PhaseNet API docker image
+
+```
+docker build --tag phasenet-api:1.0 .  
+```
+
+Run the PhaseNet API
+
+```
+docker run -it -p 8000:8000 phasenet-api:1.0 
+```
+
+The API is now exposed to `localhost:8000`.
+
+
+## 2. Install Locally
 
 ### Using Anaconda (recommend)
 ```bash
@@ -26,16 +42,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2.Demo Data
+### 3.Demo Data
 
 Numpy array data are stored in directory: **dataset**
 
 Mseed data are stored in directory: **demo**
 
-### 3.Model
+### 4.Model
 Located in directory: **model/190703-214543**
 
-### 4. Prediction 
+### 5. Prediction 
 
 #### a) Data format -- mseed with obspy
 
@@ -78,7 +94,7 @@ Notes:
 2. Plotting figures and save resutls is very slow. Removing the argument of **--plot_figure, --save_result** can speed the prediction
 3. If using input data length other than 3000, specify argument **--input_length=**. 
 
-### 5. Training on new dataset
+### 6. Training on new dataset
 
 #### Training data format
 Required a csv file and a directory of npz files.

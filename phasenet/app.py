@@ -6,10 +6,15 @@ tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 from model import UNet, ModelConfig
 from postprocess import extract_picks, extract_amplitude
-from data_reader import normalize_batch
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import List, Any
+from scipy.interpolate import interp1d
+import os
+from json import dumps
+from kafka import KafkaProducer
+PROJECT_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
+
 
 app = FastAPI()
 
@@ -23,12 +28,48 @@ sess = tf.compat.v1.Session(config=sess_config)
 saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables())
 init = tf.compat.v1.global_variables_initializer()
 sess.run(init)
-latest_check_point = tf.train.latest_checkpoint("../model/190703-214543")
+latest_check_point = tf.train.latest_checkpoint(f"{PROJECT_ROOT}/model/190703-214543")
 print(f"restoring model {latest_check_point}")
 saver.restore(sess, latest_check_point)
 
 # GMMA API Endpoint
 GMMA_API_URL = 'http://localhost:8001'
+
+# Kafak producer
+producer = KafkaProducer(bootstrap_servers=['localhost:9092'],
+                             key_serializer=lambda x: dumps(x).encode('utf-8'),
+                             value_serializer=lambda x: dumps(x).encode('utf-8'))
+
+def normalize_batch(data, window=3000):
+    """
+    data: nsta, nt, nch
+    """
+    shift = window//2
+    nsta, nt, nch = data.shape
+    
+    ## std in slide windows
+    data_pad = np.pad(data, ((0,0), (window//2, window//2), (0,0)), mode="reflect")
+    t = np.arange(0, nt, shift, dtype="int")
+    std = np.zeros([nsta, len(t)+1, nch])
+    mean = np.zeros([nsta, len(t)+1, nch])
+    for i in range(1, len(t)):
+        std[:, i, :] = np.std(data_pad[:, i*shift:i*shift+window, :], axis=1)
+        mean[:, i, :] = np.mean(data_pad[:, i*shift:i*shift+window, :], axis=1)
+    
+    t = np.append(t, nt)
+    # std[:, -1, :] = np.std(data_pad[:, -window:, :], axis=1)
+    # mean[:, -1, :] = np.mean(data_pad[:, -window:, :], axis=1)
+    std[:, -1, :], mean[:, -1, :] = std[:, -2, :], mean[:, -2, :]
+    std[:, 0, :], mean[:, 0, :] = std[:, 1, :], mean[:, 1, :]
+    std[std == 0] = 1
+    
+    # ## normalize data with interplated std 
+    t_interp = np.arange(nt, dtype="int")
+    std_interp = interp1d(t, std, axis=1, kind="slinear")(t_interp)
+    mean_interp = interp1d(t, mean, axis=1, kind="slinear")(t_interp)
+    data = (data - mean_interp)/std_interp
+    
+    return data
 
 def preprocess(data):
     raw = data.copy()
@@ -96,6 +137,8 @@ def predict(data: Data):
 
     # TODO
     # push prediction results to Kafka
+    for pick in picks:
+        producer.send('phasenet_picks', key=pick["id"], value=pick)
 
     try:
         catalog = requests.get(f'{GMMA_API_URL}/predict', json={"picks": picks})
