@@ -31,10 +31,12 @@ saver.restore(sess, latest_check_point)
 GMMA_API_URL = 'http://localhost:8001'
 
 def preprocess(data):
+    raw = data.copy()
     data = normalize_batch(data)
     if len(data.shape) == 3:
         data = data[:,:,np.newaxis,:]
-    return data
+        raw = raw[:,:,np.newaxis,:]
+    return data, raw
 
 def calc_timestamp(timestamp, sec):
     timestamp = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f") + timedelta(seconds=sec)
@@ -62,7 +64,7 @@ def format_picks(picks, dt, amplitudes):
 def get_prediction(data):
 
     vec = np.array(data.vec)
-    vec = preprocess(vec)
+    vec, vec_raw = preprocess(vec)
 
     feed = {model.X: vec,
             model.drop_rate: 0,
@@ -70,7 +72,7 @@ def get_prediction(data):
     preds = sess.run(model.preds, feed_dict=feed)
 
     picks = extract_picks(preds, fnames=data.id, t0=data.timestamp)
-    amps = extract_amplitude(vec, picks)
+    amps = extract_amplitude(vec_raw, picks)
     picks = format_picks(picks, data.dt, amps)
     return picks
  
