@@ -10,7 +10,8 @@ from functools import partial
 import pickle
 from model import UNet, ModelConfig
 from data_reader import DataReader_train, DataReader_test
-from postprocess import extract_picks, save_picks, save_picks_json, extract_amplitude
+from postprocess import extract_picks, save_picks, save_picks_json, extract_amplitude, convert_true_picks, calc_performance
+from visulization import plot_waveform
 from util import EMA, LMA
 
 def read_args():
@@ -27,7 +28,7 @@ def read_args():
     parser.add_argument("--optimizer", default="adam", help="optimizer: adam, momentum")
     parser.add_argument("--summary", default=True, type=bool, help="summary")
     parser.add_argument("--class_weights", nargs="+", default=[1, 1, 1], type=float, help="class weights")
-    parser.add_argument("--model_dir", default="models", help="Checkpoint directory (default: None)")
+    parser.add_argument("--model_dir", default=None, help="Checkpoint directory (default: None)")
     parser.add_argument("--load_model", action="store_true", help="Load checkpoint")
     parser.add_argument("--log_dir", default="log", help="Log directory (default: log)")
     parser.add_argument("--num_plots", default=10, type=int, help="Plotting training results")
@@ -40,6 +41,7 @@ def read_args():
     parser.add_argument("--valid_list", default=None, help="Input csv file")
     parser.add_argument("--test_dir", default=None, help="Input file directory")
     parser.add_argument("--test_list", default=None, help="Input csv file")
+    parser.add_argument("--result_dir", default="results", help="result directory")
     parser.add_argument("--plot_figure", action="store_true", help="If plot figure for test")
     parser.add_argument("--save_prob", action="store_true", help="If save result for test")
     args = parser.parse_args()
@@ -56,6 +58,9 @@ def train_fn(args, data_reader, data_reader_valid=None):
     figure_dir = os.path.join(log_dir, 'figures')
     if not os.path.exists(figure_dir):
         os.makedirs(figure_dir)
+    if args.model_dir is None:
+        model_dir = os.path.join(log_dir, 'models')
+        os.makedirs(model_dir)
         
     config = ModelConfig(X_shape=data_reader.X_shape, Y_shape=data_reader.Y_shape)
     if args.decay_step == -1:
@@ -83,7 +88,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
         init = tf.compat.v1.global_variables_initializer()
         sess.run(init)
 
-        if (args.model_dir is not None) and args.load_model:
+        if args.load_model:
             logging.info("restoring models...")
             latest_check_point = tf.train.latest_checkpoint(args.model_dir)
             saver.restore(sess, latest_check_point)
@@ -104,8 +109,8 @@ def train_fn(args, data_reader, data_reader_valid=None):
                 valid_loss = LMA()
                 progressbar = tqdm(range(0, data_reader_valid.num_data, args.batch_size), desc="Valid:")
                 for _ in progressbar:
-                    loss_batch, X_batch, Y_batch, fname_batch = sess.run([model.loss, valid_batch[0], valid_batch[1], valid_batch[2]], 
-                                                                         feed_dict={model.drop_rate: 0, model.is_training: False})
+                    loss_batch, preds_batch, X_batch, Y_batch, fname_batch = sess.run([model.loss, model.preds, valid_batch[0], valid_batch[1], valid_batch[2]], 
+                                                                                       feed_dict={model.drop_rate: 0, model.is_training: False})
                     valid_loss(loss_batch)
                     progressbar.set_description("valid, loss={:.6f}, mean={:.6f}".format(loss_batch, valid_loss.value))
                 if valid_loss.value < best_valid_loss:
@@ -113,45 +118,32 @@ def train_fn(args, data_reader, data_reader_valid=None):
                     saver.save(sess, os.path.join(args.model_dir, "model_{}.ckpt".format(epoch)))
                 flog.write("Valid: mean loss: {}\n".format(valid_loss.value))
             else:
-                loss_batch, X_batch, Y_batch, fname_batch = sess.run([model.loss, batch[0], batch[1], batch[2]], 
-                                                                      feed_dict={model.drop_rate: 0, model.is_training: False})
+                loss_batch, preds_batch, X_batch, Y_batch, fname_batch = sess.run([model.loss, model.preds, batch[0], batch[1], batch[2]], 
+                                                                                   feed_dict={model.drop_rate: 0, model.is_training: False})
                 saver.save(sess, os.path.join(args.model_dir, "model_{}.ckpt".format(epoch)))
+            
+            plot_waveform(data_reader.config, X_batch, preds_batch, label=Y_batch, figure_dir=figure_dir, epoch=epoch)
             flog.flush()
 
-            # try: ## IO Error on cluster
-            #     flog.flush()
-            #     pool.map(partial(plot_result_thread,
-            #                                     pred = preds_batch,
-            #                                     X = X_batch,
-            #                                     Y = Y_batch,
-            #                                     fname = ["{:03d}_{:03d}".format(epoch, x).encode() for x in range(args.num_plots)],
-            #                                     figure_dir = figure_dir),
-            #                     range(args.num_plots))
-            #     saver.save(sess, os.path.join(log_dir, "model_{}.ckpt".format(epoch)))
-            # except:
-            #     pass
         flog.close()
 
     return 0
 
-def test_fn(args, data_reader, figure_dir=None, result_dir=None):
+def test_fn(args, data_reader):
     current_time = time.strftime("%y%m%d-%H%M%S")
     logging.info("{} log: {}".format(args.mode, current_time))
-    log_dir = os.path.join(args.log_dir, args.mode, current_time)
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    if (args.plot_figure == True ) and (figure_dir is None):
-        figure_dir = os.path.join(log_dir, 'figures')
-        if not os.path.exists(figure_dir):
-            os.makedirs(figure_dir)
-    if (args.save_prob == True) and (result_dir is None):
-        result_dir = os.path.join(log_dir, 'results')
-        if not os.path.exists(result_dir):
-            os.makedirs(result_dir)
+    if args.model_dir is None:
+        logging.error(f"model_dir = None!")
+        return -1
+    if not os.path.exists(args.result_dir):
+        os.makedirs(args.result_dir)
+    figure_dir=os.path.join(args.result_dir, "figures")
+    if not os.path.exists(figure_dir):
+        os.makedirs(figure_dir)
 
     config = ModelConfig(X_shape=data_reader.X_shape, Y_shape=data_reader.Y_shape)
     config.update_args(args)
-    with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
+    with open(os.path.join(args.result_dir, 'config.log'), 'w') as fp:
         fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
 
     with tf.compat.v1.name_scope('Input_Batch'):
@@ -171,39 +163,34 @@ def test_fn(args, data_reader, figure_dir=None, result_dir=None):
 
         logging.info("restoring models...")
         latest_check_point = tf.train.latest_checkpoint(args.model_dir)
+        if latest_check_point is None:
+            logging.error(f"No models found in model_dir: {args.model_dir}")
+            return -1
         saver.restore(sess, latest_check_point)
         
-        flog = open(os.path.join(log_dir, 'loss.log'), 'w')
+        flog = open(os.path.join(args.result_dir, 'loss.log'), 'w')
         test_loss = LMA()
         progressbar = tqdm(range(0, data_reader.num_data, args.batch_size), desc=args.mode)
-        for step in progressbar:
-            loss_batch, X_batch, Y_batch, fname_batch, itp_batch, its_batch \
-                = sess.run([model.loss, batch[0], batch[1], batch[2], batch[3], batch[4]], 
+        picks = []
+        true_picks = []
+        for _ in progressbar:
+            loss_batch, preds_batch, X_batch, Y_batch, fname_batch, itp_batch, its_batch \
+                = sess.run([model.loss, model.preds, batch[0], batch[1], batch[2], batch[3], batch[4]], 
                            feed_dict={model.drop_rate: 0, model.is_training: False})
 
             test_loss(loss_batch)
             progressbar.set_description("{}, loss={:.6f}, mean loss={:6f}".format(args.mode, loss_batch, test_loss.value))
 
-            # itp_batch = clean_queue(itp_batch)
-            # its_batch = clean_queue(its_batch)
-            # picks_batch = pool.map(partial(postprocessing_thread,
-            #                                                  pred = pred_batch,
-            #                                                  X = X_batch,
-            #                                                  Y = Y_batch,
-            #                                                  itp = itp_batch,
-            #                                                  its = its_batch,
-            #                                                  fname = fname_batch,
-            #                                                  result_dir = result_dir,
-            #                                                  figure_dir = figure_dir),
-            #                                  range(len(pred_batch)))
-            # picks.extend(picks_batch)
-            # itp.extend(itp_batch)
-            # its.extend(its_batch)
+            picks_ = extract_picks(preds_batch, fname_batch)
+            picks.extend(picks_)
+            true_picks.extend(convert_true_picks(fname_batch, itp_batch, its_batch))
+            if args.plot_figure:
+                plot_waveform(data_reader.config, X_batch, preds_batch, label=Y_batch, fname=fname_batch, 
+                              itp=itp_batch, its=its_batch, figure_dir=figure_dir)
 
+        save_picks(picks, args.result_dir)
+        metrics = calc_performance(picks, true_picks, tol=3.0, dt=data_reader.config.dt)
         flog.write("mean loss: {}\n".format(test_loss))
-        # metrics_p, metrics_s = calculate_metrics(picks, itp, its, tol=0.1)
-        # flog.write("P-phase: Precision={}, Recall={}, F1={}\n".format(metrics_p[0], metrics_p[1], metrics_p[2]))
-        # flog.write("S-phase: Precision={}, Recall={}, F1={}\n".format(metrics_s[0], metrics_s[1], metrics_s[2]))
         flog.close()
 
     return 0

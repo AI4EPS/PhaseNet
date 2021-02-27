@@ -5,7 +5,8 @@ from collections import namedtuple
 from datetime import datetime, timedelta
 from detect_peaks import detect_peaks
 import json
-
+import matplotlib.pyplot as plt
+import logging
 
 def extract_picks(preds, fnames=None, t0=None, config=None):
 
@@ -19,7 +20,6 @@ def extract_picks(preds, fnames=None, t0=None, config=None):
 
         if config is None:
             mph_p, mph_s, mpd = 0.3, 0.3, 30
-
         else:
             mph_p, mph_s, mpd = config.min_p_prob, config.min_s_prob, 0.5/config.dt
 
@@ -82,6 +82,7 @@ def extract_amplitude(data, picks, window_p=8, window_s=5, config=None):
         amps.append(record(p_amp, s_amp))
     return amps
 
+
 def save_picks(picks, output_dir, amps=None):
 
     int2s = lambda x: ",".join(["["+",".join(map(str, i))+"]" for i in x])
@@ -113,6 +114,8 @@ def save_picks(picks, output_dir, amps=None):
 def calc_timestamp(timestamp, sec):
     timestamp = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f") + timedelta(seconds=sec)
     return timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+
+    
 def save_picks_json(picks, output_dir, dt=0.01, amps=None):
     
     picks_ = []
@@ -136,3 +139,55 @@ def save_picks_json(picks, output_dir, dt=0.01, amps=None):
 
     return 0
 
+
+def convert_true_picks(fname, itp, its, itps=None):
+    true_picks = []
+    if itps is None:
+        record = namedtuple("phase", ["fname", "p_idx", "s_idx"])
+        for i in range(len(fname)):
+            true_picks.append(record(fname[i].decode(), itp[i], its[i]))
+    else:
+        record = namedtuple("phase", ["fname", "p_idx", "s_idx", "ps_idx"])
+        for i in range(len(fname)):
+            true_picks.append(record(fname[i].decode(), itp[i], its[i], itps[i]))
+
+    return true_picks
+
+
+def calc_metrics(nTP, nP, nT):
+    '''
+    nTP: true positive
+    nP: number of positive picks
+    nT: number of true picks
+    '''
+    precision = nTP / nP
+    recall = nTP / nT
+    f1 = 2* precision * recall / (precision + recall)
+    return [precision, recall, f1]
+
+def calc_performance(picks, true_picks, tol=3.0, dt=1.0):
+    assert(len(picks) == len(true_picks))
+    logging.info("Total records: {}".format(len(picks)))
+
+    count = lambda picks: sum([len(x) for x in picks])
+    metrics = {}
+    for phase in true_picks[0]._fields:
+        if phase == "fname":
+            continue
+        true_positive, positive, true = 0, 0, 0
+        residual = []
+        for i in range(len(true_picks)):
+            true += count(getattr(true_picks[i], phase))
+            positive += count(getattr(picks[i], phase))
+            # print(i, phase, getattr(picks[i], phase), getattr(true_picks[i], phase))
+            diff = dt*(np.array(getattr(picks[i], phase))[:,np.newaxis,:] - np.array(getattr(true_picks[i], phase))[:,:,np.newaxis])
+            residual.extend(list(diff[np.abs(diff) <= tol]))
+            true_positive += np.sum(np.abs(diff) <= tol)
+        metrics[phase] = calc_metrics(true_positive, positive, true)
+
+        logging.info(f"{phase}-phase:")
+        logging.info(f"True={true}, Positive={positive}, True Positive={true_positive}")
+        logging.info(f"Precision={metrics[phase][0]:.3f}, Recall={metrics[phase][1]:.3f}, F1={metrics[phase][2]:.3f}")
+        logging.info(f"Residual mean={np.mean(residual):.4f}, std={np.std(residual):.4f}")
+
+    return metrics
