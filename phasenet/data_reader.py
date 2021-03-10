@@ -194,6 +194,8 @@ class DataReader():
                     meta["its"] = [[npz["s_idx"]]]
                 else:
                     meta["its"] = meta["s_idx"]
+            if "t0" in npz.files:
+                meta["t0"] = meta["t0"]
             self.buffer[fname] = meta
         else:
             meta = self.buffer[fname]
@@ -222,6 +224,8 @@ class DataReader():
                     meta["its"] = [[attrs["s_idx"]]]
                 else:
                     meta["its"] = meta["s_idx"]
+            if "t0" in npz.files:
+                meta["t0"] = meta["t0"]
             self.buffer[fname] = meta
         else:
             meta = self.buffer[fname]
@@ -553,6 +557,10 @@ class DataReader_pred(DataReader):
 
         raw_amp = np.copy(meta["data"])
         sample = normalize_long(meta['data']).astype(self.dtype)
+        if "t0" in meta:
+            t0 = meta["t0"]
+        else:
+            t0 = ""
 
         if np.isnan(sample).any() or np.isinf(sample).any():
             logging.warning(f"Data error: Nan or Inf found in {base_name}")
@@ -561,19 +569,19 @@ class DataReader_pred(DataReader):
 
         # sample = self.adjust_missingchannels(sample)
         if self.amplitude:
-            return (sample[:self.X_shape[0],...], raw_amp[:self.X_shape[0],...], base_name)
+            return (sample[:self.X_shape[0],...], raw_amp[:self.X_shape[0],...], base_name, t0)
         else:
-            return (sample[:self.X_shape[0],...], base_name)
+            return (sample[:self.X_shape[0],...], base_name, t0)
 
     def dataset(self, batch_size, num_parallel_calls=2, shuffle=False, drop_remainder=False):
         if self.amplitude:
-            dataset = dataset_map(self, output_types=(self.dtype, self.dtype, "string"),
-                                        output_shapes=(self.X_shape, self.X_shape, None), 
+            dataset = dataset_map(self, output_types=(self.dtype, self.dtype, "string", "string"),
+                                        output_shapes=(self.X_shape, self.X_shape, None, None), 
                                         num_parallel_calls=num_parallel_calls,
                                         shuffle=shuffle)
         else:
-            dataset = dataset_map(self, output_types=(self.dtype, "string"),
-                                        output_shapes=(self.X_shape, None), 
+            dataset = dataset_map(self, output_types=(self.dtype, "string", "string"),
+                                        output_shapes=(self.X_shape, None, None), 
                                         num_parallel_calls=num_parallel_calls,
                                         shuffle=shuffle)
         dataset = dataset.batch(batch_size, drop_remainder=drop_remainder).prefetch(batch_size*2)

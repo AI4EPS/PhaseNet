@@ -119,21 +119,36 @@ def calc_timestamp(timestamp, sec):
 def save_picks_json(picks, output_dir, dt=0.01, amps=None):
     
     picks_ = []
-    for pick, amplitude in zip(picks, amps):
-        for idxs, probs, amps in zip(pick.p_idx, pick.p_prob, amplitude.p_amp):
-            for idx, prob, amp in zip(idxs, probs, amps):
-                picks_.append({"id": pick.fname, 
-                               "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
-                               "prob": prob.astype(float), 
-                               "amp": amp.astype(float),
-                               "type": "p"})
-        for idxs, probs, amps in zip(pick.s_idx, pick.s_prob, amplitude.s_amp):
-            for idx, prob, amp in zip(idxs, probs, amps):
-                picks_.append({"id": pick.fname, 
-                               "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
-                               "prob": prob.astype(float), 
-                               "amp": amp.astype(float),
-                               "type": "s"})
+    if amps is None:
+        for pick in picks:
+            for idxs, probs in zip(pick.p_idx, pick.p_prob):
+                for idx, prob in zip(idxs, probs):
+                    picks_.append({"id": pick.fname, 
+                                "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
+                                "prob": prob.astype(float), 
+                                "type": "p"})
+            for idxs, probs in zip(pick.s_idx, pick.s_prob):
+                for idx, prob in zip(idxs, probs):
+                    picks_.append({"id": pick.fname, 
+                                "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
+                                "prob": prob.astype(float), 
+                                "type": "s"})
+    else:
+        for pick, amplitude in zip(picks, amps):
+            for idxs, probs, amps in zip(pick.p_idx, pick.p_prob, amplitude.p_amp):
+                for idx, prob, amp in zip(idxs, probs, amps):
+                    picks_.append({"id": pick.fname, 
+                                "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
+                                "prob": prob.astype(float), 
+                                "amp": amp.astype(float),
+                                "type": "p"})
+            for idxs, probs, amps in zip(pick.s_idx, pick.s_prob, amplitude.s_amp):
+                for idx, prob, amp in zip(idxs, probs, amps):
+                    picks_.append({"id": pick.fname, 
+                                "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
+                                "prob": prob.astype(float), 
+                                "amp": amp.astype(float),
+                                "type": "s"})
     with open(os.path.join(output_dir, "picks.json"), "w") as fp:
         json.dump(picks_, fp)
 
