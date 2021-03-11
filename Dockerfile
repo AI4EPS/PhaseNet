@@ -14,5 +14,7 @@ COPY . /app
 # Expose API port
 EXPOSE 8000
 
+ENV PYTHONUNBUFFERED=1
+
 # Start API server
 ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "cs329s", "uvicorn", "--app-dir", "phasenet", "app:app", "--reload", "--port", "8000", "--host", "0.0.0.0"]
