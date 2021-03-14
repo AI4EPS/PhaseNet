@@ -45,7 +45,7 @@ use_kafka = False
 
 try:
     print('Connecting to k8s kafka')
-    BROKER_URL = 'my-kafka-headless:9092'
+    BROKER_URL = 'quakeflow-kafka-headless:9092'
     producer = KafkaProducer(bootstrap_servers=[BROKER_URL],
                              key_serializer=lambda x: dumps(x).encode('utf-8'),
                              value_serializer=lambda x: dumps(x).encode('utf-8'))
