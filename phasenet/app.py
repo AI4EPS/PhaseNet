@@ -2,19 +2,22 @@ from kafka import KafkaProducer
 from json import dumps
 import os
 from scipy.interpolate import interp1d
-from typing import List, Any
+from typing import List, Any, List, Union, Dict, AnyStr
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from postprocess import extract_picks, extract_amplitude
 from model import UNet, ModelConfig
 import requests
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+
 import numpy as np
 import tensorflow as tf
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 PROJECT_ROOT = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
-
+JSONObject = Dict[AnyStr, Any]
+JSONArray = List[Any]
+JSONStructure = Union[JSONArray, JSONObject]
 
 app = FastAPI()
 
@@ -36,16 +39,28 @@ saver.restore(sess, latest_check_point)
 GMMA_API_URL = 'http://localhost:8001'
 
 # Kafak producer
-use_kafka = True
-BROKER_URL = 'localhost:9092'
+use_kafka = False
+# BROKER_URL = 'localhost:9092'
 # BROKER_URL = 'my-kafka-headless:9092'
 
 try:
+    print('Connecting to k8s kafka')
+    BROKER_URL = 'my-kafka-headless:9092'
     producer = KafkaProducer(bootstrap_servers=[BROKER_URL],
                              key_serializer=lambda x: dumps(x).encode('utf-8'),
                              value_serializer=lambda x: dumps(x).encode('utf-8'))
+    use_kafka = True
 except BaseException:
-    use_kafka = False
+    print('k8s Kafka connection error')
+
+try:
+    print('Connecting to local kafka')
+    producer = KafkaProducer(bootstrap_servers=['localhost:9092'],
+                             key_serializer=lambda x: dumps(x).encode('utf-8'),
+                             value_serializer=lambda x: dumps(x).encode('utf-8'))
+    use_kafka = True
+except BaseException:
+    print('local Kafka connection error')
 
 
 def normalize_batch(data, window=3000):
@@ -162,5 +177,13 @@ def predict(data: Data):
         return catalog.json()
     except Exception as error:
         print(error)
+
+    return {}
+
+
+@app.get('/test')
+def predict(data: JSONStructure):
+    print(data)
+    # picks = get_prediction(data)
 
     return {}
