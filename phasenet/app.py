@@ -50,17 +50,19 @@ try:
                              key_serializer=lambda x: dumps(x).encode('utf-8'),
                              value_serializer=lambda x: dumps(x).encode('utf-8'))
     use_kafka = True
+    print('k8s kafka connection success!')
 except BaseException:
     print('k8s Kafka connection error')
 
-try:
-    print('Connecting to local kafka')
-    producer = KafkaProducer(bootstrap_servers=['localhost:9092'],
-                             key_serializer=lambda x: dumps(x).encode('utf-8'),
-                             value_serializer=lambda x: dumps(x).encode('utf-8'))
-    use_kafka = True
-except BaseException:
-    print('local Kafka connection error')
+    try:
+        print('Connecting to local kafka')
+        producer = KafkaProducer(bootstrap_servers=['localhost:9092'],
+                                 key_serializer=lambda x: dumps(x).encode('utf-8'),
+                                 value_serializer=lambda x: dumps(x).encode('utf-8'))
+        use_kafka = True
+        print('local kafka connection success!')
+    except BaseException:
+        print('local Kafka connection error')
 
 
 def normalize_batch(data, window=3000):
