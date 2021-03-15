@@ -1,5 +1,6 @@
 from kafka import KafkaProducer
 from json import dumps
+import json
 import os
 from scipy.interpolate import interp1d
 from typing import List, Any, List, Union, Dict, AnyStr
@@ -36,7 +37,9 @@ print(f"restoring model {latest_check_point}")
 saver.restore(sess, latest_check_point)
 
 # GMMA API Endpoint
-GMMA_API_URL = 'http://localhost:8001'
+GMMA_API_URL = 'http://gmma-api:8001'
+# GMMA_API_URL = 'http://localhost:8001'
+
 
 # Kafak producer
 use_kafka = False
@@ -185,7 +188,13 @@ def predict(data: Data):
 
 @app.get('/test')
 def predict(data: JSONStructure):
-    print(data)
+    # print(data)
+    # print(data)
+    # data = json.loads(data)
+    for row in data:
+        k, v = row
+        producer.send('waveform_raw2', key=k,
+                      value=v)
     # picks = get_prediction(data)
 
     return {}
