@@ -193,8 +193,9 @@ def predict(data: JSONStructure):
     # data = json.loads(data)
     for row in data:
         k, v = row
-        producer.send('waveform_raw2', key=k,
+        producer.send('waveform_raw', key=k,
                       value=v)
+
     # picks = get_prediction(data)
 
     return {}
