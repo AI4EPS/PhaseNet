@@ -224,7 +224,7 @@ class DataReader():
                     meta["its"] = [[attrs["s_idx"]]]
                 else:
                     meta["its"] = meta["s_idx"]
-            if "t0" in npz.files:
+            if "t0" in attrs:
                 meta["t0"] = meta["t0"]
             self.buffer[fname] = meta
         else:
