@@ -613,13 +613,16 @@ class DataReader_mseed_array(DataReader):
         except Exception as e:
             logging.error(f"Failed reading {fp}: {e}")
         
-        sample = normalize_batch(meta["data"]).astype(self.dtype)
+        sample = np.zeros(self.X_shape)
+        sample[:,:meta["data"].shape[1],:,:] = normalize_batch(meta["data"])[:,:self.X_shape[1],:,:]
         t0 = meta["t0"]
-        base_name = [self.stations.iloc[i]["station"]+"."+t0[i] for i in range(len(self.stations))]
+#         base_name = [self.stations.iloc[i]["station"]+"."+t0[i] for i in range(len(self.stations))]
+        base_name = [self.stations.iloc[i]["station"] for i in range(len(self.stations))]
 
         if self.amplitude:
-            raw_amp = meta["raw_amp"]
-            return (sample.astype(self.dtype), raw_amp, base_name, t0)
+            raw_amp = np.zeros(self.X_shape)
+            raw_amp[:,:meta["raw_amp"].shape[1],:,:] = meta["raw_amp"][:,:self.X_shape[1],:,:]
+            return (sample.astype(self.dtype), raw_amp.astype(self.dtype), base_name, t0)
         else:
             return (sample.astype(self.dtype), base_name, t0)
 
