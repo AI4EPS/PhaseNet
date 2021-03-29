@@ -188,14 +188,14 @@ class DataReader():
                 if len(npz["p_idx"].shape) == 0:
                     meta["itp"] = [[npz["p_idx"]]]
                 else:
-                    meta["itp"] = meta["p_idx"]
+                    meta["itp"] = npz["p_idx"]
             if "s_idx" in npz.files:
                 if len(npz["s_idx"].shape) == 0:
                     meta["its"] = [[npz["s_idx"]]]
                 else:
-                    meta["its"] = meta["s_idx"]
+                    meta["its"] = npz["s_idx"]
             if "t0" in npz.files:
-                meta["t0"] = meta["t0"]
+                meta["t0"] = npz["t0"]
             self.buffer[fname] = meta
         else:
             meta = self.buffer[fname]
@@ -218,14 +218,14 @@ class DataReader():
                 if len(attrs["p_idx"].shape) == 0:
                     meta["itp"] = [[attrs["p_idx"]]]
                 else:
-                    meta["itp"] = meta["p_idx"]
+                    meta["itp"] = attrs["p_idx"]
             if "s_idx" in attrs:
                 if len(attrs["s_idx"].shape) == 0:
                     meta["its"] = [[attrs["s_idx"]]]
                 else:
-                    meta["its"] = meta["s_idx"]
-            if "t0" in npz.files:
-                meta["t0"] = meta["t0"]
+                    meta["its"] = attrs["s_idx"]
+            if "t0" in attrs:
+                meta["t0"] = attrs["t0"]
             self.buffer[fname] = meta
         else:
             meta = self.buffer[fname]
