@@ -11,6 +11,9 @@ from model import UNet, ModelConfig
 import requests
 from fastapi import FastAPI, Request
 from collections import defaultdict, namedtuple
+#import matplotlib
+#matplotlib.use("agg")
+#import matplotlib.pyplot as plt
 
 import numpy as np
 import tensorflow as tf
@@ -164,7 +167,9 @@ def format_data(data):
         timestamp_.append(datetime.fromtimestamp(min_t0/SAMPLING_RATE).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
         vec = np.zeros([X_SHAPE[0], X_SHAPE[-1]])
         for i in range(len(chn_[k])):
-            vec[int(t0_[k][i]-min_t0):len(vv_[k][i]), chn2idx[chn_[k][i]]] = vv_[k][i][int(t0_[k][i]-min_t0):X_SHAPE[0]]
+            #vec[int(t0_[k][i]-min_t0):len(vv_[k][i]), chn2idx[chn_[k][i]]] = vv_[k][i][int(t0_[k][i]-min_t0):X_SHAPE[0]] - np.mean(vv_[k][i])
+            shift = int(t0_[k][i]-min_t0)
+            vec[shift:len(vv_[k][i])+shift, chn2idx[chn_[k][i]]] = vv_[k][i][:X_SHAPE[0]-shift] - np.mean(vv_[k][i][:X_SHAPE[0]-shift])
         vec_.append(vec.tolist())
     return Data(id=id_, timestamp=timestamp_, vec=vec_, dt=1/SAMPLING_RATE)
 
@@ -226,6 +231,15 @@ def predict(data: Data):
 def predict(data: Data):
 
     data = format_data(data)
+    # for i in range(len(data.id)):
+    #     plt.clf()
+    #     plt.subplot(311)
+    #     plt.plot(np.array(data.vec)[i, :, 0])
+    #     plt.subplot(312)
+    #     plt.plot(np.array(data.vec)[i, :, 1])
+    #     plt.subplot(313)
+    #     plt.plot(np.array(data.vec)[i, :, 2])
+    #     plt.savefig(f"{data.id[i]}.png")
 
     picks = get_prediction(data)
     print("PhaseNet:", picks)
