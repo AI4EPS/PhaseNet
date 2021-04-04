@@ -3,13 +3,14 @@ from json import dumps
 import json
 import os
 from scipy.interpolate import interp1d
-from typing import List, Any, List, Union, Dict, AnyStr
+from typing import List, Any, List, NamedTuple, Union, Dict, AnyStr
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from postprocess import extract_picks, extract_amplitude
 from model import UNet, ModelConfig
 import requests
 from fastapi import FastAPI, Request
+from collections import defaultdict, namedtuple
 
 import numpy as np
 import tensorflow as tf
@@ -21,9 +22,11 @@ JSONArray = List[Any]
 JSONStructure = Union[JSONArray, JSONObject]
 
 app = FastAPI()
+X_SHAPE = [3000, 1, 3]
+SAMPLING_RATE = 100
 
 # load model
-config = ModelConfig(X_shape=[3000, 1, 3])
+config = ModelConfig(X_shape=X_SHAPE)
 model = UNet(config=config, mode="pred")
 sess_config = tf.compat.v1.ConfigProto()
 sess_config.gpu_options.allow_growth = True
@@ -37,8 +40,8 @@ print(f"restoring model {latest_check_point}")
 saver.restore(sess, latest_check_point)
 
 # GMMA API Endpoint
-GMMA_API_URL = 'http://gmma-api:8001'
-# GMMA_API_URL = 'http://localhost:8001'
+# GMMA_API_URL = 'http://gmma-api:8001'
+GMMA_API_URL = 'http://localhost:8001'
 
 
 # Kafak producer
@@ -133,6 +136,38 @@ def format_picks(picks, dt, amplitudes):
                                "type": "s"})
     return picks_
 
+def format_data(data):
+
+    # chn2idx = {"ENZ": {"E":0, "N":1, "Z":2}, 
+    #            "123": {"3":0, "2":1, "1":2},
+    #            "12Z": {"1":0, "2":1, "Z":2}}
+    chn2idx = {"E":0, "N":1, "Z":2, "3":0, "2":1, "1":2}
+    Data = NamedTuple("data", [("id", list), ("timestamp", list), ("vec", list), ("dt", float)])
+
+    ## Group by station
+    chn_ = defaultdict(list)
+    t0_ = defaultdict(list)
+    vv_ = defaultdict(list)
+    for i in range(len(data.id)):
+        key = data.id[i][:-1]
+        chn_[key].append(data.id[i][-1])
+        t0_[key].append(datetime.strptime(data.timestamp[i], "%Y-%m-%dT%H:%M:%S.%f").timestamp()*SAMPLING_RATE)
+        vv_[key].append(np.array(data.vec[i]))
+
+    ## Merge to Data tuple 
+    id_ = []
+    timestamp_ = []
+    vec_ = []
+    for k in chn_:
+        id_.append(k)
+        min_t0 = min(t0_[k])
+        timestamp_.append(datetime.fromtimestamp(min_t0/SAMPLING_RATE).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
+        vec = np.zeros([X_SHAPE[0], X_SHAPE[-1]])
+        for i in range(len(chn_[k])):
+            vec[int(t0_[k][i]-min_t0):len(vv_[k][i]), chn2idx[chn_[k][i]]] = vv_[k][i][int(t0_[k][i]-min_t0):X_SHAPE[0]]
+        vec_.append(vec.tolist())
+    return Data(id=id_, timestamp=timestamp_, vec=vec_, dt=1/SAMPLING_RATE)
+
 
 def get_prediction(data):
 
@@ -147,13 +182,14 @@ def get_prediction(data):
     picks = extract_picks(preds, fnames=data.id, t0=data.timestamp)
     amps = extract_amplitude(vec_raw, picks)
     picks = format_picks(picks, data.dt, amps)
+
     return picks
 
 
 class Data(BaseModel):
     id: List[str]
     timestamp: List[str]
-    vec: List[List[List[float]]]
+    vec: Union[List[List[List[float]]], List[List[float]]]
     dt: float = 0.01
 
 
@@ -179,6 +215,30 @@ def predict(data: Data):
     try:
         catalog = requests.get(f'{GMMA_API_URL}/predict', json={"picks": picks})
         print(catalog.json())
+        return catalog.json()
+    except Exception as error:
+        print(error)
+
+    return {}
+
+
+@app.get('/predict_seedlink')
+def predict(data: Data):
+
+    data = format_data(data)
+
+    picks = get_prediction(data)
+    print("PhaseNet:", picks)
+
+    # TODO
+    # push prediction results to Kafka
+    if use_kafka:
+        for pick in picks:
+            producer.send('phasenet_picks', key=pick["id"], value=pick)
+
+    try:
+        catalog = requests.get(f'{GMMA_API_URL}/predict', json={"picks": picks})
+        print("GMMA:", catalog.json())
         return catalog.json()
     except Exception as error:
         print(error)
