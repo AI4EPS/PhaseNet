@@ -81,7 +81,7 @@ def normalize_long(data, axis=(0,), window=3000):
     t_interp = np.arange(nt, dtype="int")
     std_interp = interp1d(t, std, axis=0, kind="slinear")(t_interp)
     mean_interp = interp1d(t, mean, axis=0, kind="slinear")(t_interp)
-    std_interp[std_interp <= 0] = 1.0
+    std_interp[std_interp == 0] = 1.0
     data = (data - mean_interp)/std_interp
 
     return data
@@ -116,8 +116,13 @@ def normalize_batch(data, window=3000):
     t_interp = np.arange(nt, dtype="int")
     std_interp = interp1d(t, std, axis=1, kind="slinear")(t_interp)
     mean_interp = interp1d(t, mean, axis=1, kind="slinear")(t_interp)
-    std_interp[std_interp <= 0] = 1.0
+    tmp = np.sum(std_interp, axis=(1,2))
+    std_interp[std_interp == 0] = 1.0
     data = (data - mean_interp)/std_interp
+
+    ### dropout effect of < 3 channel
+    nonzero = np.count_nonzero(tmp, axis=-1)
+    data[nonzero>0,...] *= 3.0 / nonzero[nonzero>0][:,np.newaxis,np.newaxis,np.newaxis]
     
     return data
 
@@ -283,6 +288,7 @@ class DataReader():
 
         order = ['3','2','1','E','N','Z']
         order = {key: i for i, key in enumerate(order)}
+        comp2idx = {"3":0, "2":1, "1":2, "E":0, "N":1, "Z":2}
 
         nsta = len(stations)
         nt = len(mseed[0].data)
@@ -292,21 +298,44 @@ class DataReader():
             raw_amp = np.zeros([nsta, nt, self.config.n_channel], dtype=self.dtype)
         for i in range(nsta):
             sta = stations.iloc[i]["station"]
-            comp = stations.iloc[i]["component"].split(",")
             t0.append(starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
+            comp = stations.iloc[i]["component"].split(",")
             if amplitude:
                 resp = stations.iloc[i]["response"].split(",")
-            for j, c in enumerate(sorted(comp, key=lambda x: order[x[-1]])):
-                data[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype)
-                if amplitude:
-                    if stations.iloc[i]["unit"] == "m/s**2":
-                        raw_amp[i, :, j] = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype) 
-                    elif stations.iloc[i]["unit"] == "m/s":
-                        raw_amp[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
-                    else:
-                        raise(f"{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
-                if remove_resp:
-                    raw_amp[i, :, j] /=  float(resp[j])
+            if len(comp) == 3:
+                for j, c in enumerate(sorted(comp, key=lambda x: order[x[-1]])):
+                    if len(mseed.select(id=sta+c)) == 0:
+                        print(f"Empty trace: {sta+c}, {t0[-1]}")
+                        continue
+                    data[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype)
+                    if amplitude:
+                        if stations.iloc[i]["unit"] == "m/s**2":
+                            raw_amp[i, :, j] = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype) 
+                        elif stations.iloc[i]["unit"] == "m/s":
+                            raw_amp[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
+                        else:
+                            raise(f"{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
+                    if remove_resp:
+                        raw_amp[i, :, j] /=  float(resp[j])
+            else: ## less than 3 component
+                for jj, c in enumerate(comp):
+                    j = comp2idx[c]
+                    if len(mseed.select(id=sta+c)) == 0:
+                        print(f"Empty trace: {sta+c}, {t0[-1]}")
+                        continue
+                    data[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype)
+                    if len(mseed.select(id=sta+c)) == 0:
+                        continue
+                    if amplitude:
+                        if stations.iloc[i]["unit"] == "m/s**2":
+                            raw_amp[i, :, j] = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype) 
+                        elif stations.iloc[i]["unit"] == "m/s":
+                            raw_amp[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
+                        else:
+                            raise(f"{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
+                    if remove_resp:
+                        raw_amp[i, :, j] /=  float(resp[jj])
+
 
         if len(data.shape) == 3:
             data = data[:,:,np.newaxis,:]
