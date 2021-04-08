@@ -98,7 +98,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         save_picks(picks, args.result_dir, amps=amps)
         save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps)
 
-    print("Done")
+    print(f"Done with {sum([len(x) for pick in picks for x in pick.p_idx])} P-picks and {sum([len(x) for pick in picks for x in pick.s_idx])} S-picks")
     return 0
 
 

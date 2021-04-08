@@ -80,6 +80,7 @@ def normalize_long(data, axis=(0,), window=3000):
     ## normalize data with interplated std 
     t_interp = np.arange(nt, dtype="int")
     std_interp = interp1d(t, std, axis=0, kind="slinear")(t_interp)
+    #std_interp = np.exp(interp1d(t, np.log(std), axis=0, kind="slinear")(t_interp))
     mean_interp = interp1d(t, mean, axis=0, kind="slinear")(t_interp)
     std_interp[std_interp == 0] = 1.0
     data = (data - mean_interp)/std_interp
@@ -115,6 +116,7 @@ def normalize_batch(data, window=3000):
     # ## normalize data with interplated std 
     t_interp = np.arange(nt, dtype="int")
     std_interp = interp1d(t, std, axis=1, kind="slinear")(t_interp)
+    #std_interp = np.exp(interp1d(t, np.log(std), axis=1, kind="slinear")(t_interp))
     mean_interp = interp1d(t, mean, axis=1, kind="slinear")(t_interp)
     tmp = np.sum(std_interp, axis=(1,2))
     std_interp[std_interp == 0] = 1.0
@@ -283,8 +285,10 @@ class DataReader():
         endtime = max([st.stats.endtime for st in mseed])
         mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
 
-        if mseed[0].stats.sampling_rate != self.config.sampling_rate:
-            logging.warning(f"Sampling rate {mseed[0].stats.sampling_rate} != {self.config.sampling_rate} Hz")
+        for i in range(len(mseed)):
+            if mseed[i].stats.sampling_rate != self.config.sampling_rate:
+                logging.warning(f"Resampling {mseed[i].id} from {mseed[i].stats.sampling_rate} to {self.config.sampling_rate} Hz")
+                mseed[i] = mseed[i].interpolate(self.config.sampling_rate, method="linear")
 
         order = ['3','2','1','E','N','Z']
         order = {key: i for i, key in enumerate(order)}
@@ -314,7 +318,7 @@ class DataReader():
                         elif stations.iloc[i]["unit"] == "m/s":
                             raw_amp[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
                         else:
-                            raise(f"{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
+                            print(f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
                     if remove_resp:
                         raw_amp[i, :, j] /=  float(resp[j])
             else: ## less than 3 component
@@ -332,7 +336,7 @@ class DataReader():
                         elif stations.iloc[i]["unit"] == "m/s":
                             raw_amp[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
                         else:
-                            raise(f"{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
+                            print(f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
                     if remove_resp:
                         raw_amp[i, :, j] /=  float(resp[jj])
 
