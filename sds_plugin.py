@@ -11,8 +11,9 @@ from functools import partial
 from obspy.core import UTCDateTime, read as ocread
 
 from data_reader import DataReader, Config
-from run import set_config, postprocessing_thread
+from run import set_config
 from model import Model
+from detect_peaks import detect_peaks
 
 logger = logging.getLogger(__name__)
 tf.compat.v1.disable_eager_execution()
@@ -130,6 +131,62 @@ def _save_predictions_to_hdf5_archive(hdf5_pointer, fname_batch, pred_batch):
             sample_dataset.attrs["dataquality"] = dataquality
             sample_dataset.attrs["starttime"] = str(sample_start + n / sampling_rate)
             sample_dataset.attrs["sampling_rate"] = sampling_rate
+
+
+def _detect_peaks_thread_sds(i, pred, fname=None, result_dir=None, args=None):
+    """
+    customized for sds
+    """
+    input_length = pred.shape[1]
+    nedge = input_length // 4  # do not pick maxima in the 25% edge zone each side
+
+    if args is None:
+        itp = detect_peaks(pred[i, nedge:-nedge, 0, 1], mph=0.5, mpd=0.5 / Config().dt, show=False)
+        its = detect_peaks(pred[i, nedge:-nedge, 0, 2], mph=0.5, mpd=0.5 / Config().dt, show=False)
+    else:
+        itp = detect_peaks(pred[i, nedge:-nedge, 0, 1], mph=args.tp_prob, mpd=0.5 / Config().dt, show=False)
+        its = detect_peaks(pred[i, nedge:-nedge, 0, 2], mph=args.ts_prob, mpd=0.5 / Config().dt, show=False)
+
+    itp = [_ + nedge for _ in itp]
+    its = [_ + nedge for _ in its]
+
+    prob_p = pred[i, itp, 0, 1]
+    prob_s = pred[i, its, 0, 2]
+    if (fname is not None) and (result_dir is not None):
+        npzout = os.path.join(result_dir, fname[i].decode())
+        pathout = os.path.dirname(npzout)
+
+        os.makedirs(pathout, exist_ok=True)
+
+        np.savez(npzout,
+                 pred=pred[i],
+                 itp=itp,
+                 its=its,
+                 prob_p=prob_p,
+                 prob_s=prob_s)
+
+    return [(itp, prob_p), (its, prob_s)]
+
+
+def _postprocessing_thread_sds(i, pred, X, Y=None, itp=None, its=None, fname=None, result_dir=None, figure_dir=None,
+                          args=None):
+    """
+    :param i: batch number
+    :param pred: probability functions for P and S phases and?
+    :param X: seismic data
+    :param Y:
+    :param itp: indexs of picked P phases
+    :param its: indexs of picked S phases
+    :param fname:
+    :param result_dir:
+    :param figure_dir:
+    """
+    (itp_pred, prob_p), (its_pred, prob_s) = \
+        _detect_peaks_thread_sds(i, pred, fname, result_dir, args)
+
+    # if (fname is not None) and (figure_dir is not None):
+    #     plot_result_thread(i, pred, X, Y, itp, its, itp_pred, its_pred, fname, figure_dir)
+    return [(itp_pred, prob_p), (its_pred, prob_s)]
 
 
 # ============ data_reader
@@ -541,7 +598,7 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
 
             # picks
             picks_batch = pool.map(
-                partial(postprocessing_thread,
+                partial(_postprocessing_thread_sds,
                         pred=pred_batch,
                         X=X_batch,
                         fname=fname_batch,
