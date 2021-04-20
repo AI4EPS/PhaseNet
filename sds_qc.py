@@ -19,10 +19,6 @@ for m, pick_data in enumerate(
         for i in I:
             fid.write(f'{seedid[i]},{phasename[i]},{picktime[i]},{probability[i]}\n')
 
-
-
-exit(1)
-
 data = {}
 for f in glob.iglob('demo/sds/data/*/*/*/*/*'):
     st = ocread(f, format="MSEED")
@@ -34,17 +30,15 @@ for f in glob.iglob('demo/sds/data/*/*/*/*/*'):
             data[seedid] = Stream([tr])
 
 fig = plt.figure()
-fig.subplots_adjust(hspace=0)
-gs = fig.add_gridspec(len(data.keys()), 1)
-axes = {}
-sharex = None
+ax = fig.add_subplot(111)
+gain = 0.1
 for n, (seedid, st) in enumerate(data.items()):
-    axes[seedid] = sharex = fig.add_subplot(gs[n, :], sharex=sharex, sharey=sharex, ylabel=seedid)
+
     for tr in st:
         tr.detrend("linear")
         tr.data /= np.std(tr.data)
         t = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
-        axes[seedid].plot(t, tr.data, color="k")
+        ax.plot(t, gain * tr.data + n, color="k")
 
 for m, pick_data in enumerate(
         [pd.read_csv('/home/lehujeur/Desktop/output/picks.csv', header=0, dtype=str),
@@ -65,7 +59,7 @@ for m, pick_data in enumerate(
             except KeyError:
                 picks[seedid + completter] = [(phasename, picktime, probability)]
 
-    for seedid in data.keys():
+    for n, seedid in enumerate(data.keys()):
         try:
             if m == 0:
                 color = {"P": "r", "S": "b"}[phasename]
@@ -75,7 +69,7 @@ for m, pick_data in enumerate(
                 marker = "+-"
 
             for (phasename, picktime, probability) in picks[seedid]:
-                axes[seedid].plot(picktime * np.ones(2), [-10. * probability, 10. * probability], marker, color=color)
+                ax.plot(picktime * np.ones(2), 10. * probability * np.array([-1, 1]) * gain + n, marker, color=color)
 
         except KeyError:
             pass
