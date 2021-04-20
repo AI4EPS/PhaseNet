@@ -11,7 +11,7 @@ for m, pick_data in enumerate(
 
     seedid = [pick_data.iloc[npick]['seedid'].rstrip('.D') for npick in range(len(pick_data))]
     phasename = [pick_data.iloc[npick]['phasename'] for npick in range(len(pick_data))]
-    picktime = [UTCDateTime(pick_data.iloc[npick]['time']).timestamp for npick in range(len(pick_data))]
+    picktime = [UTCDateTime(pick_data.iloc[npick]['time']) for npick in range(len(pick_data))]
     probability = [float(pick_data.iloc[npick]['probability']) for npick in range(len(pick_data))]
 
     I = np.lexsort((picktime, phasename, seedid))
