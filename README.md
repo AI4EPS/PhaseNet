@@ -4,9 +4,16 @@
 
 ### Using Anaconda (recommend)
 ```bash
-conda create --name venv python=3.6
+conda env create -f environment.yml
 conda activate venv
-conda install tensorflow=1.10 matplotlib scipy pandas tqdm
+```
+
+or
+
+```bash
+conda create --name venv python=3.8
+conda activate venv
+conda install tensorflow=2.3 matplotlib scipy pandas tqdm
 conda install libiconv
 conda install obspy -c conda-forge
 ```
@@ -14,10 +21,9 @@ conda install obspy -c conda-forge
 ### Using virtualenv
 ```bash
 pip install virtualenv
-virtualenv .venv
+virtualenv .venv -p python3.8
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install obspy libiconv
 ```
 
 ### 2.Demo Data
@@ -35,7 +41,7 @@ Located in directory: **model/190703-214543**
 
 Required a csv file and a directory of mseed files.
 
-The csv file contains foure column: "fname, E, N, Z"
+The csv file contains four column: "fname, E, N, Z"
 
 The mseed file contains the continous data with ENZ channels.
 
@@ -113,4 +119,6 @@ Please let us know of any bugs found in the code.
 - Zhu, W., & Beroza, G. C. (2018). PhaseNet: A Deep-Neural-Network-Based Seismic Arrival Time Picking Method. arXiv preprint arXiv:1803.03211.
 - Liu, M., Zhang, M., Zhu, W., Ellsworth, W. L., & Li, H. Rapid Characterization of the July 2019 Ridgecrest, California Earthquake Sequence from Raw Seismic Data using Machine Learning Phase Picker. Geophysical Research Letters, e2019GL086189.
 - Park, Y., Mousavi, S. M., Zhu, W., Ellsworth, W. L., & Beroza, G. C. (2020). Machine learning based analysis of the Guy-Greenbrier, Arkansas earthquakes: a tale of two sequences.
+- Chai, C., Maceira, M., Santos‐Villalobos, H. J., Venkatakrishnan, S. V., Schoenball, M., Zhu, W., ... & EGS Collab Team. (2020). Using a Deep Neural Network and Transfer Learning to Bridge Scales for Seismic Phase Picking. Geophysical Research Letters, e2020GL088651.
+- 
 

@@ -1,6 +1,8 @@
 from __future__ import division
 import numpy as np
 import tensorflow as tf
+tf.compat.v1.disable_eager_execution()
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 import argparse
 import os
 import time
@@ -13,6 +15,7 @@ import pandas as pd
 import threading
 import multiprocessing
 from functools import partial
+import pickle
 
 def read_args():
 
@@ -179,7 +182,7 @@ def read_args():
 
   parser.add_argument("--fpred",
                       default="picks",
-                      help="Ouput filename fo test")
+                      help="Ouput filename for test")
 
   args = parser.parse_args()
   return args
@@ -233,21 +236,21 @@ def train_fn(args, data_reader, data_reader_valid=None):
   with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
     fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
 
-  with tf.name_scope('Input_Batch'):
+  with tf.compat.v1.name_scope('Input_Batch'):
     batch = data_reader.dequeue(args.batch_size)
     if data_reader_valid is not None:
       batch_valid = data_reader_valid.dequeue(args.batch_size)
 
   model = Model(config)
-  sess_config = tf.ConfigProto()
+  sess_config = tf.compat.v1.ConfigProto()
   sess_config.gpu_options.allow_growth = True
   sess_config.log_device_placement = False
 
-  with tf.Session(config=sess_config) as sess:
+  with tf.compat.v1.Session(config=sess_config) as sess:
 
-    summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
-    saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
-    init = tf.global_variables_initializer()
+    summary_writer = tf.compat.v1.summary.FileWriter(log_dir, sess.graph)
+    saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables(), max_to_keep=5)
+    init = tf.compat.v1.global_variables_initializer()
     sess.run(init)
 
     if args.model_dir is not None:
@@ -341,19 +344,19 @@ def valid_fn(args, data_reader, figure_dir=None, result_dir=None):
   with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
     fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
 
-  with tf.name_scope('Input_Batch'):
+  with tf.compat.v1.name_scope('Input_Batch'):
     batch = data_reader.dequeue(args.batch_size)
 
   model = Model(config, input_batch=batch, mode='valid')
-  sess_config = tf.ConfigProto()
+  sess_config = tf.compat.v1.ConfigProto()
   sess_config.gpu_options.allow_growth = True
   sess_config.log_device_placement = False
 
-  with tf.Session(config=sess_config) as sess:
+  with tf.compat.v1.Session(config=sess_config) as sess:
 
-    summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
-    saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
-    init = tf.global_variables_initializer()
+    summary_writer = tf.compat.v1.summary.FileWriter(log_dir, sess.graph)
+    saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables(), max_to_keep=5)
+    init = tf.compat.v1.global_variables_initializer()
     sess.run(init)
 
     logging.info("restoring models...")
@@ -434,20 +437,20 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
   with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
     fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
 
-  with tf.name_scope('Input_Batch'):
+  with tf.compat.v1.name_scope('Input_Batch'):
     batch = data_reader.dequeue(args.batch_size)
 
   model = Model(config, batch, "pred")
-  sess_config = tf.ConfigProto()
+  sess_config = tf.compat.v1.ConfigProto()
   sess_config.gpu_options.allow_growth = True
   sess_config.log_device_placement = False
 
-  with tf.Session(config=sess_config) as sess:
+  with tf.compat.v1.Session(config=sess_config) as sess:
 
     threads = data_reader.start_threads(sess, n_threads=8)
 
-    saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
-    init = tf.global_variables_initializer()
+    saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables(), max_to_keep=5)
+    init = tf.compat.v1.global_variables_initializer()
     sess.run(init)
 
     logging.info("restoring models...")
@@ -463,7 +466,8 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
     pool = multiprocessing.Pool(num_pool)
     fclog = open(os.path.join(log_dir, args.fpred+'.csv'), 'w')
     fclog.write("fname,itp,tp_prob,its,ts_prob\n") 
-    
+    picks = {}
+
     if args.input_mseed:
 
       while True:
@@ -500,7 +504,10 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                         args=args),
                                 range(len(pred_batch)))
         for i in range(len(fname_batch)):
-          fclog.write("{},{},{},{},{}\n".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1], picks_batch[i][1][0], picks_batch[i][1][1]))
+          row = "{},[{}],[{}],[{}],[{}]".format(fname_batch[i].decode(), " ".join(map(str,picks_batch[i][0][0])), " ".join(map(str,picks_batch[i][0][1])),
+                                        " ".join(map(str,picks_batch[i][1][0])), " ".join(map(str,picks_batch[i][1][1])))
+          fclog.write(row+"\n")
+          picks[fname_batch[i].decode()]={"itp":picks_batch[i][0][0], "tp_prob":picks_batch[i][0][1], "its":picks_batch[i][1][0], "ts_prob":picks_batch[i][1][1]}
 
         if last_batch:
           break
@@ -523,10 +530,15 @@ def pred_fn(args, data_reader, figure_dir=None, result_dir=None, log_dir=None):
                                         args=args),
                                 range(len(pred_batch)))
         for i in range(len(fname_batch)):
-          fclog.write("{},{},{},{},{}\n".format(fname_batch[i].decode(), picks_batch[i][0][0], picks_batch[i][0][1], picks_batch[i][1][0], picks_batch[i][1][1]))
+          row = "{},[{}],[{}],[{}],[{}]".format(fname_batch[i].decode(), " ".join(map(str,picks_batch[i][0][0])), " ".join(map(str,picks_batch[i][0][1])),
+                                        " ".join(map(str,picks_batch[i][1][0])), " ".join(map(str,picks_batch[i][1][1])))
+          fclog.write(row+"\n")
+          picks[fname_batch[i].decode()]={"itp":picks_batch[i][0][0], "tp_prob":picks_batch[i][0][1], "its":picks_batch[i][1][0], "ts_prob":picks_batch[i][1][1]}
         # fclog.flush()
 
     fclog.close()
+    with open(os.path.join(log_dir, args.fpred+'.pkl'), 'wb') as fp:
+      pickle.dump(picks, fp)
     print("Done")
 
   return 0
@@ -538,7 +550,7 @@ def main(args):
   coord = tf.train.Coordinator()
 
   if args.mode == "train":
-    with tf.name_scope('create_inputs'):
+    with tf.compat.v1.name_scope('create_inputs'):
       data_reader = DataReader(
           data_dir=args.train_dir,
           data_list=args.train_list,
@@ -559,7 +571,7 @@ def main(args):
     train_fn(args, data_reader, data_reader_valid)
   
   elif args.mode == "valid" or args.mode == "test":
-    with tf.name_scope('create_inputs'):
+    with tf.compat.v1.name_scope('create_inputs'):
       data_reader = DataReader_test(
           data_dir=args.data_dir,
           data_list=args.data_list,
@@ -569,7 +581,7 @@ def main(args):
     valid_fn(args, data_reader)
 
   elif args.mode == "pred":
-    with tf.name_scope('create_inputs'):
+    with tf.compat.v1.name_scope('create_inputs'):
       if args.input_mseed:
         data_reader = DataReader_mseed(
             data_dir=args.data_dir,
