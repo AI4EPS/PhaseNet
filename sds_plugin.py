@@ -250,6 +250,10 @@ class DataReaderSDS(DataReader):
         self.enqueue = self.queue.enqueue([self.sample_placeholder,
                                            self.fname_placeholder])
 
+    def dequeue(self, num_elements):
+        output = self.queue.dequeue_up_to(num_elements)
+        return output
+
     def find_filenames(self, network: str, station: str, location: str, channel: str, dataquality: str,
                        year: int, julday: int) -> list:
         """
@@ -894,8 +898,8 @@ if __name__ == '__main__':
         valid_dir = None
         valid_list = None
         output_dir = os.path.join("demo", "sds", "output")
-        plot_figure = False
-        save_result = False
+        plot_figure = True  # will crash if save_result is False
+        save_result = True
         fpred = "picks"
 
     args = Args()
