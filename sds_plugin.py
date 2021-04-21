@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import h5py
 import tensorflow as tf
 import multiprocessing
+from collections import namedtuple
 from tqdm import tqdm
 from functools import partial
 from obspy.core import UTCDateTime, read as ocread, Trace, Stream
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 tf.compat.v1.disable_eager_execution()
 pd.options.mode.chained_assignment = None
 
+
 """
 The aim of this plugin is to call Phasenet in prediction mode on a large SDS data structure
 For giant datasets, the packing of 3 components waveforms into one single file can be difficult to implement
@@ -30,6 +32,8 @@ data structure.
 """
 
 # ============ global variables
+CPU_COUNT = multiprocessing.cpu_count()
+
 # conventional (formatable) path name for SDS data archive
 SDSPATH = os.path.join(
     "{data_dir}", "{year}",
@@ -516,77 +520,94 @@ class DataReaderSDS(DataReader):
                              self.sample_placeholder: sample,
                              self.fname_placeholder: sample_name})
 
+    def show_sds_prediction_results(self, log_dir=None):
 
+        assert os.path.isdir(log_dir), f"{log_dir} not found"
+        hdf5_archive = os.path.join(log_dir, 'results', "sample_results.hdf5")
+        picks_file = os.path.join(log_dir, "picks.csv")
+        figure_dir = os.path.join(log_dir, 'figures')
+        if not os.path.isdir(figure_dir):
+            os.mkdir(figure_dir)
 
+        assert os.path.isdir(figure_dir), f"{figure_dir} not found"
+        assert os.path.isfile(picks_file), f"{picks_file} not found"
+        assert os.path.isfile(hdf5_archive), f"{hdf5_archive} not found"
 
+        # read picks.csv
+        A = np.genfromtxt(picks_file, skip_header=1, delimiter=',', dtype=str)
+        pick_data = {}
+        pick_data['seedid'] = A[:, 0]
+        pick_data['phasename'] = A[:, 1]
+        pick_data['picktime'] = np.asarray([UTCDateTime(_).timestamp for _ in A[:, 2]], float)
+        pick_data['probability'] = np.asarray(A[:, 3], float)
 
+        # generate the list of thread arguments
+        thread_args_list = []  # list of input arguments required by the display thread
+        for row_index in range(len(self.data_list)):
+            # parallelize over the rows of the input csv file
 
-
-
-def show_sds_prediction_results(data_reader: DataReaderSDS, log_dir=None):
-
-    assert os.path.isdir(log_dir), f"{log_dir} not found"
-    hdf5_archive = os.path.join(log_dir, 'results', "sample_results.hdf5")
-    picks_file = os.path.join(log_dir, "picks.csv")
-    figure_dir = os.path.join(log_dir, 'figures')
-    if not os.path.isdir(figure_dir):
-        os.mkdir(figure_dir)
-
-    assert os.path.isdir(figure_dir), f"{figure_dir} not found"
-    assert os.path.isfile(picks_file), f"{picks_file} not found"
-    assert os.path.isfile(hdf5_archive), f"{hdf5_archive} not found"
-
-    # read picks.csv
-    A = np.genfromtxt(picks_file, skip_header=1, delimiter=',', dtype=str)
-    pick_data = {}
-    pick_data['seedid'] = A[:, 0]
-    pick_data['phasename'] = A[:, 1]
-    pick_data['picktime'] = np.asarray([UTCDateTime(_).timestamp for _ in A[:, 2]], float)
-    pick_data['probability'] = np.asarray(A[:, 3], float)
-
-    with h5py.File(hdf5_archive, 'r') as h5fid:
-        for row_index in range(len(data_reader.data_list)):
-            # loop over rows in the input csv file
-
-            # read the row of the csv file
+            # read the info on 1 row of the csv file
             network, station, location, dataquality, channel, \
                 year, julday, \
                 window_starttime, window_endtime = \
-                data_reader.get_csv_row(row_index=row_index)
+                self.get_csv_row(row_index=row_index)
 
             # find the seismic datafiles
             east_component_filename, north_component_filename, vertical_component_filename = \
-                data_reader.find_filenames(
+                self.find_filenames(
                 network, station, location, channel, dataquality, year, julday)
 
-            # find the picks that correspond to the current station
-            I = (pick_data['seedid'] == f"{network}.{station}.{location}.{channel[:2]}.{dataquality}")
+            # pack the arguments into a dict (1 job)
+            thread_args = {
+                "network": network,
+                "station": station,
+                "location": location,
+                "channel": channel,
+                "dataquality": dataquality,
+                "year": year,
+                "julday": julday,
+                "east_component_filename": east_component_filename,
+                "north_component_filename": north_component_filename,
+                "vertical_component_filename": vertical_component_filename,
+                "window_starttime": window_starttime,
+                "window_endtime": window_endtime,
+                "pick_data": pick_data,
+                "hdf5_archive": hdf5_archive,
+                "figure_dir": figure_dir}
 
-            # refine to the picks that fall in the current time window
-            I &= (window_starttime.timestamp <= pick_data['picktime'])
-            I &= (window_endtime.timestamp >= pick_data['picktime'])
+            thread_args_list.append(thread_args)
 
-            if not I.any():
-                warnings.warn(
-                    f"no picks found for the csv row : "
-                    f"{network}.{station}.{location}.{channel[:2]}.{dataquality}"
-                    f"{year}.{julday}"
-                    f"{window_starttime}-{window_endtime}")
-                continue
+        # run in parallel : 1 thread = 1 row of the csv file
+        with multiprocessing.Pool(CPU_COUNT) as p:
+            p.map(_show_sds_prediction_results_thread, thread_args_list)
 
-            # convert mask to indexs
-            ipicks = np.arange(len(I))[I]
 
-            # find the probability data
-            stp, sts = Stream([]), Stream([])
-            for phasename in "PS":
-                sample_path = HDF5PATH.format(
-                    network=network, station=station,
-                    location=location, channel2=channel[:2],
-                    dataquality=dataquality,
-                    year=year, julday=julday,
-                    phasename=phasename)
+def _show_sds_prediction_results_thread(thread_args: dict):
+    """
+    thread_args : a dictionnary with all the arguments requested by this function
+                  see DataReaderSDS.show_sds_prediction_results
+    """
 
+    # convert dictionnary into named tuple so that thread_args['x'] is thread_args.x
+    ThreadArgs = namedtuple("ThreadArgs", list(thread_args.keys()))
+    thread_args = ThreadArgs(**thread_args)
+
+    seedid = f"{thread_args.network}.{thread_args.station}." \
+             f"{thread_args.location}.{thread_args.channel[:2]}." \
+             f"{thread_args.dataquality}"
+
+    # ======== read the probability time series from hdf archive
+    with h5py.File(thread_args.hdf5_archive, 'r') as h5fid:
+        # find the probability data
+        stp, sts = Stream([]), Stream([])
+        for phasename in "PS":
+            sample_path = HDF5PATH.format(
+                network=thread_args.network, station=thread_args.station,
+                location=thread_args.location, channel2=thread_args.channel[:2],
+                dataquality=thread_args.dataquality,
+                year=thread_args.year, julday=thread_args.julday,
+                phasename=phasename)
+            try:
                 for sample_name in h5fid[sample_path]:
                     sample = h5fid[sample_path][sample_name]
                     tr = Trace(data=np.array(sample[:], float) / 255., header=dict(**sample.attrs))
@@ -596,75 +617,97 @@ def show_sds_prediction_results(data_reader: DataReaderSDS, log_dir=None):
                         sts.append(tr)
                     else:
                         raise Exception
+            except KeyError:
+                warnings.warn(f'key {sample_path} not in {thread_args.hdf5_archive}')
 
+    # ======== find the picks that correspond to the current station
+    I = (thread_args.pick_data['seedid'] == seedid)
 
-            # read the data as they are sent to phasenet core
-            # seedid, data, timearray = data_reader.read_mseed(
-            #     east_component_filename, north_component_filename, vertical_component_filename,
-            #     window_starttime, window_endtime)
+    # refine to the picks that fall in the current time window
+    I &= (thread_args.window_starttime.timestamp <= thread_args.pick_data['picktime'])
+    I &= (thread_args.window_endtime.timestamp >= thread_args.pick_data['picktime'])
 
-            # read the row data for display
-            ste = ocread(east_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
-            stn = ocread(north_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
-            stz = ocread(vertical_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
-            if not len(stz) or not len(ste) or not len(stn):
-                raise Exception('was continue')
+    if not I.any():
+        warnings.warn(
+            f"no picks found for the csv row : "
+            f"{seedid}"
+            f"{thread_args.year}.{thread_args.julday}"
+            f"{thread_args.window_starttime}-{thread_args.window_endtime}")
+        return
 
-            # preprocessing for display
-            def stpro(st):
-                tr = st.merge(fill_value=0.)[0]
-                tr.detrend('linear')
-                tr.data /= tr.data.std()
-                return tr
-            trz, trn, tre = [stpro(st) for st in [stz, stn, ste]]
+    # convert mask to indexs
+    ipicks = np.arange(len(I))[I]
 
-            # ===============
-            # display the background traces
-            fig = plt.figure(figsize=(12, 4))
-            gain = 0.1
+    # ======== read the seismic data
+    # read the data as they are sent to phasenet core
+    # seedid, data, timearray = data_reader.read_mseed(
+    #     east_component_filename, north_component_filename, vertical_component_filename,
+    #     window_starttime, window_endtime)
 
-            ax = fig.add_subplot(111)
-            bx = ax.twinx()
-            for n, tr in enumerate([trz, trn, tre]):
-                t = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
-                ax.plot(t, gain * tr.data + n, 'k', alpha=0.4)
+    # read the row data for display
+    ste = ocread(
+        thread_args.east_component_filename, format="MSEED",
+        starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
+    stn = ocread(
+        thread_args.north_component_filename, format="MSEED",
+        starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
+    stz = ocread(
+        thread_args.vertical_component_filename, format="MSEED",
+        starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
 
-            for n, st in enumerate([stp, sts]):
-                for tr in st:
-                    t = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
-                    bx.plot(t, tr.data, {0: "r", 1: "b"}[n], alpha=1.0)
+    if not len(stz) or not len(ste) or not len(stn):
+        raise Exception('was continue')
 
-            # add the picks
-            for ipick in ipicks:
+    # =============== DISPLAY
+    fig = plt.figure(figsize=(12, 4))
+    ax = fig.add_subplot(111)
+    bx = ax.twinx()
+    gain = 0.1
 
-                ax.plot(pick_data['picktime'][ipick] * np.ones(2),
-                        [-1, 3.],
-                        color={"P": "r", "S": "b"}[pick_data['phasename'][ipick]])
+    # === display the background traces + picks
+    for n, st in enumerate([stz, stn, ste]):
+        tr = st.merge(fill_value=0.)[0]
+        tr.detrend('linear')
+        tr.data /= tr.data.std()
 
-            ax.set_title(f"{network}.{station}.{location}.{channel[:2]}.{dataquality}")
-            ax.set_xlabel(f"time")
-            ax.set_yticks([0, 1, 2])
-            ax.set_yticklabels(["Z", "N", "E"])
-            ax.set_ylim(-1., 3.)
-            bx.set_ylim(-0.1, 1.1)
-            bx.set_ylabel("probability")
+        picktime = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
+        ax.plot(picktime, gain * tr.data + n, 'k', alpha=0.4)
 
-            # make one screenshot per pick, centered on the pick
-            for ipick in ipicks:
-                t = pick_data['picktime'][ipick]
-                figstart = t - 1500. * trz.stats.delta
-                figend = t + 1500. * trz.stats.delta
-                ax.set_xlim(figstart, figend)
+    for n, st in enumerate([stp, sts]):
+        for tr in st:
+            picktime = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
+            bx.plot(picktime, tr.data, {0: "r", 1: "b"}[n], alpha=1.0)
 
-                ax.figure.canvas.draw()
-                # ax.figure.show()
-                # input('pause')
+    # === add the picks
+    for ipick in ipicks:
+        ax.plot(thread_args.pick_data['picktime'][ipick] * np.ones(2),
+                [-1, 3.],
+                color={"P": "r", "S": "b"}[thread_args.pick_data['phasename'][ipick]])
 
-                figname = f"{network}.{station}.{location}.{channel[:2]}.{dataquality}.{ipick:04d}.png"
-                figname = os.path.join(figure_dir, figname)
-                print(figname)
-                fig.savefig(figname)
-            plt.close(fig)
+    ax.set_title(seedid)
+    ax.set_xlabel(f"time")
+    ax.set_yticks([0, 1, 2])
+    ax.set_yticklabels(["Z", "N", "E"])
+    fig.autofmt_xdate()
+    ax.set_ylim(-1., 3.)
+    bx.set_ylim(-0.1, 1.1)
+    bx.set_ylabel("probability")
+
+    # === slide along the plot, make one screenshot per pick, centered on the pick
+    for ipick in ipicks:
+        picktime = thread_args.pick_data['picktime'][ipick]
+        figstart = picktime - 1500. * stz[0].stats.delta
+        figend = picktime + 1500. * stz[0].stats.delta
+        ax.set_xlim(figstart, figend)
+        ax.figure.canvas.draw()
+
+        picktime = UTCDateTime(picktime)
+        figname = f"{seedid}.{picktime.year:04d}-{picktime.julday:03d}-{picktime.hour:02d}-{picktime.minute:02d}-{picktime.second:02d}.png"
+        figname = os.path.join(thread_args.figure_dir, figname)
+        print(figname)
+        fig.savefig(figname)
+
+    plt.close(fig)
 
 
 # ============ run
@@ -683,10 +726,11 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
     assert args.input_sds, "this function is only for input_sds"
 
     if args.plot_figure or figure_dir is not None:
-        raise NotImplementedError('was disabled in this version')
+        pass  # figure generation has been moved to another script for qc
 
     if log_dir is None:
         log_dir = os.path.join(args.log_dir, "pred", current_time)
+
     logging.info("Pred log: %s" % log_dir)
     logging.info("Dataset size: {}".format(data_reader.num_data))
     if not os.path.exists(log_dir):
@@ -727,9 +771,9 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
         saver.restore(sess, latest_check_point)
 
         if args.plot_figure:
-            num_pool = multiprocessing.cpu_count() * 2
+            num_pool = CPU_COUNT * 2
         elif args.save_result:
-            num_pool = multiprocessing.cpu_count()
+            num_pool = CPU_COUNT
         else:
             num_pool = 2
         pool = multiprocessing.Pool(num_pool)
@@ -807,15 +851,6 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
             if last_batch:
                 break
 
-        if args.save_result:
-            # load sample prediction and concatenate them into
-            # mseed files with the same structure as the input sds tree
-            logging.info('forming mseed files with the P and S prediction series...')
-            logging.warning('disabled for now. TODO : move this to a separate script')
-            # with h5py.File(hdf5_archive, 'r') as hdf5_pointer:
-            #     reform_mseed_files_from_predictions(
-            #         hdf5_pointer, result_dir)
-
         fclog.close()
         logger.info("Done")
 
@@ -860,7 +895,7 @@ if __name__ == '__main__':
         valid_list = None
         output_dir = os.path.join("demo", "sds", "output")
         plot_figure = False
-        save_result = True
+        save_result = False
         fpred = "picks"
 
     args = Args()
@@ -880,3 +915,7 @@ if __name__ == '__main__':
         input_length=args.input_length)
 
     pred_fn_sds(args, data_reader, log_dir=args.output_dir)
+
+    if args.plot_figure:
+        data_reader.show_sds_prediction_results(
+            log_dir=os.path.join("demo", "sds", "output"))
