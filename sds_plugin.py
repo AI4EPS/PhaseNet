@@ -296,12 +296,12 @@ class DataReaderSDS(DataReader):
                 filenames.append(filename)
         return filenames
 
-    def read_mseed(self,
-                   east_component_filename: str,
-                   north_component_filename: str,
-                   vertical_component_filename: str,
-                   window_starttime: UTCDateTime,
-                   window_endtime: UTCDateTime) -> (str, np.ndarray, np.ndarray):
+    def mseed_to_data_samples(self,
+                              east_component_filename: str,
+                              north_component_filename: str,
+                              vertical_component_filename: str,
+                              window_starttime: UTCDateTime,
+                              window_endtime: UTCDateTime) -> (str, np.ndarray, np.ndarray):
         """
         default mseed preprocessing here
         modif 06 apr 2020, M.L.
@@ -451,7 +451,7 @@ class DataReaderSDS(DataReader):
                     network, station, location, channel, dataquality, year, julday)
 
                 # read the files
-                seedid, data, timearray = self.read_mseed(
+                seedid, data, timearray = self.mseed_to_data_samples(
                     east_component_filename=filenames[0],  # east comp
                     north_component_filename=filenames[1],  # north comp
                     vertical_component_filename=filenames[2],  # vert comp
