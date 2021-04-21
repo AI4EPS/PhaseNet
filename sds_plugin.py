@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 from __future__ import division
-from typing import Union
 import glob, os, time, logging
 import warnings
 import numpy as np
@@ -213,6 +212,146 @@ def _postprocessing_thread_sds(i, pred, X, Y=None, itp=None, its=None, fname=Non
     # if (fname is not None) and (figure_dir is not None):
     #     plot_result_thread(i, pred, X, Y, itp, its, itp_pred, its_pred, fname, figure_dir)
     return [(itp_pred, prob_p), (its_pred, prob_s)]
+
+
+def _show_sds_prediction_results_thread(thread_args: dict):
+    """
+    the parallelized function called by DataReaderSDS.show_sds_prediction_results
+    thread_args : a dictionnary with all the arguments requested by this function
+                  see DataReaderSDS.show_sds_prediction_results
+    """
+
+    # convert the input dictionnary into a named tuple so that thread_args['x'] becomes thread_args.x
+    ThreadArgs = namedtuple("ThreadArgs", list(thread_args.keys()))
+    thread_args = ThreadArgs(**thread_args)
+
+    seedid = f"{thread_args.network}.{thread_args.station}." \
+             f"{thread_args.location}.{thread_args.channel[:2]}." \
+             f"{thread_args.dataquality}"
+
+    # ======== read the probability time series from hdf archive
+    with h5py.File(thread_args.hdf5_archive, 'r') as h5fid:
+
+        # find the probability time series in the archive, and store them into obspy Stream objects
+        stp, sts = Stream([]), Stream([])  # for P and S phases
+        for phasename in "PS":
+
+            # find the path inside the archive
+            sample_path = HDF5PATH.format(
+                network=thread_args.network, station=thread_args.station,
+                location=thread_args.location, channel2=thread_args.channel[:2],
+                dataquality=thread_args.dataquality,
+                year=thread_args.year, julday=thread_args.julday,
+                phasename=phasename)
+            try:
+                # loop over the samples of this path
+                for sample_name in h5fid[sample_path]:
+                    sample = h5fid[sample_path][sample_name]
+
+                    # pack the probability time series into a obspy Trace object
+                    # nb : proba was encoded as uint8, cast to float
+                    tr = Trace(data=np.array(sample[:], float) / 255., header=dict(**sample.attrs))
+                    if phasename == "P":
+                        stp.append(tr)
+                    elif phasename == "S":
+                        sts.append(tr)
+                    else:
+                        raise Exception
+            except KeyError:
+                warnings.warn(f'key {sample_path} not in {thread_args.hdf5_archive}')
+
+    # ======== find the picks that correspond to the current station
+    I = (thread_args.pick_data['seedid'] == seedid)  # mask running over the data from picks.csv
+
+    # refine to the mask for picks that fall in the current time window
+    I &= (thread_args.window_starttime.timestamp <= thread_args.pick_data['picktime'])
+    I &= (thread_args.window_endtime.timestamp >= thread_args.pick_data['picktime'])
+
+    if not I.any():
+        warnings.warn(
+            f"no picks found for the csv row : "
+            f"{seedid}"
+            f"{thread_args.year}.{thread_args.julday}"
+            f"{thread_args.window_starttime}-{thread_args.window_endtime}")
+        return
+
+    # convert mask array to indexs
+    ipicks = np.arange(len(I))[I]
+
+    # ======== read the seismic data
+    # read the data as they are sent to phasenet core
+    # seedid, data, timearray = data_reader.read_mseed(
+    #     east_component_filename, north_component_filename, vertical_component_filename,
+    #     window_starttime, window_endtime)
+
+    # read the row data for display, trim it to the current time window (up to full day)
+    ste = ocread(
+        thread_args.east_component_filename, format="MSEED",
+        starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
+    stn = ocread(
+        thread_args.north_component_filename, format="MSEED",
+        starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
+    stz = ocread(
+        thread_args.vertical_component_filename, format="MSEED",
+        starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
+
+    if not len(stz) or not len(ste) or not len(stn):
+        return None
+
+    # =============== DISPLAY
+    fig = plt.figure(figsize=(12, 4))
+    traces_ax = fig.add_subplot(111)
+    probability_ax = traces_ax.twinx()
+    gain = 0.1
+
+    # === display the background traces
+    for n, st in enumerate([stz, stn, ste]):
+        tr = st.merge(fill_value=0.)[0]
+        tr.detrend('linear')
+        tr.data /= tr.data.std()
+
+        picktime = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
+        traces_ax.plot(picktime, gain * tr.data + n, 'k', alpha=0.4)
+        # TODO : display time ticks
+
+    # === add the background probability time series for P and S
+    for n, st in enumerate([stp, sts]):
+        for tr in st:
+            picktime = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
+            probability_ax.plot(picktime, tr.data, {0: "r", 1: "b"}[n], alpha=1.0)
+
+    # === add the background picks
+    for ipick in ipicks:
+        traces_ax.plot(thread_args.pick_data['picktime'][ipick] * np.ones(2),
+                [-1, 3.],
+                color={"P": "r", "S": "b"}[thread_args.pick_data['phasename'][ipick]])
+
+    # === custom the background axes
+    traces_ax.set_title(seedid)
+    traces_ax.set_xlabel(f"time")
+    traces_ax.set_yticks([0, 1, 2])
+    traces_ax.set_yticklabels(["Z", "N", "E"])
+    fig.autofmt_xdate()
+    traces_ax.set_ylim(-1., 3.)
+    probability_ax.set_ylim(-0.1, 1.1)
+    probability_ax.set_ylabel("probability")
+
+    # === now slide along the plot, make one screenshot per pick, centered on the pick
+    for ipick in ipicks:
+        picktime = thread_args.pick_data['picktime'][ipick]
+        figstart = picktime - 1500. * stz[0].stats.delta
+        figend = picktime + 1500. * stz[0].stats.delta
+        traces_ax.set_xlim(figstart, figend)
+        traces_ax.figure.canvas.draw()
+
+        # save the current view into a png file
+        picktime = UTCDateTime(picktime)
+        figname = f"{seedid}.{picktime.year:04d}-{picktime.julday:03d}-{picktime.hour:02d}-{picktime.minute:02d}-{picktime.second:02d}.png"
+        figname = os.path.join(thread_args.figure_dir, figname)
+        print(figname)
+        fig.savefig(figname)
+
+    plt.close(fig)
 
 
 # ============ data_reader
@@ -615,146 +754,6 @@ class DataReaderSDS(DataReader):
         # run in parallel : 1 thread = 1 row of the csv file
         with multiprocessing.Pool(CPU_COUNT) as p:
             p.map(_show_sds_prediction_results_thread, thread_args_list)
-
-
-def _show_sds_prediction_results_thread(thread_args: dict):
-    """
-    the parallelized function called by DataReaderSDS.show_sds_prediction_results
-    thread_args : a dictionnary with all the arguments requested by this function
-                  see DataReaderSDS.show_sds_prediction_results
-    """
-
-    # convert the input dictionnary into a named tuple so that thread_args['x'] becomes thread_args.x
-    ThreadArgs = namedtuple("ThreadArgs", list(thread_args.keys()))
-    thread_args = ThreadArgs(**thread_args)
-
-    seedid = f"{thread_args.network}.{thread_args.station}." \
-             f"{thread_args.location}.{thread_args.channel[:2]}." \
-             f"{thread_args.dataquality}"
-
-    # ======== read the probability time series from hdf archive
-    with h5py.File(thread_args.hdf5_archive, 'r') as h5fid:
-
-        # find the probability time series in the archive, and store them into obspy Stream objects
-        stp, sts = Stream([]), Stream([])  # for P and S phases
-        for phasename in "PS":
-
-            # find the path inside the archive
-            sample_path = HDF5PATH.format(
-                network=thread_args.network, station=thread_args.station,
-                location=thread_args.location, channel2=thread_args.channel[:2],
-                dataquality=thread_args.dataquality,
-                year=thread_args.year, julday=thread_args.julday,
-                phasename=phasename)
-            try:
-                # loop over the samples of this path
-                for sample_name in h5fid[sample_path]:
-                    sample = h5fid[sample_path][sample_name]
-
-                    # pack the probability time series into a obspy Trace object
-                    # nb : proba was encoded as uint8, cast to float
-                    tr = Trace(data=np.array(sample[:], float) / 255., header=dict(**sample.attrs))
-                    if phasename == "P":
-                        stp.append(tr)
-                    elif phasename == "S":
-                        sts.append(tr)
-                    else:
-                        raise Exception
-            except KeyError:
-                warnings.warn(f'key {sample_path} not in {thread_args.hdf5_archive}')
-
-    # ======== find the picks that correspond to the current station
-    I = (thread_args.pick_data['seedid'] == seedid)  # mask running over the data from picks.csv
-
-    # refine to the mask for picks that fall in the current time window
-    I &= (thread_args.window_starttime.timestamp <= thread_args.pick_data['picktime'])
-    I &= (thread_args.window_endtime.timestamp >= thread_args.pick_data['picktime'])
-
-    if not I.any():
-        warnings.warn(
-            f"no picks found for the csv row : "
-            f"{seedid}"
-            f"{thread_args.year}.{thread_args.julday}"
-            f"{thread_args.window_starttime}-{thread_args.window_endtime}")
-        return
-
-    # convert mask array to indexs
-    ipicks = np.arange(len(I))[I]
-
-    # ======== read the seismic data
-    # read the data as they are sent to phasenet core
-    # seedid, data, timearray = data_reader.read_mseed(
-    #     east_component_filename, north_component_filename, vertical_component_filename,
-    #     window_starttime, window_endtime)
-
-    # read the row data for display, trim it to the current time window (up to full day)
-    ste = ocread(
-        thread_args.east_component_filename, format="MSEED",
-        starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
-    stn = ocread(
-        thread_args.north_component_filename, format="MSEED",
-        starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
-    stz = ocread(
-        thread_args.vertical_component_filename, format="MSEED",
-        starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
-
-    if not len(stz) or not len(ste) or not len(stn):
-        return None
-
-    # =============== DISPLAY
-    fig = plt.figure(figsize=(12, 4))
-    traces_ax = fig.add_subplot(111)
-    probability_ax = traces_ax.twinx()
-    gain = 0.1
-
-    # === display the background traces
-    for n, st in enumerate([stz, stn, ste]):
-        tr = st.merge(fill_value=0.)[0]
-        tr.detrend('linear')
-        tr.data /= tr.data.std()
-
-        picktime = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
-        traces_ax.plot(picktime, gain * tr.data + n, 'k', alpha=0.4)
-        # TODO : display time ticks
-
-    # === add the background probability time series for P and S
-    for n, st in enumerate([stp, sts]):
-        for tr in st:
-            picktime = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
-            probability_ax.plot(picktime, tr.data, {0: "r", 1: "b"}[n], alpha=1.0)
-
-    # === add the background picks
-    for ipick in ipicks:
-        traces_ax.plot(thread_args.pick_data['picktime'][ipick] * np.ones(2),
-                [-1, 3.],
-                color={"P": "r", "S": "b"}[thread_args.pick_data['phasename'][ipick]])
-
-    # === custom the background axes
-    traces_ax.set_title(seedid)
-    traces_ax.set_xlabel(f"time")
-    traces_ax.set_yticks([0, 1, 2])
-    traces_ax.set_yticklabels(["Z", "N", "E"])
-    fig.autofmt_xdate()
-    traces_ax.set_ylim(-1., 3.)
-    probability_ax.set_ylim(-0.1, 1.1)
-    probability_ax.set_ylabel("probability")
-
-    # === now slide along the plot, make one screenshot per pick, centered on the pick
-    for ipick in ipicks:
-        picktime = thread_args.pick_data['picktime'][ipick]
-        figstart = picktime - 1500. * stz[0].stats.delta
-        figend = picktime + 1500. * stz[0].stats.delta
-        traces_ax.set_xlim(figstart, figend)
-        traces_ax.figure.canvas.draw()
-
-        # save the current view into a png file
-        picktime = UTCDateTime(picktime)
-        figname = f"{seedid}.{picktime.year:04d}-{picktime.julday:03d}-{picktime.hour:02d}-{picktime.minute:02d}-{picktime.second:02d}.png"
-        figname = os.path.join(thread_args.figure_dir, figname)
-        print(figname)
-        fig.savefig(figname)
-
-    plt.close(fig)
 
 
 # ============ run
