@@ -1,6 +1,6 @@
 import os
 import matplotlib.pyplot as plt
-from sds_plugin import show_sds_prediction_results, DataReaderSDS
+from sds_plugin import DataReaderSDS
 
 
 data_reader = DataReaderSDS(
@@ -10,8 +10,5 @@ data_reader = DataReaderSDS(
     coord=None,
     input_length=None)
 
-fig = plt.figure(figsize=(12, 4))
-show_sds_prediction_results(
-    fig=fig,
-    data_reader=data_reader,
+data_reader.show_sds_prediction_results(
     log_dir=os.path.join("demo", "sds", "output"))
