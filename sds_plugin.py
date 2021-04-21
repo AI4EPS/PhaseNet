@@ -23,12 +23,30 @@ tf.compat.v1.disable_eager_execution()
 pd.options.mode.chained_assignment = None
 
 
-"""
-The aim of this plugin is to call Phasenet in prediction mode on a large SDS data structure
-For giant datasets, the packing of 3 components waveforms into one single file can be difficult to implement
-In this plugin, we propose to access the 3-component waveforms directly as they are stored in a SDS (seiscomp like)
-data structure.
+""" 
+A plugin to call phasenet on a large SDS data structure 
 
+:author: Maximilien Lehujeur, Univ. Gustave Eiffel, 21/04/21 
+
+The aim of this plugin is to call Phasenet in prediction mode on a large SDS data structure
+For giant datasets, the packing of 3 components waveforms into single files can be difficult to implement
+In this plugin, we propose to access the 3-component waveforms 
+directly as they are stored in a SDS (seiscomp like) data structure.
+
+The input of this plugin is a csv file listing the stations and time windows to explore
+The outputs are a picks.csv file with picks provided in absolute time (not sample indexs)
+It can also produce an hdf5 archive with the prediction times 
+series organized in a way similar to the SDS structure
+It is also possible to generate figures for visual QC of the phasenet picks 
+together with the waveforms and probablity time series.
+ 
+- All the changes have been restricted to this very file to make sure that it 
+does not interfere with the other components of the program.
+- The plugin does not require new packages
+- A dataset has been added to the "demo" directory to test this plugin
+- The plugin is not yet interfaced in the main run.py program. 
+  To lauch it, execute this file in the Phasenet environment (see Readme.md).
+  See the __main__ section at the bottom of this file.
 
 """
 
