@@ -906,9 +906,6 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
 if __name__ == '__main__':
     """
     DEMO section
-    The code has not been inserted in the main file (run.py)
-    To run this plugin on the demo data, call this file >> python sds_plugin.py
-    
     """
 
     # Simulate command line arguments
