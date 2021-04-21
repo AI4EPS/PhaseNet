@@ -5,7 +5,76 @@ from obspy.core import Stream, read as ocread, UTCDateTime
 import pandas as pd
 import h5py
 from obspy.core import Trace
+from sds_plugin import show_sds_prediction_results, DataReaderSDS
 
+
+class Args(object):
+    # generate a fake argument object for testing
+    # reproduce the defaults options after run.py
+    mode = "pred"
+    epochs = 100
+    batch_size = 20
+    learning_rate = 0.01
+    decay_step = -1
+    decay_rate = 0.9
+    momentum = 0.9
+    filters_root = 8
+    depth = 5
+    kernel_size = [7, 1]
+    pool_size = [4, 1]
+    drop_rate = 0
+    dilation_rate = [1, 1]
+    loss_type = "cross_entropy"
+    weight_decay = 0
+    optimizer = 'adam'
+    summary = True
+    class_weights = [1, 1, 1]
+    log_dir = None
+    model_dir = os.path.join("model", "190703-214543")
+    num_plots = 10
+    tp_prob = 0.3
+    ts_prob = 0.3
+    input_length = None
+    input_mseed = False
+    input_sds = True
+    data_dir = os.path.join("demo", "sds", "data")
+    data_list = os.path.join("demo", "sds", "fname_sds.csv")
+    train_dir = None
+    valid_dir = None
+    valid_list = None
+    output_dir = os.path.join("demo", "sds", "output")
+    plot_figure = False
+    save_result = True
+    fpred = "picks"
+
+
+args = Args()
+# assert os.path.isdir(args.model_dir)
+# assert os.path.isdir(args.data_dir)
+# assert os.path.isfile(args.data_list)
+# assert not os.path.isdir(args.output_dir), f"output dir exists already {args.output_dir}"
+
+# logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+# coord = tf.train.Coordinator()
+
+data_reader = DataReaderSDS(
+    data_dir=args.data_dir,
+    data_list=args.data_list,
+    queue_size=args.batch_size * 10,
+    coord=None,
+    input_length=args.input_length)
+
+
+fig = plt.figure(figsize=(12, 4))
+show_sds_prediction_results(fig=fig, data_reader=data_reader, log_dir=args.output_dir)
+plt.show()
+
+
+exit()
+show_sds_results(data_list='./demo/sds/fname_sds.csv')
+
+
+# exit()
 stz = ocread('./demo/sds/data/2000/XX/AAAA/EHZ.D/XX.AAAA.00.EHZ.D.2000.223')
 stn = ocread('./demo/sds/data/2000/XX/AAAA/EHZ.D/XX.AAAA.00.EHZ.D.2000.223')
 ste = ocread('./demo/sds/data/2000/XX/AAAA/EHZ.D/XX.AAAA.00.EHZ.D.2000.223')

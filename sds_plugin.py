@@ -40,6 +40,9 @@ SDSPATH = os.path.join(
 # first part of the sample name
 SEEDID = "{network:s}.{station:s}.{location:s}.{channel2:2s}.{dataquality:1s}"
 
+# location of the sample results inside the hdf5 archive
+HDF5PATH = "{year:04d}/{network:s}/{station:s}/{channel2:2s}{phasename:1s}.{dataquality:1s}/{julday}"
+
 # use a more detailed name for each sample to preserve the time information
 SAMPLENAME = \
     "{seedid:s}_{year:04d}-{julday:03d}-{hour:02d}-{minute:02d}-{second:09.6f}_" \
@@ -86,9 +89,6 @@ def _save_predictions_to_hdf5_archive(hdf5_pointer, fname_batch, pred_batch):
     :param fname_batch:
     :param pred_batch:
     """
-
-    # location of the sample results inside the hdf5 archive
-    HDF5PATH = "{year:04d}/{network:s}/{station:s}/{channel2:2s}{phasename:1s}.{dataquality:1s}/{julday}"
 
     for i in range(len(fname_batch)):
         seedid, sample_start, sampling_rate, sample_npts, \
@@ -138,7 +138,7 @@ def _detect_peaks_thread_sds(i, pred, fname=None, result_dir=None, args=None):
     customized for sds
     """
     input_length = pred.shape[1]
-    nedge = input_length // 4  # do not pick maxima in the 25% edge zone each side
+    nedge = input_length // 4  # do not pick maxima in the 25% edge zone each side to avoid repeated picks
 
     if args is None:
         itp = detect_peaks(pred[i, nedge:-nedge, 0, 1], mph=0.5, mpd=0.5 / Config().dt, show=False)
@@ -249,9 +249,11 @@ class DataReaderSDS(DataReader):
         output = self.queue.dequeue_up_to(num_elements)
         return output
 
-    def find_filenames(self, network: str, station: str, location: str, channel: str, dataquality: str, year: int, julday: int):
+    def find_filenames(self, network: str, station: str, location: str, channel: str, dataquality: str,
+                       year: int, julday: int) -> list:
         """
         find a file name in a SDS data structure
+        return 3 file names in a list [east_component_filename, north_component_filename, vertical_component_filename]
         """
 
         if location in ["*", "??", ""]:
@@ -297,7 +299,12 @@ class DataReaderSDS(DataReader):
                 filenames.append(filename)
         return filenames
 
-    def read_mseed(self, efile, nfile, zfile, starttime, endtime):
+    def read_mseed(self,
+                   east_component_filename: str,
+                   north_component_filename: str,
+                   vertical_component_filename: str,
+                   window_starttime: UTCDateTime,
+                   window_endtime: UTCDateTime) -> (str, np.ndarray, np.ndarray):
         """
         default mseed preprocessing here
         modif 06 apr 2020, M.L.
@@ -306,9 +313,9 @@ class DataReaderSDS(DataReader):
             (indexs (itp, its) were not accurate because the data is transformed by obspy.merge)
 
         """
-        estream = ocread(efile, format="MSEED", starttime=starttime, endtime=endtime)
-        nstream = ocread(nfile, format="MSEED", starttime=starttime, endtime=endtime)
-        zstream = ocread(zfile, format="MSEED", starttime=starttime, endtime=endtime)
+        estream = ocread(east_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
+        nstream = ocread(north_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
+        zstream = ocread(vertical_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
 
         for st, expected_comp in zip([estream, nstream, zstream], 'ENZ'):
             if not len(st):
@@ -323,6 +330,9 @@ class DataReaderSDS(DataReader):
                         no_filter=False,
                         strict_length=False)
 
+                    if tr.stats.sampling_rate != self.config.sampling_rate:
+                        raise Exception('obspy resample failed')
+
                 if tr.stats.channel[2] != expected_comp:
                     raise ValueError(
                         f'Channel was {tr.stats.channel} '
@@ -336,7 +346,7 @@ class DataReaderSDS(DataReader):
             if not len(st) == 1:
                 raise ValueError(f'obspy merge failed {len(st)}')  # QC
 
-            st.trim(starttime, endtime, pad=True, fill_value=0)
+            st.trim(window_starttime, window_endtime, pad=True, fill_value=0)
 
             if not st[0].stats.sampling_rate == estream[0].stats.sampling_rate:
                 raise ValueError('inconsistent sampling rates')  # QC
@@ -392,78 +402,100 @@ class DataReaderSDS(DataReader):
 
         # depths become the window numbers
         # lines become the samples inside the windows
-        # columns become the component number
+        # columns become the component number (e,n,z)
         # then a 1d axis is added in 2nd dimension
         data = data.transpose(1, 2, 0)[:, :, np.newaxis, :]
 
         return seedid, data, timearray
+
+    def get_csv_row(self, row_index: int) -> (str, str, str, str, str, int, int, UTCDateTime, UTCDateTime):
+        """get station indications from csv, may include wildcards"""
+
+        network = str(self.data_list.iloc[row_index]['network'])  # e.g. "FR"
+        station = str(self.data_list.iloc[row_index]['station'])  # e.g. "ABC" or "ABCD" or "ABCDE"
+        location = str(self.data_list.iloc[row_index]['location'])  # e.g. "00" or "*" or ""
+        dataquality = str(self.data_list.iloc[row_index]['dataquality'])  # e.g. "D" or "?"
+        channel = str(self.data_list.iloc[row_index]['channel'])  # e.g. "EH*" or "EH?" or "HH?" ...
+        year = int(self.data_list.iloc[row_index]['year'])  # e.g. 2014
+        julday = int(self.data_list.iloc[row_index]['julday'])  # e.g. 14
+        starttime_in_day_sec = float(self.data_list.iloc[row_index]['starttime_in_day_sec'])  # e.g. 0.
+        endtime_in_day_sec = float(self.data_list.iloc[row_index]['endtime_in_day_sec'])  # e.g. 86400. (24 * 60 * 60)
+
+        # warning blank fields in csv will correspond to "nan" string here
+        if location == "nan":
+            location = ""
+
+        if not 0. <= starttime_in_day_sec < endtime_in_day_sec <= 24 * 60 * 60:
+            raise ValueError(
+                f' I need 0. '
+                f'<= starttime_in_day_sec ({starttime_in_day_sec}) '
+                f'< endtime_in_day_sec ({endtime_in_day_sec}) <= 24. * 60. * 60.')
+
+        # define the time window to read here
+        window_starttime = UTCDateTime(year=year, julday=julday, hour=0) + starttime_in_day_sec
+        window_endtime = UTCDateTime(year=year, julday=julday, hour=0) + endtime_in_day_sec
+
+        return network, station, location, dataquality, channel, year, julday, window_starttime, window_endtime
 
     def thread_main(self, sess, n_threads=1, start=0):
 
         for i in range(start, self.num_data, n_threads):
 
             # ======== this section must not fail due to reading errors
-            # get station indications from csv, may include wildcards
-            network     = str(self.data_list.iloc[i]['network'])       # e.g. "FR"
-            station     = str(self.data_list.iloc[i]['station'])       # e.g. "ABC" or "ABCD" or "ABCDE"
-            location    = str(self.data_list.iloc[i]['location'])      # e.g. "00" or "*" or ""
-            dataquality = str(self.data_list.iloc[i]['dataquality'])   # e.g. "D" or "?"
-            channel     = str(self.data_list.iloc[i]['channel'])       # e.g. "EH*" or "EH?" or "HH?" ...
-            year        = int(self.data_list.iloc[i]['year'])          # e.g. 2014
-            julday      = int(self.data_list.iloc[i]['julday'])        # e.g. 14
-            starttime_in_day_sec = float(self.data_list.iloc[i]['starttime_in_day_sec'])  # e.g. 0.
-            endtime_in_day_sec = float(self.data_list.iloc[i]['endtime_in_day_sec'])  # e.g. 86400. (24 * 60 * 60)
-
-            # warning blank fields in csv will correspond to "nan" string here
-            if location == "nan":
-                location = ""
+            network, station, location, dataquality, channel, \
+                year, julday, \
+                window_starttime, window_endtime = \
+                self.get_csv_row(row_index=i)
 
             # ======== this section will ignore reading errors with a warning message
             try:
-
                 # look for 3 component data files according to csv data
                 filenames = self.find_filenames(
                     network, station, location, channel, dataquality, year, julday)
 
-                if not 0. <= starttime_in_day_sec < endtime_in_day_sec <= 24 * 60 * 60:
-                    raise ValueError(
-                        f' I need 0. '
-                        f'<= starttime_in_day_sec ({starttime_in_day_sec}) '
-                        f'< endtime_in_day_sec ({endtime_in_day_sec}) <= 24. * 60. * 60.')
-
-                # define the time window to read here
-                starttime = UTCDateTime(year=year, julday=julday, hour=0) + starttime_in_day_sec
-                endtime = UTCDateTime(year=year, julday=julday, hour=0) + endtime_in_day_sec
-
                 # read the files
                 seedid, data, timearray = self.read_mseed(
-                    efile=filenames[0],  # east comp
-                    nfile=filenames[1],  # north comp
-                    zfile=filenames[2],  # vert comp
-                    starttime=starttime,
-                    endtime=endtime)
+                    east_component_filename=filenames[0],  # east comp
+                    north_component_filename=filenames[1],  # north comp
+                    vertical_component_filename=filenames[2],  # vert comp
+                    window_starttime=window_starttime,
+                    window_endtime=window_endtime)
 
             except (IOError, ValueError, TypeError) as e:
-                # an error occured, notify user but do not interrupt the process
-                logger.warning(f"WARNING : reading data for "
-                               f"network:{network} station:{station} "
-                               f"location:{location} channel:{channel} "
-                               f"year:{year} julday:{julday}"
-                               f"starttime_in_day_sec:{starttime_in_day_sec} "
-                               f"endtime_in_day_sec:{endtime_in_day_sec}"
-                               f" failed (reason:{str(e)})")
+                # an error occured, notify user but do not interrupt the process => replace by exception to debug
+                warining_message = \
+                    f"WARNING : reading data " \
+                    f"network:{network} station:{station} " \
+                    f"location:{location} channel:{channel} " \
+                    f"year:{year} julday:{julday}" \
+                    f"window_starttime:{str(window_starttime)} " \
+                    f"window_endtime:{str(window_endtime)}" \
+                    f" failed (reason:{str(e)})"
+
+                logger.warning(warining_message)
                 continue
 
             except BaseException as e:
-                logger.error('please never skip Exception or BaseException, '
-                      'add the following type to the except close above : '
-                      '{}'.format(e.__class__.__name__))
+                logger.error(
+                    'Exception or BaseException should not be skept, '      
+                    'add the following type to the exception list above if appropriate '
+                    '{}'.format(e.__class__.__name__))
                 raise e
 
             # ========
-            for i in tqdm(
-                    range(data.shape[0]),
-                    desc=f"{seedid}.{year}.{julday} [{starttime_in_day_sec}-{endtime_in_day_sec}]s"):
+            thread_description = \
+                f"{seedid:s}.{year:04d}.{julday:03d} " \
+                f"[{window_starttime.hour:02d}:" \
+                f"{window_starttime.minute:02d}:" \
+                f"{window_starttime.second:02d}:" \
+                f"{window_starttime.microsecond*1e-6:06.0f}-" \
+                f"{window_endtime.hour:02d}:" \
+                f"{window_endtime.minute:02d}:" \
+                f"{window_endtime.second:02d}:" \
+                f"{window_endtime.microsecond*1e-6:06.0f}]"
+
+            for i in tqdm(range(data.shape[0]), desc=thread_description):
+
                 sample_starttime_timestamp = timearray[i]
                 sample_starttime = UTCDateTime(sample_starttime_timestamp)
 
@@ -485,11 +517,147 @@ class DataReaderSDS(DataReader):
                 sess.run(self.enqueue,
                          feed_dict={
                              self.sample_placeholder: sample,
-                             # self.fname_placeholder: f"{seedid}.{year}.{julday}_{i * self.input_length}"})
                              self.fname_placeholder: sample_name})
 
 
 # ============ run
+def show_sds_prediction_results(fig, data_reader: DataReaderSDS, log_dir=None):
+    assert os.path.isdir(log_dir)
+    hdf5_archive = os.path.join(log_dir, 'results', "sample_results.hdf5")
+    picks_file = os.path.join(log_dir, "picks.csv")
+    figure_dir = os.path.join(log_dir, 'figures')
+    if not os.path.isdir(figure_dir):
+        os.mkdir(figure_dir)
+
+    assert os.path.isdir(figure_dir)
+    assert os.path.isfile(picks_file)
+    assert os.path.isfile(hdf5_archive)
+
+    # read picks.csv
+    A = np.genfromtxt(picks_file, skip_header=1, delimiter=',', dtype=str)
+    pick_data = {}
+    pick_data['seedid'] = A[:, 0]
+    pick_data['phasename'] = A[:, 1]
+    pick_data['picktime'] = np.asarray([UTCDateTime(_).timestamp for _ in A[:, 2]], float)
+    pick_data['probability'] = np.asarray(A[:, 3], float)
+
+
+    fig.clf()
+    ax = fig.add_subplot(111)
+    bx = ax.twinx()
+    gain = 0.1
+
+    with h5py.File(hdf5_archive, 'r') as h5fid:
+        for row_index in range(len(data_reader.data_list)):
+
+            # loop over rows in the input csv file
+            network, station, location, dataquality, channel, \
+                year, julday, \
+                window_starttime, window_endtime = \
+                data_reader.get_csv_row(row_index=row_index)
+
+            # find the picks that correspond to the current station
+            I = (pick_data['seedid'] == f"{network}.{station}.{location}.{channel[:2]}.{dataquality}")
+
+            # find the picks that fall in the current time window
+            I &= (window_starttime.timestamp <= pick_data['picktime'])
+            I &= (window_endtime.timestamp >= pick_data['picktime'])
+
+            if not I.any():
+                continue
+
+            # convert mask to indexs
+            ipicks = np.arange(len(I))[I]
+
+            # find the probability data
+            from obspy.core import Trace, Stream
+            stp, sts = Stream([]), Stream([])
+            for phasename in "PS":
+                sample_path = HDF5PATH.format(
+                    network=network, station=station,
+                    location=location, channel2=channel[:2],
+                    dataquality=dataquality,
+                    year=year, julday=julday,
+                    phasename=phasename)
+
+                for sample_name in h5fid[sample_path]:
+                    sample = h5fid[sample_path][sample_name]
+                    tr = Trace(data=np.array(sample[:], float) / 255., header=dict(**sample.attrs))
+                    if phasename == "P":
+                        stp.append(tr)
+                    elif phasename == "S":
+                        sts.append(tr)
+                    else:
+                        raise Exception
+
+            # find the seismic datafiles
+            east_component_filename, north_component_filename, vertical_component_filename = \
+                data_reader.find_filenames(
+                network, station, location, channel, dataquality, year, julday)
+
+            # seedid, data, timearray = data_reader.read_mseed(
+            #     east_component_filename, north_component_filename, vertical_component_filename,
+            #     window_starttime, window_endtime)
+
+            # read the row data
+            ste = ocread(east_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
+            stn = ocread(north_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
+            stz = ocread(vertical_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
+            if not len(stz) or not len(ste) or not len(stn):
+                continue
+
+            # preprocessing for display
+            def stpro(st):
+                tr = st.merge(fill_value=0.)[0]
+                tr.detrend('linear')
+                tr.data /= tr.data.std()
+                return tr
+            trz, trn, tre = [stpro(st) for st in [stz, stn, ste]]
+
+            # display the background traces
+            ax.cla()
+            bx.cla()
+            for n, tr in enumerate([trz, trn, tre]):
+                t = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
+                ax.plot(t, gain * tr.data + n, 'k', alpha=0.4)
+
+            for n, st in enumerate([stp, sts]):
+                for tr in st:
+                    t = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
+                    bx.plot(t, tr.data, {0: "r", 1: "b"}[n], alpha=1.0)
+
+            # add the picks
+            for ipick in ipicks:
+
+                ax.plot(pick_data['picktime'][ipick] * np.ones(2),
+                        [-1, 3.],
+                        color={"P": "r", "S": "b"}[pick_data['phasename'][ipick]])
+
+            ax.set_title(f"{network}.{station}.{location}.{channel[:2]}.{dataquality}")
+            ax.set_xlabel(f"time")
+            ax.set_yticks([0, 1, 2])
+            ax.set_yticklabels(["Z", "N", "E"])
+            ax.set_ylim(-1., 3.)
+            bx.set_ylim(-0.1, 1.1)
+            bx.set_ylabel("probability")
+
+            # make one plot per pick, centered on the pick
+            for ipick in ipicks:
+                t = pick_data['picktime'][ipick]
+                figstart = t - 1500. * trz.stats.delta
+                figend = t + 1500. * trz.stats.delta
+                ax.set_xlim(figstart, figend)
+
+                ax.figure.canvas.draw()
+                # ax.figure.show()
+                # input('pause')
+
+                figname = f"{network}.{station}.{location}.{channel[:2]}.{dataquality}.{ipick:04d}.png"
+                figname = os.path.join(figure_dir, figname)
+                print(figname)
+                ax.figure.savefig(figname)
+
+
 def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=None, log_dir=None):
     """
     prediction function, modified after pred_fn for SDS data
@@ -631,11 +799,10 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
             # load sample prediction and concatenate them into
             # mseed files with the same structure as the input sds tree
             logging.info('forming mseed files with the P and S prediction series...')
-            logging.warning('disabled for now. TODO : move this to a seaparte script')
+            logging.warning('disabled for now. TODO : move this to a separate script')
             # with h5py.File(hdf5_archive, 'r') as hdf5_pointer:
             #     reform_mseed_files_from_predictions(
             #         hdf5_pointer, result_dir)
-
 
         fclog.close()
         logger.info("Done")
