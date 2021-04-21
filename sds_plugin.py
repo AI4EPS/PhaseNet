@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import division
 import glob, os, time, logging
+import warnings
 import numpy as np
 import pandas as pd
 import h5py
@@ -8,8 +9,7 @@ import tensorflow as tf
 import multiprocessing
 from tqdm import tqdm
 from functools import partial
-from obspy.core import UTCDateTime, read as ocread
-
+from obspy.core import UTCDateTime, read as ocread, Trace, Stream
 from data_reader import DataReader, Config
 from run import set_config
 from model import Model
@@ -244,10 +244,6 @@ class DataReaderSDS(DataReader):
 
         self.enqueue = self.queue.enqueue([self.sample_placeholder,
                                            self.fname_placeholder])
-
-    def dequeue(self, num_elements):
-        output = self.queue.dequeue_up_to(num_elements)
-        return output
 
     def find_filenames(self, network: str, station: str, location: str, channel: str, dataquality: str,
                        year: int, julday: int) -> list:
@@ -541,7 +537,6 @@ def show_sds_prediction_results(fig, data_reader: DataReaderSDS, log_dir=None):
     pick_data['picktime'] = np.asarray([UTCDateTime(_).timestamp for _ in A[:, 2]], float)
     pick_data['probability'] = np.asarray(A[:, 3], float)
 
-
     fig.clf()
     ax = fig.add_subplot(111)
     bx = ax.twinx()
@@ -549,8 +544,9 @@ def show_sds_prediction_results(fig, data_reader: DataReaderSDS, log_dir=None):
 
     with h5py.File(hdf5_archive, 'r') as h5fid:
         for row_index in range(len(data_reader.data_list)):
-
             # loop over rows in the input csv file
+
+            # read the row of the csv file
             network, station, location, dataquality, channel, \
                 year, julday, \
                 window_starttime, window_endtime = \
@@ -559,18 +555,22 @@ def show_sds_prediction_results(fig, data_reader: DataReaderSDS, log_dir=None):
             # find the picks that correspond to the current station
             I = (pick_data['seedid'] == f"{network}.{station}.{location}.{channel[:2]}.{dataquality}")
 
-            # find the picks that fall in the current time window
+            # refine to the picks that fall in the current time window
             I &= (window_starttime.timestamp <= pick_data['picktime'])
             I &= (window_endtime.timestamp >= pick_data['picktime'])
 
             if not I.any():
+                warnings.warn(
+                    f"no picks found for the csv row : "
+                    f"{network}.{station}.{location}.{channel[:2]}.{dataquality}"
+                    f"{year}.{julday}"
+                    f"{window_starttime}-{window_endtime}")
                 continue
 
             # convert mask to indexs
             ipicks = np.arange(len(I))[I]
 
             # find the probability data
-            from obspy.core import Trace, Stream
             stp, sts = Stream([]), Stream([])
             for phasename in "PS":
                 sample_path = HDF5PATH.format(
@@ -595,11 +595,12 @@ def show_sds_prediction_results(fig, data_reader: DataReaderSDS, log_dir=None):
                 data_reader.find_filenames(
                 network, station, location, channel, dataquality, year, julday)
 
+            # read the data as they are sent to phasenet core
             # seedid, data, timearray = data_reader.read_mseed(
             #     east_component_filename, north_component_filename, vertical_component_filename,
             #     window_starttime, window_endtime)
 
-            # read the row data
+            # read the row data for display
             ste = ocread(east_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
             stn = ocread(north_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
             stz = ocread(vertical_component_filename, format="MSEED", starttime=window_starttime, endtime=window_endtime)
@@ -641,7 +642,7 @@ def show_sds_prediction_results(fig, data_reader: DataReaderSDS, log_dir=None):
             bx.set_ylim(-0.1, 1.1)
             bx.set_ylabel("probability")
 
-            # make one plot per pick, centered on the pick
+            # make one screenshot per pick, centered on the pick
             for ipick in ipicks:
                 t = pick_data['picktime'][ipick]
                 figstart = t - 1500. * trz.stats.delta
