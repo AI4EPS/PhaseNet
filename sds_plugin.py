@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import division
+from typing import Union
 import glob, os, time, logging
 import warnings
 import numpy as np
@@ -55,8 +56,11 @@ SAMPLENAME = \
 
 
 # ============ utils
-def _decode_sample_name(sample_name: str):
-    """get meta data from batch name formatted as defined by global variable SAMPLENAME"""
+def _decode_sample_name(sample_name: str) -> (str, UTCDateTime, float, int, tuple):
+    """
+    every batch is depicted by its sample_name formatted as defined by the global variable SAMPLENAME
+    this function extract the meta data from the sample_name
+    """
     seedid: str
     sample_start: UTCDateTime
     sampling_rate: float
@@ -85,19 +89,26 @@ def _decode_sample_name(sample_name: str):
     sample_npts = int(sample_npts_s.split('NPTS')[-1])
     network, station, location, channel2, dataquality = seedid.split('.')
     seedid_details = (network, station, location, channel2, dataquality)
+
     return seedid, sample_start, sampling_rate, sample_npts, seedid_details
 
 
-def _save_predictions_to_hdf5_archive(hdf5_pointer, fname_batch, pred_batch):
+def _save_predictions_to_hdf5_archive(hdf5_pointer: h5py._hl.files.File, fname_batch: np.ndarray, pred_batch):
     """
-    :param hdf5_pointer:
-    :param fname_batch:
-    :param pred_batch:
+    store the prediction probability time series into a hdf5 archive for later use
+    inside the archive:
+        the time series are stored under a path name that mimics the SDS data structure
+        I store the probablity time series excluding the 25% sides to cancel the effect of the 50% overlap
+
+    :param hdf5_pointer: an open hdf5 file
+    :param fname_batch: an array of bytes objects corresponding to the sample batches (utf-8)
+    :param pred_batch: a numpy array with the probability time series
+    :return : None
     """
 
     for i in range(len(fname_batch)):
         seedid, sample_start, sampling_rate, sample_npts, \
-        (network, station, location, channel2, dataquality) = \
+            (network, station, location, channel2, dataquality) = \
             _decode_sample_name(sample_name=fname_batch[i].decode())
 
         sample_mid = sample_start + 0.5 * (sample_npts - 1) / sampling_rate
@@ -140,7 +151,7 @@ def _save_predictions_to_hdf5_archive(hdf5_pointer, fname_batch, pred_batch):
 
 def _detect_peaks_thread_sds(i, pred, fname=None, result_dir=None, args=None):
     """
-    customized for sds
+    same as the original function _detect_peaks_thread_sds customized for this sds plugin
     """
     input_length = pred.shape[1]
     nedge = input_length // 4  # do not pick maxima in the 25% edge zone each side to avoid repeated picks
@@ -176,15 +187,7 @@ def _detect_peaks_thread_sds(i, pred, fname=None, result_dir=None, args=None):
 def _postprocessing_thread_sds(i, pred, X, Y=None, itp=None, its=None, fname=None, result_dir=None, figure_dir=None,
                           args=None):
     """
-    :param i: batch number
-    :param pred: probability functions for P and S phases and?
-    :param X: seismic data
-    :param Y:
-    :param itp: indexs of picked P phases
-    :param its: indexs of picked S phases
-    :param fname:
-    :param result_dir:
-    :param figure_dir:
+    same as the original function postprocessing_thread customized for this sds plugin
     """
     (itp_pred, prob_p), (its_pred, prob_s) = \
         _detect_peaks_thread_sds(i, pred, fname, result_dir, args)
@@ -200,7 +203,10 @@ class DataReaderSDS(DataReader):
     a DataReader object dedicated to SDS data structure
     """
 
-    def __init__(self, data_dir, data_list, queue_size, coord, input_length=3000, config=Config()):
+    def __init__(self, data_dir: str, data_list: str, queue_size, coord, input_length: int=3000, config=Config()):
+        """
+        see DataReader.__init__
+        """
 
         # the default object do not read in str mode => force it to preserve the location code
         tmp_list = pd.read_csv(data_list, header=0, dtype=str)
@@ -251,6 +257,7 @@ class DataReaderSDS(DataReader):
                                            self.fname_placeholder])
 
     def dequeue(self, num_elements):
+        """must be reproduced even though it looks the same as the parent one"""
         output = self.queue.dequeue_up_to(num_elements)
         return output
 
@@ -524,12 +531,18 @@ class DataReaderSDS(DataReader):
                              self.sample_placeholder: sample,
                              self.fname_placeholder: sample_name})
 
-    def show_sds_prediction_results(self, log_dir=None):
+    def show_sds_prediction_results(self, output_dir: str):
+        """
+        a method to generate QC figures after the main run
+        the process is parallelized over the rows found in the input csv file (fname_sds.csv, 1 thread per row)
+        :param output_dir: the location of the output_dir used in pred_fn_sds
+                           must exist, must contain picks.csv and results/sample_results.hdf5
+        """
 
-        assert os.path.isdir(log_dir), f"{log_dir} not found"
-        hdf5_archive = os.path.join(log_dir, 'results', "sample_results.hdf5")
-        picks_file = os.path.join(log_dir, "picks.csv")
-        figure_dir = os.path.join(log_dir, 'figures')
+        assert os.path.isdir(output_dir), f"{output_dir} not found"
+        hdf5_archive = os.path.join(output_dir, 'results', "sample_results.hdf5")
+        picks_file = os.path.join(output_dir, "picks.csv")
+        figure_dir = os.path.join(output_dir, 'figures')
         if not os.path.isdir(figure_dir):
             os.mkdir(figure_dir)
 
@@ -588,11 +601,12 @@ class DataReaderSDS(DataReader):
 
 def _show_sds_prediction_results_thread(thread_args: dict):
     """
+    the parallelized function called by DataReaderSDS.show_sds_prediction_results
     thread_args : a dictionnary with all the arguments requested by this function
                   see DataReaderSDS.show_sds_prediction_results
     """
 
-    # convert dictionnary into named tuple so that thread_args['x'] is thread_args.x
+    # convert the input dictionnary into a named tuple so that thread_args['x'] becomes thread_args.x
     ThreadArgs = namedtuple("ThreadArgs", list(thread_args.keys()))
     thread_args = ThreadArgs(**thread_args)
 
@@ -602,9 +616,12 @@ def _show_sds_prediction_results_thread(thread_args: dict):
 
     # ======== read the probability time series from hdf archive
     with h5py.File(thread_args.hdf5_archive, 'r') as h5fid:
-        # find the probability data
-        stp, sts = Stream([]), Stream([])
+
+        # find the probability time series in the archive, and store them into obspy Stream objects
+        stp, sts = Stream([]), Stream([])  # for P and S phases
         for phasename in "PS":
+
+            # find the path inside the archive
             sample_path = HDF5PATH.format(
                 network=thread_args.network, station=thread_args.station,
                 location=thread_args.location, channel2=thread_args.channel[:2],
@@ -612,8 +629,12 @@ def _show_sds_prediction_results_thread(thread_args: dict):
                 year=thread_args.year, julday=thread_args.julday,
                 phasename=phasename)
             try:
+                # loop over the samples of this path
                 for sample_name in h5fid[sample_path]:
                     sample = h5fid[sample_path][sample_name]
+
+                    # pack the probability time series into a obspy Trace object
+                    # nb : proba was encoded as uint8, cast to float
                     tr = Trace(data=np.array(sample[:], float) / 255., header=dict(**sample.attrs))
                     if phasename == "P":
                         stp.append(tr)
@@ -625,9 +646,9 @@ def _show_sds_prediction_results_thread(thread_args: dict):
                 warnings.warn(f'key {sample_path} not in {thread_args.hdf5_archive}')
 
     # ======== find the picks that correspond to the current station
-    I = (thread_args.pick_data['seedid'] == seedid)
+    I = (thread_args.pick_data['seedid'] == seedid)  # mask running over the data from picks.csv
 
-    # refine to the picks that fall in the current time window
+    # refine to the mask for picks that fall in the current time window
     I &= (thread_args.window_starttime.timestamp <= thread_args.pick_data['picktime'])
     I &= (thread_args.window_endtime.timestamp >= thread_args.pick_data['picktime'])
 
@@ -639,7 +660,7 @@ def _show_sds_prediction_results_thread(thread_args: dict):
             f"{thread_args.window_starttime}-{thread_args.window_endtime}")
         return
 
-    # convert mask to indexs
+    # convert mask array to indexs
     ipicks = np.arange(len(I))[I]
 
     # ======== read the seismic data
@@ -648,7 +669,7 @@ def _show_sds_prediction_results_thread(thread_args: dict):
     #     east_component_filename, north_component_filename, vertical_component_filename,
     #     window_starttime, window_endtime)
 
-    # read the row data for display
+    # read the row data for display, trim it to the current time window (up to full day)
     ste = ocread(
         thread_args.east_component_filename, format="MSEED",
         starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
@@ -660,51 +681,55 @@ def _show_sds_prediction_results_thread(thread_args: dict):
         starttime=thread_args.window_starttime, endtime=thread_args.window_endtime)
 
     if not len(stz) or not len(ste) or not len(stn):
-        raise Exception('was continue')
+        return None
 
     # =============== DISPLAY
     fig = plt.figure(figsize=(12, 4))
-    ax = fig.add_subplot(111)
-    bx = ax.twinx()
+    traces_ax = fig.add_subplot(111)
+    probability_ax = traces_ax.twinx()
     gain = 0.1
 
-    # === display the background traces + picks
+    # === display the background traces
     for n, st in enumerate([stz, stn, ste]):
         tr = st.merge(fill_value=0.)[0]
         tr.detrend('linear')
         tr.data /= tr.data.std()
 
         picktime = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
-        ax.plot(picktime, gain * tr.data + n, 'k', alpha=0.4)
+        traces_ax.plot(picktime, gain * tr.data + n, 'k', alpha=0.4)
+        # TODO : display time ticks
 
+    # === add the background probability time series for P and S
     for n, st in enumerate([stp, sts]):
         for tr in st:
             picktime = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
-            bx.plot(picktime, tr.data, {0: "r", 1: "b"}[n], alpha=1.0)
+            probability_ax.plot(picktime, tr.data, {0: "r", 1: "b"}[n], alpha=1.0)
 
-    # === add the picks
+    # === add the background picks
     for ipick in ipicks:
-        ax.plot(thread_args.pick_data['picktime'][ipick] * np.ones(2),
+        traces_ax.plot(thread_args.pick_data['picktime'][ipick] * np.ones(2),
                 [-1, 3.],
                 color={"P": "r", "S": "b"}[thread_args.pick_data['phasename'][ipick]])
 
-    ax.set_title(seedid)
-    ax.set_xlabel(f"time")
-    ax.set_yticks([0, 1, 2])
-    ax.set_yticklabels(["Z", "N", "E"])
+    # === custom the background axes
+    traces_ax.set_title(seedid)
+    traces_ax.set_xlabel(f"time")
+    traces_ax.set_yticks([0, 1, 2])
+    traces_ax.set_yticklabels(["Z", "N", "E"])
     fig.autofmt_xdate()
-    ax.set_ylim(-1., 3.)
-    bx.set_ylim(-0.1, 1.1)
-    bx.set_ylabel("probability")
+    traces_ax.set_ylim(-1., 3.)
+    probability_ax.set_ylim(-0.1, 1.1)
+    probability_ax.set_ylabel("probability")
 
-    # === slide along the plot, make one screenshot per pick, centered on the pick
+    # === now slide along the plot, make one screenshot per pick, centered on the pick
     for ipick in ipicks:
         picktime = thread_args.pick_data['picktime'][ipick]
         figstart = picktime - 1500. * stz[0].stats.delta
         figend = picktime + 1500. * stz[0].stats.delta
-        ax.set_xlim(figstart, figend)
-        ax.figure.canvas.draw()
+        traces_ax.set_xlim(figstart, figend)
+        traces_ax.figure.canvas.draw()
 
+        # save the current view into a png file
         picktime = UTCDateTime(picktime)
         figname = f"{seedid}.{picktime.year:04d}-{picktime.julday:03d}-{picktime.hour:02d}-{picktime.minute:02d}-{picktime.second:02d}.png"
         figname = os.path.join(thread_args.figure_dir, figname)
@@ -720,8 +745,8 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
     prediction function, modified after pred_fn for SDS data
     :param args: from the argument parser
     :param data_reader: the data reader object (DataReaderSDS)
-    :param figure_dir:
-    :param result_dir:
+    :param figure_dir: not used here, argument kept for signature consistency with Phasenet
+    :param result_dir: used to save the hdf5 outputs
     :param log_dir:
     :return:
     """
@@ -862,10 +887,19 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
 
 
 if __name__ == '__main__':
+    """
+    DEMO section
+    The code has not been inserted in the main file (run.py)
+    To run this plugin on the demo data, call this file >> python sds_plugin.py
+    
+    """
+
+    # Simulate command line arguments
+    # => TODO: interface this plugin in the main file run.py, under the option --input_sds
 
     class Args(object):
         # generate a fake argument object for testing
-        # reproduce the defaults options after run.py
+        # reproduce the defaults options from run.py
         mode = "pred"
         epochs = 100
         batch_size = 20
@@ -906,7 +940,7 @@ if __name__ == '__main__':
     assert os.path.isdir(args.model_dir)
     assert os.path.isdir(args.data_dir)
     assert os.path.isfile(args.data_list)
-    assert not os.path.isdir(args.output_dir), f"output dir exists already {args.output_dir}"
+    assert not os.path.isdir(args.output_dir), f"output dir exists already {args.output_dir}, please move it or trash it and rerun"
 
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
     coord = tf.train.Coordinator()
@@ -922,4 +956,4 @@ if __name__ == '__main__':
 
     if args.plot_figure:
         data_reader.show_sds_prediction_results(
-            log_dir=os.path.join("demo", "sds", "output"))
+            output_dir=os.path.join("demo", "sds", "output"))
