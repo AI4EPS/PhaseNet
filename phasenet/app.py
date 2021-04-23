@@ -43,8 +43,8 @@ print(f"restoring model {latest_check_point}")
 saver.restore(sess, latest_check_point)
 
 # GMMA API Endpoint
-# GMMA_API_URL = 'http://gmma-api:8001'
-GMMA_API_URL = 'http://localhost:8001'
+GMMA_API_URL = 'http://gmma-api:8001'
+# GMMA_API_URL = 'http://localhost:8001'
 
 
 # Kafak producer
