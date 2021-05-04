@@ -95,6 +95,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             pred_batch = []
             for i in range(0, len(X_batch), 1):
                 pred_batch.append(sess.run(model.preds, feed_dict={model.X: X_batch[i:i+1], model.drop_rate: 0, model.is_training: False}))
+                print(i)
             pred_batch = np.vstack(pred_batch)
 
             picks_ = extract_picks(preds=pred_batch, fnames=fname_batch, t0=t0_batch)
