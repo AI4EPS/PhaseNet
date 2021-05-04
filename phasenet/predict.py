@@ -63,8 +63,8 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
     with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
         fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
 
-#     model = UNet(config=config, input_batch=batch, mode="pred")
-    model = UNet(config=config, mode="pred")
+    model = UNet(config=config, input_batch=batch, mode="pred")
+    # model = UNet(config=config, mode="pred")
     sess_config = tf.compat.v1.ConfigProto()
     sess_config.gpu_options.allow_growth = True
     # sess_config.log_device_placement = False
