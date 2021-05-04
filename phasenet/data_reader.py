@@ -668,7 +668,7 @@ class DataReader_mseed_array(DataReader):
             dataset = dataset_map(self, output_types=(self.dtype, "string", "string"),
                                         output_shapes=(self.X_shape, None, None), 
                                         num_parallel_calls=num_parallel_calls)
-        dataset = dataset.prefetch(len(self.stations)*2)
+#         dataset = dataset.prefetch(len(self.stations)*2)
         return dataset
 
 
