@@ -84,19 +84,17 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
         for _ in tqdm(range(0, data_reader.num_data, batch_size), desc="Pred"):
             if args.amplitude:
-#                 pred_batch, X_batch, amp_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2], batch[3]], 
-#                                                                                  feed_dict={model.drop_rate: 0, model.is_training: False})
-                X_batch, amp_batch, fname_batch, t0_batch = sess.run([batch[0], batch[1], batch[2], batch[3]])
+                pred_batch, X_batch, amp_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2], batch[3]], 
+                                                                                  feed_dict={model.drop_rate: 0, model.is_training: False})
+            #    X_batch, amp_batch, fname_batch, t0_batch = sess.run([batch[0], batch[1], batch[2], batch[3]])
             else:
-                X_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2]])
-#             if len(X_batch) < 50:
-#                 pred_batch = sess.run(model.preds, feed_dict={model.X: X_batch, model.drop_rate: 0, model.is_training: False})
-#             else:
-            pred_batch = []
-            for i in range(0, len(X_batch), 1):
-                pred_batch.append(sess.run(model.preds, feed_dict={model.X: X_batch[i:i+1], model.drop_rate: 0, model.is_training: False}))
-                print(i)
-            pred_batch = np.vstack(pred_batch)
+                pred_batch, X_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2]],
+                                                                       feed_dict={model.drop_rate: 0, model.is_training: False})
+            #    X_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2]])
+            # pred_batch = []
+            # for i in range(0, len(X_batch), 1):
+            #     pred_batch.append(sess.run(model.preds, feed_dict={model.X: X_batch[i:i+1], model.drop_rate: 0, model.is_training: False}))
+            # pred_batch = np.vstack(pred_batch)
 
             picks_ = extract_picks(preds=pred_batch, fnames=fname_batch, t0=t0_batch)
             picks.extend(picks_)
