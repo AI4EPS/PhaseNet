@@ -279,8 +279,12 @@ class DataReader():
     def read_mseed_array(self, fname, stations, amplitude=False, remove_resp=True):
 
         mseed = obspy.read(fname)
-        mseed = mseed.detrend("spline", order=2, dspline=5*mseed[0].stats.sampling_rate)
-        mseed = mseed.merge(fill_value=0)
+        try:
+            mseed = mseed.detrend("spline", order=2, dspline=5*mseed[0].stats.sampling_rate)
+            mseed = mseed.merge(fill_value=0)
+        except:
+            mseed = mseed.merge(fill_value=0)
+            mseed = mseed.detrend("spline", order=2, dspline=5*mseed[0].stats.sampling_rate)
         starttime = min([st.stats.starttime for st in mseed])
         endtime = max([st.stats.endtime for st in mseed])
         mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
