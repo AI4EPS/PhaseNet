@@ -646,9 +646,9 @@ class DataReader_mseed_array(DataReader):
         except Exception as e:
             logging.error(f"Failed reading {fp}: {e}")
             if self.amplitude:
-                return np.zeros(self.X_shape), np.zeros(self.X_shape), ["" for i in range(len(self.stations))], "" 
+                return np.zeros(self.X_shape).astype(self.dtype), np.zeros(self.X_shape).astype(self.dtype), ["" for i in range(len(self.stations))], "" 
             else:
-                return np.zeros(self.X_shape), ["" for i in range(len(self.stations))], ""
+                return np.zeros(self.X_shape).astype(self.dtype), ["" for i in range(len(self.stations))], ""
         
         sample = np.zeros(self.X_shape)
         sample[:,:meta["data"].shape[1],:,:] = normalize_batch(meta["data"])[:,:self.X_shape[1],:,:]
