@@ -303,11 +303,12 @@ class DataReader():
         data = []
         fname = []
         t0 = []
-        trace_data = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
-        if amplitude:
-            raw_amp = []
-            trace_amp = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
+        raw_amp = []
         for i in range(nsta):
+            trace_data = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
+            if amplitude:
+                trace_amp = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
+            empty_station = True
             sta = stations.iloc[i]["station"]
             comp = stations.iloc[i]["component"].split(",")
             if amplitude:
@@ -317,6 +318,8 @@ class DataReader():
                     if len(mseed.select(id=sta+c)) == 0:
                         print(f"Empty trace: {sta+c}, {t0[-1]}")
                         continue
+                    else:
+                        empty_station = False
                     tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype)
                     trace_data[:len(tmp), j] = tmp[:nt]
                     if amplitude:
@@ -336,6 +339,8 @@ class DataReader():
                     if len(mseed.select(id=sta+c)) == 0:
                         print(f"Empty trace: {sta+c}, {t0[-1]}")
                         continue
+                    else:
+                        empty_station = False
                     tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype)
                     trace_data[:len(tmp), j] = tmp[:nt]
                     if len(mseed.select(id=sta+c)) == 0:
@@ -351,11 +356,12 @@ class DataReader():
                             print(f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
                     if remove_resp:
                         trace_amp[:, j] /=  float(resp[jj])
-            data.append(trace_data)
-            if amplitude:
-                raw_amp.append(trace_amp)
-            fname.append(sta)
-            t0.append(starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
+            if not empty_station:
+                data.append(trace_data)
+                if amplitude:
+                    raw_amp.append(trace_amp)
+                fname.append(sta)
+                t0.append(starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
 
         data = np.stack(data)
         raw_amp = np.stack(raw_amp)
