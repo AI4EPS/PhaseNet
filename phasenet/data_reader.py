@@ -281,10 +281,10 @@ class DataReader():
         mseed = obspy.read(fname)
         try:
             mseed = mseed.detrend("spline", order=2, dspline=5*mseed[0].stats.sampling_rate)
-            mseed = mseed.merge(fill_value=0)
         except:
-            mseed = mseed.merge(fill_value=0)
-            mseed = mseed.detrend("spline", order=2, dspline=5*mseed[0].stats.sampling_rate)
+            logging.error(f"Error: spline detrend failed at file {fname}")
+            mseed = mseed.detrend("demean")
+        mseed = mseed.merge(fill_value=0)
         starttime = min([st.stats.starttime for st in mseed])
         endtime = max([st.stats.endtime for st in mseed])
         mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
@@ -300,13 +300,15 @@ class DataReader():
 
         nsta = len(stations)
         nt = len(mseed[0].data)
-        data = np.zeros([nsta, nt, self.config.n_channel], dtype=self.dtype)
+        data = []
+        fname = []
         t0 = []
+        trace_data = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
         if amplitude:
-            raw_amp = np.zeros([nsta, nt, self.config.n_channel], dtype=self.dtype)
+            raw_amp = []
+            trace_amp = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
         for i in range(nsta):
             sta = stations.iloc[i]["station"]
-            t0.append(starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
             comp = stations.iloc[i]["component"].split(",")
             if amplitude:
                 resp = stations.iloc[i]["response"].split(",")
@@ -316,18 +318,18 @@ class DataReader():
                         print(f"Empty trace: {sta+c}, {t0[-1]}")
                         continue
                     tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype)
-                    data[i, :len(tmp), j] = tmp[:nt]
+                    trace_data[:len(tmp), j] = tmp[:nt]
                     if amplitude:
                         if stations.iloc[i]["unit"] == "m/s**2":
                             tmp = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype)
-                            raw_amp[i, :len(tmp), j] = tmp[:nt]
+                            trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
                             tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
-                            raw_amp[i, :len(tmp), j] = tmp[:nt]
+                            trace_amp[:len(tmp), j] = tmp[:nt]
                         else:
                             print(f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
                     if remove_resp:
-                        raw_amp[i, :, j] /=  float(resp[j])
+                        trace_amp[:, j] /=  float(resp[j])
             else: ## less than 3 component
                 for jj, c in enumerate(comp):
                     j = comp2idx[c]
@@ -335,31 +337,37 @@ class DataReader():
                         print(f"Empty trace: {sta+c}, {t0[-1]}")
                         continue
                     tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype)
-                    data[i, :len(tmp), j] = tmp[:nt]
+                    trace_data[:len(tmp), j] = tmp[:nt]
                     if len(mseed.select(id=sta+c)) == 0:
                         continue
                     if amplitude:
                         if stations.iloc[i]["unit"] == "m/s**2":
                             tmp = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype) 
-                            raw_amp[i, :len(tmp), j] = tmp[:nt]
+                            trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
                             tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
-                            raw_amp[i, :len(tmp), j] = tmp[:nt]
+                            trace_amp[:len(tmp), j] = tmp[:nt]
                         else:
                             print(f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
                     if remove_resp:
-                        raw_amp[i, :, j] /=  float(resp[jj])
+                        trace_amp[:, j] /=  float(resp[jj])
+            data.append(trace_data)
+            if amplitude:
+                raw_amp.append(trace_amp)
+            fname.append(sta)
+            t0.append(starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
 
-
+        data = np.stack(data)
+        raw_amp = np.stack(raw_amp)
         if len(data.shape) == 3:
             data = data[:,:,np.newaxis,:]
         if len(raw_amp.shape) == 3:
             raw_amp = raw_amp[:,:,np.newaxis,:]
 
         if amplitude:
-            meta = {"data": data, "t0": t0, "raw_amp": raw_amp}
+            meta = {"data": data, "t0": t0, "fname":fname, "raw_amp": raw_amp}
         else:
-            meta = {"data": data, "t0": t0}
+            meta = {"data": data, "t0": t0, "fname":fname}
         return meta
 
 
@@ -662,14 +670,15 @@ class DataReader_mseed_array(DataReader):
         #         return (np.zeros(self.X_shape).astype(self.dtype), ["" for i in range(len(self.stations))], 
         #             [self.stations.iloc[i]["station"] for i in range(len(self.stations))])
         
-        sample = np.zeros(self.X_shape)
+        sample = np.zeros([len(meta["data"]), *self.X_shape[1:]])
         sample[:,:meta["data"].shape[1],:,:] = normalize_batch(meta["data"])[:,:self.X_shape[1],:,:]
         t0 = meta["t0"]
+        base_name = meta["fname"]
 #         base_name = [self.stations.iloc[i]["station"]+"."+t0[i] for i in range(len(self.stations))]
-        base_name = [self.stations.iloc[i]["station"] for i in range(len(self.stations))]
+        # base_name = [self.stations.iloc[i]["station"] for i in range(len(self.stations))]
 
         if self.amplitude:
-            raw_amp = np.zeros(self.X_shape)
+            raw_amp = np.zeros([len(meta["raw_amp"]), *self.X_shape[1:]])
             raw_amp[:,:meta["raw_amp"].shape[1],:,:] = meta["raw_amp"][:,:self.X_shape[1],:,:]
             return (sample.astype(self.dtype), raw_amp.astype(self.dtype), base_name, t0)
         else:
@@ -678,11 +687,11 @@ class DataReader_mseed_array(DataReader):
     def dataset(self, num_parallel_calls=2, shuffle=False):
         if self.amplitude:
             dataset = dataset_map(self, output_types=(self.dtype, self.dtype, "string", "string"),
-                                        output_shapes=(self.X_shape, self.X_shape, None, None), 
+                                        output_shapes=([None,*self.X_shape[1:]], [None,*self.X_shape[1:]], None, None), 
                                         num_parallel_calls=num_parallel_calls)
         else:
             dataset = dataset_map(self, output_types=(self.dtype, "string", "string"),
-                                        output_shapes=(self.X_shape, None, None), 
+                                        output_shapes=([None,*self.X_shape[1:]], None, None), 
                                         num_parallel_calls=num_parallel_calls)
         dataset = dataset.prefetch(2)
 #         dataset = dataset.prefetch(len(self.stations)*2)
