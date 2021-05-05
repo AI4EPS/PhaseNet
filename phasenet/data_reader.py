@@ -311,12 +311,15 @@ class DataReader():
                     if len(mseed.select(id=sta+c)) == 0:
                         print(f"Empty trace: {sta+c}, {t0[-1]}")
                         continue
-                    data[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype)
+                    tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype)
+                    data[i, :len(tmp), j] = tmp[:nt]
                     if amplitude:
                         if stations.iloc[i]["unit"] == "m/s**2":
-                            raw_amp[i, :, j] = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype) 
+                            tmp = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype)
+                            raw_amp[i, :len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
-                            raw_amp[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
+                            tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
+                            raw_amp[i, :len(tmp), j] = tmp[:nt]
                         else:
                             print(f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
                     if remove_resp:
@@ -327,14 +330,17 @@ class DataReader():
                     if len(mseed.select(id=sta+c)) == 0:
                         print(f"Empty trace: {sta+c}, {t0[-1]}")
                         continue
-                    data[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype)
+                    tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype)
+                    data[i, :len(tmp), j] = tmp[:nt]
                     if len(mseed.select(id=sta+c)) == 0:
                         continue
                     if amplitude:
                         if stations.iloc[i]["unit"] == "m/s**2":
-                            raw_amp[i, :, j] = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype) 
+                            tmp = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype) 
+                            raw_amp[i, :len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
-                            raw_amp[i, :, j] = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
+                            tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype) 
+                            raw_amp[i, :len(tmp), j] = tmp[:nt]
                         else:
                             print(f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
                     if remove_resp:
@@ -641,14 +647,16 @@ class DataReader_mseed_array(DataReader):
     def __getitem__(self, i):
         
         fp = os.path.join(self.data_dir, self.data_list[i])
-        try:
-            meta = self.read_mseed_array(fp, self.stations, self.amplitude, self.remove_resp)
-        except Exception as e:
-            logging.error(f"Failed reading {fp}: {e}")
-            if self.amplitude:
-                return np.zeros(self.X_shape).astype(self.dtype), np.zeros(self.X_shape).astype(self.dtype), ["" for i in range(len(self.stations))], "" 
-            else:
-                return np.zeros(self.X_shape).astype(self.dtype), ["" for i in range(len(self.stations))], ""
+        # try:
+        meta = self.read_mseed_array(fp, self.stations, self.amplitude, self.remove_resp)
+        # except Exception as e:
+        #     logging.error(f"Failed reading {fp}: {e}")
+        #     if self.amplitude:
+        #         return (np.zeros(self.X_shape).astype(self.dtype), np.zeros(self.X_shape).astype(self.dtype), 
+        #             [self.stations.iloc[i]["station"] for i in range(len(self.stations))], ["0" for i in range(len(self.stations))])
+        #     else:
+        #         return (np.zeros(self.X_shape).astype(self.dtype), ["" for i in range(len(self.stations))], 
+        #             [self.stations.iloc[i]["station"] for i in range(len(self.stations))])
         
         sample = np.zeros(self.X_shape)
         sample[:,:meta["data"].shape[1],:,:] = normalize_batch(meta["data"])[:,:self.X_shape[1],:,:]
