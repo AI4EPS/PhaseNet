@@ -645,6 +645,10 @@ class DataReader_mseed_array(DataReader):
             meta = self.read_mseed_array(fp, self.stations, self.amplitude, self.remove_resp)
         except Exception as e:
             logging.error(f"Failed reading {fp}: {e}")
+            if self.amplitude:
+                return np.zeros(self.X_shape), np.zeros(self.X_shape), ["" for i in range(len(self.stations))], "" 
+            else:
+                return np.zeros(self.X_shape), ["" for i in range(len(self.stations))], ""
         
         sample = np.zeros(self.X_shape)
         sample[:,:meta["data"].shape[1],:,:] = normalize_batch(meta["data"])[:,:self.X_shape[1],:,:]
@@ -659,7 +663,7 @@ class DataReader_mseed_array(DataReader):
         else:
             return (sample.astype(self.dtype), base_name, t0)
 
-    def dataset(self, num_parallel_calls=2, shuffle=False):
+    def dataset(self, num_parallel_calls=1, shuffle=False):
         if self.amplitude:
             dataset = dataset_map(self, output_types=(self.dtype, self.dtype, "string", "string"),
                                         output_shapes=(self.X_shape, self.X_shape, None, None), 
@@ -668,7 +672,7 @@ class DataReader_mseed_array(DataReader):
             dataset = dataset_map(self, output_types=(self.dtype, "string", "string"),
                                         output_shapes=(self.X_shape, None, None), 
                                         num_parallel_calls=num_parallel_calls)
-        dataset = dataset.prefetch(2)
+#         dataset = dataset.prefetch(len(self.stations)*2)
         return dataset
 
 
