@@ -679,7 +679,7 @@ class DataReader_mseed_array(DataReader):
         #         return (np.zeros(self.X_shape).astype(self.dtype), ["" for i in range(len(self.stations))], 
         #             [self.stations.iloc[i]["station"] for i in range(len(self.stations))])
         
-        sample = np.zeros([len(meta["data"]), *self.X_shape[1:]])
+        sample = np.zeros([len(meta["data"]), *self.X_shape[1:]], dtype=self.dtype)
         sample[:,:meta["data"].shape[1],:,:] = normalize_batch(meta["data"])[:,:self.X_shape[1],:,:]
         if np.isnan(sample).any() or np.isinf(sample).any():
             logging.warning(f"Data error: Nan or Inf found in {fp}")
@@ -691,15 +691,15 @@ class DataReader_mseed_array(DataReader):
         # base_name = [self.stations.iloc[i]["station"] for i in range(len(self.stations))]
 
         if self.amplitude:
-            raw_amp = np.zeros([len(meta["raw_amp"]), *self.X_shape[1:]])
+            raw_amp = np.zeros([len(meta["raw_amp"]), *self.X_shape[1:]], dtype=self.dtype)
             raw_amp[:,:meta["raw_amp"].shape[1],:,:] = meta["raw_amp"][:,:self.X_shape[1],:,:]
             if np.isnan(raw_amp).any() or np.isinf(raw_amp).any():
                 logging.warning(f"Data error: Nan or Inf found in {fp}")
                 raw_amp[np.isnan(raw_amp)] = 0
                 raw_amp[np.isinf(raw_amp)] = 0
-            return (sample.astype(self.dtype), raw_amp.astype(self.dtype), base_name, t0)
+            return (sample, raw_amp, base_name, t0)
         else:
-            return (sample.astype(self.dtype), base_name, t0)
+            return (sample, base_name, t0)
 
     def dataset(self, num_parallel_calls=2, shuffle=False):
         if self.amplitude:
