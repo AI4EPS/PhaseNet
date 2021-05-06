@@ -49,6 +49,7 @@ def normalize(data, axis=(0,)):
     std_data = np.std(data, axis=axis, keepdims=True)
     std_data[std_data == 0] = 1
     data /= std_data
+    # data /= (std_data + 1e-12)
     return data
 
 
@@ -84,6 +85,7 @@ def normalize_long(data, axis=(0,), window=3000):
     mean_interp = interp1d(t, mean, axis=0, kind="slinear")(t_interp)
     std_interp[std_interp == 0] = 1.0
     data = (data - mean_interp)/std_interp
+    # data = (data - mean_interp)/(std_interp + 1e-12)
 
     return data
 
@@ -121,6 +123,7 @@ def normalize_batch(data, window=3000):
     tmp = np.sum(std_interp, axis=(1,2))
     std_interp[std_interp == 0] = 1.0
     data = (data - mean_interp)/std_interp
+    # data = (data - mean_interp)/(std_interp + 1e-12)
 
     ### dropout effect of < 3 channel
     nonzero = np.count_nonzero(tmp, axis=-1)
@@ -678,6 +681,10 @@ class DataReader_mseed_array(DataReader):
         
         sample = np.zeros([len(meta["data"]), *self.X_shape[1:]])
         sample[:,:meta["data"].shape[1],:,:] = normalize_batch(meta["data"])[:,:self.X_shape[1],:,:]
+        if np.isnan(sample).any() or np.isinf(sample).any():
+            logging.warning(f"Data error: Nan or Inf found in {fp}")
+            sample[np.isnan(sample)] = 0
+            sample[np.isinf(sample)] = 0
         t0 = meta["t0"]
         base_name = meta["fname"]
 #         base_name = [self.stations.iloc[i]["station"]+"."+t0[i] for i in range(len(self.stations))]
@@ -686,6 +693,10 @@ class DataReader_mseed_array(DataReader):
         if self.amplitude:
             raw_amp = np.zeros([len(meta["raw_amp"]), *self.X_shape[1:]])
             raw_amp[:,:meta["raw_amp"].shape[1],:,:] = meta["raw_amp"][:,:self.X_shape[1],:,:]
+            if np.isnan(raw_amp).any() or np.isinf(raw_amp).any():
+                logging.warning(f"Data error: Nan or Inf found in {fp}")
+                raw_amp[np.isnan(raw_amp)] = 0
+                raw_amp[np.isinf(raw_amp)] = 0
             return (sample.astype(self.dtype), raw_amp.astype(self.dtype), base_name, t0)
         else:
             return (sample.astype(self.dtype), base_name, t0)
