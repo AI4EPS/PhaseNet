@@ -319,7 +319,7 @@ class DataReader():
             if len(comp) == 3:
                 for j, c in enumerate(sorted(comp, key=lambda x: order[x[-1]])):
                     if len(mseed.select(id=sta+c)) == 0:
-                        print(f"Empty trace: {sta+c} of {fname}")
+                        print(f"Empty trace: {sta+c} of {sta}")
                         continue
                     else:
                         empty_station = False
@@ -340,7 +340,7 @@ class DataReader():
                 for jj, c in enumerate(comp):
                     j = comp2idx[c]
                     if len(mseed.select(id=sta+c)) == 0:
-                        print(f"Empty trace: {sta+c} of {fname}")
+                        print(f"Empty trace: {sta+c} of {sta}")
                         continue
                     else:
                         empty_station = False
