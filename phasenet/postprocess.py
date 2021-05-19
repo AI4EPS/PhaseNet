@@ -66,8 +66,8 @@ def extract_amplitude(data, picks, window_p=10, window_s=5, config=None):
     for i, (da, pi) in enumerate(zip(data, picks)):
         p_amp, s_amp = [], []
         for j in range(da.shape[1]):
-            #amp = np.max(np.abs(da[:,j,:]), axis=-1)
-            amp = np.median(np.abs(da[:,j,:]), axis=-1)
+            amp = np.max(np.abs(da[:,j,:]), axis=-1)
+            #amp = np.median(np.abs(da[:,j,:]), axis=-1)
             tmp = []
             for k in range(len(pi.p_idx[j])-1):
                 tmp.append(np.max(amp[pi.p_idx[j][k]:min(pi.p_idx[j][k]+window_p, pi.p_idx[j][k+1])]))
