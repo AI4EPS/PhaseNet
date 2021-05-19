@@ -329,7 +329,7 @@ class DataReader():
                         if stations.iloc[i]["unit"] == "m/s**2":
                             tmp = mseed.select(id=sta+c)[0]
                             tmp = tmp.integrate()
-                            tmp = tmp.detrend("spline", order=2, dspline=5*tmp.stats.sampling_rate)
+                            tmp = tmp.filter("highpass", freq=5.0)
                             tmp = tmp.data.astype(self.dtype)
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
@@ -353,7 +353,10 @@ class DataReader():
                         continue
                     if amplitude:
                         if stations.iloc[i]["unit"] == "m/s**2":
-                            tmp = mseed.select(id=sta+c)[0].integrate().data.astype(self.dtype) 
+                            tmp = mseed.select(id=sta+c)[0]
+                            tmp = tmp.integrate()
+                            tmp = tmp.filter("highpass", freq=5.0)
+                            tmp = tmp.data.astype(self.dtype)
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
                             tmp = mseed.select(id=sta+c)[0].data.astype(self.dtype) 

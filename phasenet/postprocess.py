@@ -57,7 +57,7 @@ def extract_picks(preds, fnames=None, t0=None, config=None):
     return picks
 
 
-def extract_amplitude(data, picks, window_p=8, window_s=5, config=None):
+def extract_amplitude(data, picks, window_p=10, window_s=5, config=None):
     record = namedtuple("amplitude", ["p_amp", "s_amp"])
     dt = 0.01 if config is None else config.dt
     window_p = int(window_p/dt)
@@ -66,7 +66,8 @@ def extract_amplitude(data, picks, window_p=8, window_s=5, config=None):
     for i, (da, pi) in enumerate(zip(data, picks)):
         p_amp, s_amp = [], []
         for j in range(da.shape[1]):
-            amp = np.max(np.abs(da[:,j,:]), axis=-1)
+            #amp = np.max(np.abs(da[:,j,:]), axis=-1)
+            amp = np.median(np.abs(da[:,j,:]), axis=-1)
             tmp = []
             for k in range(len(pi.p_idx[j])-1):
                 tmp.append(np.max(amp[pi.p_idx[j][k]:min(pi.p_idx[j][k]+window_p, pi.p_idx[j][k+1])]))
