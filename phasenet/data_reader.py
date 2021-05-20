@@ -167,6 +167,7 @@ class DataReader():
         self.format = format
         if format in ["numpy", "mseed"]:
             self.data_dir = kwargs["data_dir"]
+            #self.data_list = pd.read_csv(kwargs["data_list"], header=0)['fname']
             self.data_list = pd.read_csv(kwargs["data_list"], header=0, sep="\t")['fname']
             self.num_data = len(self.data_list)
         elif format == "hdf5":
@@ -626,7 +627,7 @@ class DataReader_pred(DataReader):
         if "t0" in meta:
             t0 = meta["t0"]
         else:
-            t0 = ""
+            t0 = "1970-01-01T00:00:00.000"
 
         if np.isnan(sample).any() or np.isinf(sample).any():
             logging.warning(f"Data error: Nan or Inf found in {base_name}")
