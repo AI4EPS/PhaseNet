@@ -330,7 +330,7 @@ class DataReader():
                         if stations.iloc[i]["unit"] == "m/s**2":
                             tmp = mseed.select(id=sta+c)[0]
                             tmp = tmp.integrate()
-                            tmp = tmp.filter("highpass", freq=1.0)
+                            tmp = tmp.filter("highpass", freq=0.5)
                             tmp = tmp.data.astype(self.dtype)
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
@@ -356,7 +356,7 @@ class DataReader():
                         if stations.iloc[i]["unit"] == "m/s**2":
                             tmp = mseed.select(id=sta+c)[0]
                             tmp = tmp.integrate()
-                            tmp = tmp.filter("highpass", freq=1.0)
+                            tmp = tmp.filter("highpass", freq=0.5)
                             tmp = tmp.data.astype(self.dtype)
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
