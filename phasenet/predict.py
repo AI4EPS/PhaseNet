@@ -19,6 +19,8 @@ def read_args():
     parser.add_argument("--model_dir", help="Checkpoint directory (default: None)")
     parser.add_argument("--data_dir", default="", help="Input file directory")
     parser.add_argument("--data_list", default="", help="Input csv file")
+    parser.add_argument("--hdf5_file", default="", help="Input hdf5 file")
+    parser.add_argument("--hdf5_group", default="data", help="data group name in hdf5 file")
     parser.add_argument("--result_dir", default="results", help="Output directory")
     parser.add_argument("--result_fname", default="picks.csv", help="Output file")
     parser.add_argument("--min_p_prob", default=0.3, type=float, help="Probability threshold for P pick")
@@ -124,6 +126,8 @@ def main(args):
             data_reader = DataReader_pred(format=args.format,
                                           data_dir=args.data_dir,
                                           data_list=args.data_list,
+                                          hdf5_file=args.hdf5_file,
+                                          hdf5_group=args.hdf5_group,
                                           amplitude=args.amplitude)
         
         pred_fn(args, data_reader, log_dir=args.result_dir)

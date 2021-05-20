@@ -1,55 +1,38 @@
-
-
-## 1. Install
-
-### Using Anaconda (recommend)
+## 1.  Install [miniconda](https://docs.conda.io/en/latest/miniconda.html) and requirements
 ```bash
-conda env create -f environment.yml
+conda env create -f env.yml
 conda activate venv
 ```
 
-or
+## 2.Demo Data
 
-```bash
-conda create --name venv
-conda activate venv
-conda install tensorflow=2.3 matplotlib scipy pandas tqdm
-conda install libiconv
-conda install obspy -c conda-forge
-```
+PhaseNet supports three data formats: numpy, hdf5, and mseed
 
-### Using virtualenv
-```bash
-pip install virtualenv
-virtualenv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+Demo data are stored in the **dataset** folder
 
-### 2.Demo Data
-
-Numpy array data are stored in directory: **dataset**
-
-Mseed data are stored in directory: **demo**
-
-### 3.Model
+## 3.Model
 Located in directory: **model/190703-214543**
 
-### 4. Prediction 
+## 4. Prediction 
 
-#### a) Data format -- mseed with obspy
-
-Required a csv file and a directory of mseed files.
-
-The csv file contains four column: "fname, E, N, Z"
-
-The mseed file contains the continous data with ENZ channels.
-
-Add **--input_mseed** to process mseed data:
-
+For numpy format:
 ~~~bash
-source .venv/bin/activate
-python run.py --mode=pred --model_dir=model/190703-214543 --data_dir=demo/mseed --data_list=demo/fname.csv --output_dir=output --batch_size=20 --input_mseed
+python phasenet/predict.py --model=model/190703-214543 --data_list=phasenet/test_data/selected_phases.csv --data_dir=phasenet/test_data/data --format=numpy
+~~~
+
+For hdf5 format:
+~~~bash
+python phasenet/predict.py --model=model/190703-214543 --hdf5_file=phasenet/test_data/data.h5 --hdf5_group=data --format=hdf5
+~~~
+
+For mseed formt:
+~~~bash
+python phasenet/predict.py --model=model/190703-214543 --data_list=phasenet/test_data/mseed_station.csv --data_dir=phasenet/test_data/waveforms --format=mseed
+~~~
+
+For an array of mseed (used by QuakeFlow):
+~~~bash
+python phasenet/predict.py --model=model/190703-214543 --data_list=phasenet/test_data/mseed.csv --data_dir=phasenet/test_data/waveforms --stations=phasenet/test_data/stations.csv  --format=mseed_array --amplitude
 ~~~
 
 Notes:

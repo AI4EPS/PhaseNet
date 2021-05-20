@@ -83,9 +83,15 @@ def normalize_long(data, axis=(0,), window=3000):
     std_interp = interp1d(t, std, axis=0, kind="slinear")(t_interp)
     #std_interp = np.exp(interp1d(t, np.log(std), axis=0, kind="slinear")(t_interp))
     mean_interp = interp1d(t, mean, axis=0, kind="slinear")(t_interp)
+    tmp = np.sum(std_interp, axis=(0,1))
     std_interp[std_interp == 0] = 1.0
     data = (data - mean_interp)/std_interp
     # data = (data - mean_interp)/(std_interp + 1e-12)
+
+    ### dropout effect of < 3 channel
+    nonzero = np.count_nonzero(tmp)
+    if (nonzero < 3) and (nonzero > 0):
+        data *= 3.0 / nonzero
 
     return data
 
@@ -171,8 +177,8 @@ class DataReader():
             self.data_list = pd.read_csv(kwargs["data_list"], header=0, sep="\t")['fname']
             self.num_data = len(self.data_list)
         elif format == "hdf5":
-            self.h5 = h5py.File(kwargs["hdf5"], 'r', libver='latest', swmr=True)
-            self.h5_data = self.h5[kwargs["group"]]
+            self.h5 = h5py.File(kwargs["hdf5_file"], 'r', libver='latest', swmr=True)
+            self.h5_data = self.h5[kwargs["hdf5_group"]]
             self.data_list = list(self.h5_data.keys())
             self.num_data = len(self.data_list)
         elif format == "s3":
@@ -216,30 +222,25 @@ class DataReader():
         #     return None
 
     def read_hdf5(self, fname):
+        data = self.h5_data[fname][()]
+        attrs = self.h5_data[fname].attrs
         meta = {}
-        if fname not in self.buffer:
-            data = self.h5_data[fname][()]
-            attrs = self.h5_data[fname].attrs
-            meta = {}
-            if len(data.shape) == 2:
-                meta["data"] = data[:, np.newaxis, :]
-            else:
-                meta["data"] = data
-            if "p_idx" in attrs:
-                if len(attrs["p_idx"].shape) == 0:
-                    meta["itp"] = [[attrs["p_idx"]]]
-                else:
-                    meta["itp"] = attrs["p_idx"]
-            if "s_idx" in attrs:
-                if len(attrs["s_idx"].shape) == 0:
-                    meta["its"] = [[attrs["s_idx"]]]
-                else:
-                    meta["its"] = attrs["s_idx"]
-            if "t0" in attrs:
-                meta["t0"] = attrs["t0"]
-            self.buffer[fname] = meta
+        if len(data.shape) == 2:
+            meta["data"] = data[:, np.newaxis, :]
         else:
-            meta = self.buffer[fname]
+            meta["data"] = data
+        if "p_idx" in attrs:
+            if len(attrs["p_idx"].shape) == 0:
+                meta["itp"] = [[attrs["p_idx"]]]
+            else:
+                meta["itp"] = attrs["p_idx"]
+        if "s_idx" in attrs:
+            if len(attrs["s_idx"].shape) == 0:
+                meta["its"] = [[attrs["s_idx"]]]
+            else:
+                meta["its"] = attrs["s_idx"]
+        if "t0" in attrs:
+            meta["t0"] = attrs["t0"]
         return meta
 
     def read_s3(self, format, fname, bucket, key, secret, s3_url, use_ssl):
@@ -268,7 +269,6 @@ class DataReader():
 
         t0 = starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
         nt = len(mseed[0].data)
-        nsta = len(mseed)
         data = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
         ids = [x.get_id() for x in mseed]
         if len(ids) > 3:
@@ -330,7 +330,7 @@ class DataReader():
                         if stations.iloc[i]["unit"] == "m/s**2":
                             tmp = mseed.select(id=sta+c)[0]
                             tmp = tmp.integrate()
-                            tmp = tmp.filter("highpass", freq=5.0)
+                            tmp = tmp.filter("highpass", freq=1.0)
                             tmp = tmp.data.astype(self.dtype)
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
@@ -338,7 +338,7 @@ class DataReader():
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         else:
                             print(f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
-                    if remove_resp:
+                    if amplitude and remove_resp:
                         trace_amp[:, j] /=  float(resp[j])
             else: ## less than 3 component
                 for jj, c in enumerate(comp):
@@ -356,7 +356,7 @@ class DataReader():
                         if stations.iloc[i]["unit"] == "m/s**2":
                             tmp = mseed.select(id=sta+c)[0]
                             tmp = tmp.integrate()
-                            tmp = tmp.filter("highpass", freq=5.0)
+                            tmp = tmp.filter("highpass", freq=1.0)
                             tmp = tmp.data.astype(self.dtype)
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
@@ -364,7 +364,7 @@ class DataReader():
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         else:
                             print(f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!")
-                    if remove_resp:
+                    if amplitude and remove_resp:
                         trace_amp[:, j] /=  float(resp[jj])
             if not empty_station:
                 data.append(trace_data)
@@ -374,11 +374,12 @@ class DataReader():
                 t0.append(starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
 
         data = np.stack(data)
-        raw_amp = np.stack(raw_amp)
         if len(data.shape) == 3:
             data = data[:,:,np.newaxis,:]
-        if len(raw_amp.shape) == 3:
-            raw_amp = raw_amp[:,:,np.newaxis,:]
+        if amplitude:
+            raw_amp = np.stack(raw_amp)
+            if len(raw_amp.shape) == 3:
+                raw_amp = raw_amp[:,:,np.newaxis,:]
 
         if amplitude:
             meta = {"data": data, "t0": t0, "fname":fname, "raw_amp": raw_amp}
@@ -600,6 +601,8 @@ class DataReader_pred(DataReader):
             meta = self.read_numpy(os.path.join(self.data_dir, base_name))
         elif self.format == "mseed":
             meta = self.read_mseed(os.path.join(self.data_dir, base_name))
+        elif self.format == "hdf5":
+            meta = self.read_hdf5(base_name)
         return meta["data"].shape
 
     def adjust_missingchannels(self, data):
@@ -617,6 +620,8 @@ class DataReader_pred(DataReader):
             meta = self.read_numpy(os.path.join(self.data_dir, base_name))
         elif self.format == "mseed":
             meta = self.read_mseed(os.path.join(self.data_dir, base_name))
+        elif self.format == "hdf5":
+            meta = self.read_hdf5(base_name)
         else:
             raise(f"{self.format} does not support!")
         if meta == -1:
