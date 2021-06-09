@@ -986,17 +986,17 @@ if __name__ == '__main__':
         log_dir = None
         model_dir = os.path.join("model", "190703-214543")
         num_plots = 10
-        tp_prob = 0.3
-        ts_prob = 0.3
+        tp_prob = 0.3                                              # <====== picking thresholds
+        ts_prob = 0.3                                              # <====== picking thresholds
         input_length = None
         input_mseed = False
         input_sds = True
-        data_dir = os.path.join("demo", "sds", "data")
-        data_list = os.path.join("demo", "sds", "fname_sds.csv")
+        data_dir = os.path.join("demo", "sds", "data")             # <====== CHANGE HERE
+        data_list = os.path.join("demo", "sds", "fname_sds.csv")   # <====== CHANGE HERE
         train_dir = None
         valid_dir = None
         valid_list = None
-        output_dir = os.path.join("demo", "sds", "output")
+        output_dir = os.path.join("demo", "sds", "sds_output")     # <====== CHANGE HERE
         plot_figure = True  # will crash if save_result is False
         save_result = True
         fpred = "picks"
