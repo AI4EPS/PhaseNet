@@ -123,7 +123,11 @@ def _save_predictions_to_hdf5_archive(hdf5_pointer: h5py._hl.files.File, fname_b
     :return : None
     """
 
-    for i in range(len(fname_batch)):
+    number_of_batch = len(fname_batch)
+    assert pred_batch.shape[0] == number_of_batch
+
+    # plt.figure()
+    for i in range(number_of_batch):
         seedid, sample_start, sampling_rate, sample_npts, \
             (network, station, location, channel2, dataquality) = \
             _decode_sample_name(sample_name=fname_batch[i].decode())
@@ -145,16 +149,18 @@ def _save_predictions_to_hdf5_archive(hdf5_pointer: h5py._hl.files.File, fname_b
                 dataquality=dataquality)
 
             # AVOID THE EDGES OF THE SAMPLE (because of the 50% overlap)
-            n = sample_npts // 4
+            # n = sample_npts // 4
 
             try:
                 grp = hdf5_pointer[groupname]
             except KeyError:
                 grp = hdf5_pointer.create_group(groupname)
 
+            # probability_data = pred_batch[i, n:-n, 0, nphase + 1] # 1 for P and 2 for S
+            probability_data = pred_batch[i, :, 0, nphase + 1] # 1 for P and 2 for S
             sample_dataset = grp.create_dataset(
                 fname_batch[i].decode(),
-                data=255 * pred_batch[i, n:-n, 0, nphase + 1],  # 1 for P and 2 for S
+                data=255 * probability_data,
                 dtype=np.dtype('uint8'))  # to save disk space, proba scaled by 255
 
             sample_dataset.attrs["network"] = network
@@ -162,26 +168,37 @@ def _save_predictions_to_hdf5_archive(hdf5_pointer: h5py._hl.files.File, fname_b
             sample_dataset.attrs["location"] = location
             sample_dataset.attrs["channel"] = channel2 + phasename
             sample_dataset.attrs["dataquality"] = dataquality
-            sample_dataset.attrs["starttime"] = str(sample_start + n / sampling_rate)
+            sample_dataset.attrs["starttime"] = str(sample_start) # + n / sampling_rate)
             sample_dataset.attrs["sampling_rate"] = sampling_rate
 
+    #         t = sample_start.timestamp + n / sampling_rate + np.arange(len(probability_data)) / sampling_rate
+    #         plt.plot(t, probability_data, ['', 'r', 'b'][nphase + 1])
+    # plt.show()
 
 def _detect_peaks_thread_sds(i, pred, fname=None, result_dir=None, args=None):
     """
     same as the original function _detect_peaks_thread_sds customized for this sds plugin
     """
-    input_length = pred.shape[1]
-    nedge = input_length // 4  # do not pick maxima in the 25% edge zone each side to avoid repeated picks
+    input_length = pred.shape[1]  # (20, 3000, 1, 3)
+    if False:
+        nedge = input_length // 4  # do not pick maxima in the 25% edge zone each side to avoid repeated picks
 
-    if args is None:
-        itp = detect_peaks(pred[i, nedge:-nedge, 0, 1], mph=0.5, mpd=0.5 / Config().dt, show=False)
-        its = detect_peaks(pred[i, nedge:-nedge, 0, 2], mph=0.5, mpd=0.5 / Config().dt, show=False)
+        if args is None:
+            itp = detect_peaks(pred[i, nedge:-nedge, 0, 1], mph=0.5, mpd=0.5 / Config().dt, show=False)
+            its = detect_peaks(pred[i, nedge:-nedge, 0, 2], mph=0.5, mpd=0.5 / Config().dt, show=False)
+        else:
+            itp = detect_peaks(pred[i, nedge:-nedge, 0, 1], mph=args.tp_prob, mpd=0.5 / Config().dt, show=False)
+            its = detect_peaks(pred[i, nedge:-nedge, 0, 2], mph=args.ts_prob, mpd=0.5 / Config().dt, show=False)
+
+        itp = [_ + nedge for _ in itp]
+        its = [_ + nedge for _ in its]
     else:
-        itp = detect_peaks(pred[i, nedge:-nedge, 0, 1], mph=args.tp_prob, mpd=0.5 / Config().dt, show=False)
-        its = detect_peaks(pred[i, nedge:-nedge, 0, 2], mph=args.ts_prob, mpd=0.5 / Config().dt, show=False)
-
-    itp = [_ + nedge for _ in itp]
-    its = [_ + nedge for _ in its]
+        if args is None:
+            itp = detect_peaks(pred[i, :, 0, 1], mph=0.5, mpd=0.5 / Config().dt, show=False)
+            its = detect_peaks(pred[i, :, 0, 2], mph=0.5, mpd=0.5 / Config().dt, show=False)
+        else:
+            itp = detect_peaks(pred[i, :, 0, 1], mph=args.tp_prob, mpd=0.5 / Config().dt, show=False)
+            its = detect_peaks(pred[i, :, 0, 2], mph=args.ts_prob, mpd=0.5 / Config().dt, show=False)
 
     prob_p = pred[i, itp, 0, 1]
     prob_s = pred[i, its, 0, 2]
@@ -316,7 +333,7 @@ def _show_sds_prediction_results_thread(thread_args: dict):
 
     # === add the background probability time series for P and S
     for n, st in enumerate([stp, sts]):
-        for tr in st:
+        for m, tr in enumerate(st):
             picktime = tr.stats.starttime.timestamp + np.arange(tr.stats.npts) * tr.stats.delta
             probability_ax.plot(picktime, tr.data, {0: "r", 1: "b"}[n], alpha=1.0)
 
@@ -709,6 +726,8 @@ class DataReaderSDS(DataReader):
 
         # read picks.csv
         A = np.genfromtxt(picks_file, skip_header=1, delimiter=',', dtype=str)
+        if A.shape == (0,):
+            raise ValueError(f'no picks to show in {picks_file}')
         pick_data = {}
         pick_data['seedid'] = A[:, 0]
         pick_data['phasename'] = A[:, 1]
@@ -866,6 +885,36 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
                     _save_predictions_to_hdf5_archive(
                         hdf5_pointer, fname_batch, pred_batch)
 
+            # n_batch = pred_batch.shape[0]
+            # input_length = pred_batch.shape[1]
+            # args.tp_prob = 0.01
+            # args.ts_prob = 0.01
+            # plt.figure()
+            # for i_batch in range(n_batch):
+            #
+            #     t = (i_batch * input_length + np.arange(input_length)) * Config().dt
+            #     p_prob = pred_batch[i_batch, :, 0, 1]
+            #     s_prob = pred_batch[i_batch, :, 0, 2]
+            #     plt.plot(t, p_prob, 'r')
+            #     plt.plot(t, -s_prob, 'b')
+            #
+            #     (itp_pred, prob_p), (its_pred, prob_s) = \
+            #         _postprocessing_thread_sds(
+            #             i_batch,
+            #             pred=pred_batch,
+            #             X=X_batch,
+            #             fname=fname_batch,
+            #             result_dir=None,  # force ignore this
+            #             figure_dir=None,  # force ignore this
+            #             args=args)
+            #     for i, p in zip(itp_pred, prob_p):
+            #         plt.plot(t[i], p, 'r*')
+            #     for i, s in zip(its_pred, prob_s):
+            #         plt.plot(t[i], -s, 'b*')
+            #
+            # plt.show()
+            # exit(1)
+
             # picks
             picks_batch = pool.map(
                 partial(_postprocessing_thread_sds,
@@ -888,11 +937,13 @@ def pred_fn_sds(args, data_reader: DataReaderSDS, figure_dir=None, result_dir=No
                 for idx, pb in zip(itp, tpprob):
                     # find pick time from batchname metadata
                     tpick = sample_start + idx / sampling_rate
-                    fclog.write(f"{seedid},P,{tpick},{pb}\n")
+                    pb = round(pb, 6)
+                    fclog.write(f"{seedid},P,{tpick},{pb:.6f}\n")
 
                 for idx, pb in zip(its, tsprob):
                     tpick = sample_start + idx / sampling_rate
-                    fclog.write(f"{seedid},S,{tpick},{pb}\n")
+                    pb = round(pb, 6)
+                    fclog.write(f"{seedid},S,{tpick},{pb:.6f}\n")
 
             if last_batch:
                 break
@@ -970,4 +1021,4 @@ if __name__ == '__main__':
 
     if args.plot_figure:
         data_reader.show_sds_prediction_results(
-            output_dir=os.path.join("demo", "sds", "output"))
+            output_dir=args.output_dir)

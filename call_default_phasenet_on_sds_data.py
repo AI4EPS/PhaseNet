@@ -3,26 +3,36 @@ import sys, glob, os, time
 from obspy.core import read as ocread
 from obspy.core.stream import Stream
 
+"""
+WARNING ABSOLUTE TIMES WILL BE WRONG FOR THE SECOND PART OF THE FILE
+"""
+
 input_data = 'demo/sds/data/2000/*/AAAA/*Z.D/*'
+output_dir = "demo/sds/default_output"
+temp_csv_file = os.path.join(output_dir, "default_fname.csv")
+preformatted_data_dir = os.path.join(output_dir, "preformatted_data")
+input_length = 3000
 
+if os.path.isdir(output_dir):
+    raise Exception(output_dir, 'exists already')
+os.system('mkdir ' + output_dir)
+os.system('mkdir ' + preformatted_data_dir)
 
-os.system('''
-trash tmp_output tmp_input tmp_fname.csv log
-mkdir tmp_output tmp_input
-''')
-
-
-with open('tmp_fname.csv', 'w') as fidr:
-    fidr.write('fname,E,N,Z\n')
+with open(temp_csv_file, 'w') as fid:
+    fid.write('fname,E,N,Z\n')
 
     for zfname in glob.iglob(input_data):
 
         nfname = zfname.replace('HZ.', "HN.")
         efname = zfname.replace('HZ.', "HE.")
-        output_file = "tmp_input/" + zfname.split('/')[-1].replace('HZ.', 'H.')
+        output_file = os.path.join(
+            preformatted_data_dir,
+            zfname.split('/')[-1].replace('HZ.', 'H.'))
 
         assert os.path.isfile(nfname), nfname
         assert os.path.isfile(efname), efname
+        assert efname != zfname, nfname
+        assert nfname != zfname, efname
 
         print(zfname)
         print(nfname)
@@ -53,36 +63,50 @@ with open('tmp_fname.csv', 'w') as fidr:
             tr.data = np.asarray(tr.data, np.dtype('int32'))
             tr.stats.mseed = {}
 
+            tr.trim(starttime=tr.stats.starttime + 1000.,
+                    endtime=tr.stats.starttime + 5000.)
+
+            if tr.stats.npts % input_length:
+                tr.data = np.hstack((tr.data, np.zeros(input_length - tr.stats.npts % input_length)))
+
         for tr in st:
             print(tr)
         st.write(output_file, format="MSEED")
-        fidr.write(f'{output_file.split("/")[-1]},{tre.stats.channel},{trn.stats.channel},{trz.stats.channel}\n')
+        fid.write(f'{output_file.split("/")[-1]},{tre.stats.channel},{trn.stats.channel},{trz.stats.channel}\n')
 
 
-script = """
+script = f"""
 /home/lehujeur/anaconda3/envs/py38-phasenet/bin/python run.py \\
     --mode=pred  \\
     --model_dir=model/190703-214543  \\
-    --data_dir=tmp_input  \\
-    --data_list=tmp_fname.csv  \\
-    --output_dir=tmp_output  \\
+    --data_dir={preformatted_data_dir}  \\
+    --data_list={temp_csv_file}  \\
+    --output_dir={output_dir}  \\
     --batch_size=20  \\
-    --input_mseed  && touch tmp_output/DONE 
+    --input_length {input_length} \\
+    --input_mseed  && \\
+    touch {output_dir}/DONE
+    
+    # --plot_figure 
+     
 """
 
 os.system(script)
 
-while not os.path.isfile('tmp_output/DONE'):
+while not os.path.isfile(f'{output_dir}/DONE'):
     time.sleep(1.0)
-
 
 import numpy as np
 import sys, glob, os, time
 from obspy.core import read as ocread
 from obspy.core.stream import Stream
 
+
+
 known_files = {}
-with open('tmp_output/picks.csv', 'r') as fidr, open('tmp_output/picks_converted.csv', 'w') as fidw:
+with open(output_dir + '/picks.csv', 'r') as fidr, \
+     open(output_dir + '/picks_converted.csv', 'w') as fidw:
+
     fidr.readline()  # header
     fidw.write('seedid,phasename,time,probability\n')
 
@@ -92,15 +116,15 @@ with open('tmp_output/picks.csv', 'r') as fidr, open('tmp_output/picks_converted
         if itp == "[]" and its == '[]':
             continue
 
-        fname, first_samp = fname.split('_')
-        first_samp = int(first_samp)
+        fname, batch_index = fname.split('_')
+        batch_index = int(batch_index)
 
         itp = eval(",".join(itp.split()))
         tp_prob = eval(",".join(tp_prob.split()))
         its = eval(",".join(its.split()))
         ts_prob = eval(','.join(ts_prob.split()))
 
-        fname = "tmp_input/" + fname
+        fname = os.path.join(preformatted_data_dir, fname)
         assert os.path.isfile(fname), fname
         # print(fname, itp, tp_prob, its, ts_prob)
 
@@ -108,11 +132,18 @@ with open('tmp_output/picks.csv', 'r') as fidr, open('tmp_output/picks_converted
             trz = known_files[fname]
         except KeyError:
             trz = known_files[fname] = ocread(fname, format="MSEED", headonly=True)[0]
+
+        if batch_index < trz.stats.npts:
+            first_samp = batch_index
+        else:
+            # this is wrong, I don't want to spend hours to fix their shit
+            first_samp = batch_index - trz.stats.npts - input_length
+
         seedid = f"{trz.stats.network}.{trz.stats.station}.{trz.stats.location}.{trz.stats.channel[:2]}.{trz.stats.mseed['dataquality']}"
         for i, p in zip(itp, tp_prob):
             true_time = trz.stats.starttime + trz.stats.delta * (first_samp + i)
-            fidw.write(f"{seedid},P,{str(true_time)},{p}\n")
+            fidw.write(f"{seedid},P,{str(true_time)},{p:.6f}\n")
 
         for i, p in zip(its, ts_prob):
             true_time = trz.stats.starttime + trz.stats.delta * (first_samp + i)
-            fidw.write(f"{seedid},S,{str(true_time)},{p}\n")
+            fidw.write(f"{seedid},S,{str(true_time)},{p:.6f}\n")

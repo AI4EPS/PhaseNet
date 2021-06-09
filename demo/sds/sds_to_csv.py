@@ -73,6 +73,3 @@ if __name__ == '__main__':
     print(HEADER)
     for i in i_sort:
         print(f'{network[i]},{station[i]},{location[i]},{channel[i]},{dataquality[i]},{year[i]},{julday[i]},0.0,{24*3600.}')
-
-
-
