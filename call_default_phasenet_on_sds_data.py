@@ -96,12 +96,6 @@ os.system(script)
 while not os.path.isfile(f'{output_dir}/DONE'):
     time.sleep(1.0)
 
-import numpy as np
-import sys, glob, os, time
-from obspy.core import read as ocread
-from obspy.core.stream import Stream
-
-
 
 known_files = {}
 with open(output_dir + '/picks.csv', 'r') as fidr, \
@@ -136,7 +130,8 @@ with open(output_dir + '/picks.csv', 'r') as fidr, \
         if batch_index < trz.stats.npts:
             first_samp = batch_index
         else:
-            # this is wrong, I don't want to spend hours to fix their shit
+            # this is wrong, just use
+            # absolute times will likely be wrong for the second half of the file
             first_samp = batch_index - trz.stats.npts - input_length
 
         seedid = f"{trz.stats.network}.{trz.stats.station}.{trz.stats.location}.{trz.stats.channel[:2]}.{trz.stats.mseed['dataquality']}"
