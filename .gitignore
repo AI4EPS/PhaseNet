@@ -2,3 +2,5 @@ __pycache__
 log
 output
 *.pyc
+/demo/sds/default_output/
+/demo/sds/sds_output/
