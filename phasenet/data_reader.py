@@ -266,15 +266,21 @@ class DataReader():
 
         order = ['3','2','1','E','N','Z']
         order = {key: i for i, key in enumerate(order)}
+        comp2idx = {"3":0, "2":1, "1":2, "E":0, "N":1, "Z":2}
 
         t0 = starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
         nt = len(mseed[0].data)
         data = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
         ids = [x.get_id() for x in mseed]
-        if len(ids) > 3:
-            raise(f"More than 3 channels {ids}!")
-        for j, id in enumerate(sorted(ids, key=lambda x: order[x[-1]])):
-            data[:, j] = mseed.select(id=id)[0].data.astype(self.dtype)
+        if len(ids) == 3:
+            for j, id in enumerate(sorted(ids, key=lambda x: order[x[-1]])):
+                data[:, j] = mseed.select(id=id)[0].data.astype(self.dtype)
+        else:
+            if len(ids) > 3:
+                logging.warning(f"More than 3 channels {ids}!")
+            for jj, id in enumerate(ids):
+                j = comp2idx[id[-1]]
+                data[:, j] = mseed.select(id=id)[0].data.astype(self.dtype)
 
         data = data[:,np.newaxis,:]
         meta = {"data": data, "t0": t0}
@@ -330,7 +336,7 @@ class DataReader():
                         if stations.iloc[i]["unit"] == "m/s**2":
                             tmp = mseed.select(id=sta+c)[0]
                             tmp = tmp.integrate()
-                            tmp = tmp.filter("highpass", freq=0.5)
+                            tmp = tmp.filter("highpass", freq=1.0)
                             tmp = tmp.data.astype(self.dtype)
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
@@ -356,7 +362,7 @@ class DataReader():
                         if stations.iloc[i]["unit"] == "m/s**2":
                             tmp = mseed.select(id=sta+c)[0]
                             tmp = tmp.integrate()
-                            tmp = tmp.filter("highpass", freq=0.5)
+                            tmp = tmp.filter("highpass", freq=1.0)
                             tmp = tmp.data.astype(self.dtype)
                             trace_amp[:len(tmp), j] = tmp[:nt]
                         elif stations.iloc[i]["unit"] == "m/s":
