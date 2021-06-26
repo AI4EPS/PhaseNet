@@ -173,8 +173,10 @@ class DataReader():
         self.format = format
         if format in ["numpy", "mseed"]:
             self.data_dir = kwargs["data_dir"]
-            #self.data_list = pd.read_csv(kwargs["data_list"], header=0)['fname']
-            self.data_list = pd.read_csv(kwargs["data_list"], header=0, sep="\t")['fname']
+            try:
+                self.data_list = pd.read_csv(kwargs["data_list"], header=0, sep="\t")['fname']
+            except:
+                self.data_list = pd.read_csv(kwargs["data_list"], header=0)['fname']
             self.num_data = len(self.data_list)
         elif format == "hdf5":
             self.h5 = h5py.File(kwargs["hdf5_file"], 'r', libver='latest', swmr=True)
@@ -671,8 +673,10 @@ class DataReader_mseed_array(DataReader):
     def __init__(self, stations, amplitude=True, remove_resp=True, config=DataConfig(), **kwargs):
 
         super().__init__(format="mseed", config=config, **kwargs)
-
-        self.stations = pd.read_csv(stations, delimiter="\t")
+        try:
+            self.stations = pd.read_csv(stations, delimiter="\t")
+        except:
+            self.stations = pd.read_csv(stations)
         print(self.stations)
         self.amplitude = amplitude
         self.remove_resp = remove_resp
