@@ -635,8 +635,11 @@ class DataReader_pred(DataReader):
         if meta == -1:
             return (np.zeros(self.X_shape, dtype=self.dtype), base_name)
 
-        raw_amp = np.copy(meta["data"])
-        sample = normalize_long(meta['data']).astype(self.dtype)
+        raw_amp = np.zeros(self.X_shape, dtype=self.dtype)
+        raw_amp[:meta["data"].shape[0],...] = meta["data"][:self.X_shape[0],...]
+        sample = np.zeros(self.X_shape, dtype=self.dtype)
+        sample[:meta["data"].shape[0],...] = normalize_long(meta["data"])[:self.X_shape[0],...]
+
         if "t0" in meta:
             t0 = meta["t0"]
         else:
@@ -647,7 +650,7 @@ class DataReader_pred(DataReader):
             sample[np.isnan(sample)] = 0
             sample[np.isinf(sample)] = 0
 
-        # sample = self.adjust_missingchannels(sample)
+        sample = self.adjust_missingchannels(sample)
         if self.amplitude:
             return (sample[:self.X_shape[0],...], raw_amp[:self.X_shape[0],...], base_name, t0)
         else:
