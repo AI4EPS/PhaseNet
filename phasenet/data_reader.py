@@ -650,7 +650,7 @@ class DataReader_pred(DataReader):
             sample[np.isnan(sample)] = 0
             sample[np.isinf(sample)] = 0
 
-        sample = self.adjust_missingchannels(sample)
+        # sample = self.adjust_missingchannels(sample)
         if self.amplitude:
             return (sample[:self.X_shape[0],...], raw_amp[:self.X_shape[0],...], base_name, t0)
         else:
