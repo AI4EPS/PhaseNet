@@ -19,9 +19,9 @@ def extract_picks(preds, fnames=None, t0=None, config=None):
     for i, pred in enumerate(preds):
 
         if config is None:
-            mph_p, mph_s, mpd = 0.3, 0.3, 30
+            mph_p, mph_s, mpd = 0.3, 0.3, 50
         else:
-            mph_p, mph_s, mpd = config.min_p_prob, config.min_s_prob, 0.5/config.dt
+            mph_p, mph_s, mpd = config.min_p_prob, config.min_s_prob, config.mpd
 
         if (fnames is None):
             fname = f"{i:04d}"

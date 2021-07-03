@@ -2,6 +2,7 @@ __pycache__
 build/
 mseed/
 log/
+phasenet/test_data
 output*/
 result*/
 *.pyc
