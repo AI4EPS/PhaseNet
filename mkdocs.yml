@@ -5,7 +5,7 @@ docs_dir: docs/
 repo_name: 'wayneweiqiang/PhaseNet'
 repo_url: 'https://github.com/wayneweiqiang/PhaseNet'
 nav:
-    - Pipeline Overview: index.md
+    - Overview: README.md
 theme:
   name: 'material'
 plugins:
