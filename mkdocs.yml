@@ -6,6 +6,7 @@ repo_name: 'wayneweiqiang/PhaseNet'
 repo_url: 'https://github.com/wayneweiqiang/PhaseNet'
 nav:
     - Overview: README.md
+    - Examples: Examples.ipynb
 theme:
   name: 'material'
 plugins:
