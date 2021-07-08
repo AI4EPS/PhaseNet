@@ -7,6 +7,7 @@ repo_url: 'https://github.com/wayneweiqiang/PhaseNet'
 nav:
     - Overview: README.md
     - Interactive Example: example_interactive.ipynb
+    - Batch Prediction: example_batch_prediction.ipynb
 theme:
   name: 'material'
 plugins:
