@@ -25,11 +25,11 @@ Located in directory: **model/190703-214543**
 - Tan, Yen Joe, et al. "Machine‐Learning‐Based High‐Resolution Earthquake Catalog Reveals How Complex Fault Structures Were Activated during the 2016–2017 Central Italy Sequence." The Seismic Record 1.1 (2021): 11-19.
 
 ## 4. Interactive example
-See details in the [notebook](https://raw.githubusercontent.com/wayneweiqiang/PhaseNet/master/docs/example_interactive.ipnb): [example_interactive.ipnb](example_interactive.html)
+See details in the [notebook](https://raw.githubusercontent.com/wayneweiqiang/PhaseNet/master/docs/example_interactive.ipynb): [example_interactive.ipynb](example_interactive.ipynb)
 
 
 ## 5. Batch prediction
-See details in the [notebook](https://raw.githubusercontent.com/wayneweiqiang/PhaseNet/master/docs/example_batch_prediction.ipnb): [example_batch_prediction.ipnb](example_batch_prediction.html)
+See details in the [notebook](https://raw.githubusercontent.com/wayneweiqiang/PhaseNet/master/docs/example_batch_prediction.ipynb): [example_batch_prediction.ipynb](example_batch_prediction.ipynb)
 
 ## 6. Training
 
