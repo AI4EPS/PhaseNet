@@ -10,8 +10,8 @@ import requests
 from fastapi import FastAPI
 from pydantic import BaseModel
 from kafka import KafkaProducer
-from .postprocess import extract_picks, extract_amplitude
-from .model import UNet, ModelConfig
+from postprocess import extract_picks, extract_amplitude
+from model import UNet, ModelConfig
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
