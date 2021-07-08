@@ -3,10 +3,10 @@ import os
 import numpy as np
 from collections import namedtuple
 from datetime import datetime, timedelta
-from detect_peaks import detect_peaks
 import json
 import matplotlib.pyplot as plt
 import logging
+from .detect_peaks import detect_peaks
 
 def extract_picks(preds, fnames=None, t0=None, config=None):
 

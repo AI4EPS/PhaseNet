@@ -1,8 +1,15 @@
 ## 1.  Install [miniconda](https://docs.conda.io/en/latest/miniconda.html) and requirements
+
+- Install to default environment
+```bash
+conda env update -f=env.yml -n base
+```
+- Install to "phasenet" virtual envirionment
 ```bash
 conda env create -f env.yml
-conda activate venv
+conda activate phasenet
 ```
+
 
 ## 2.Demo Data
 
