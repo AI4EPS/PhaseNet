@@ -33,124 +33,239 @@ def plot_residual(diff_p, diff_s, diff_ps, tol, dt):
     plt.savefig("residuals.pdf")
 
 
-def plot_waveform(config, data, pred, label=None, 
+# def plot_waveform(config, data, pred, label=None, 
+#                   itp=None, its=None, itps=None,
+#                   itp_pred=None, its_pred=None, itps_pred=None,
+#                   fname=None, figure_dir="./", epoch=0, max_fig=10):
+
+#     dt = config.dt if hasattr(config, "dt") else 1.0
+#     t = np.arange(0, pred.shape[1]) * dt
+#     box = dict(boxstyle='round', facecolor='white', alpha=1)
+#     text_loc = [0.05, 0.77]
+#     if fname is None:
+#         fname = [f"{epoch:03d}_{i:02d}" for i in range(len(data))]
+#     else:
+#         fname = [fname[i].decode().rstrip(".npz") for i in range(len(fname))]
+        
+#     for i in range(min(len(data), max_fig)):
+#         plt.figure(i)
+        
+#         plt.subplot(411)
+#         plt.plot(t, data[i, :, 0, 0], 'k', label='E', linewidth=0.5)
+#         plt.autoscale(enable=True, axis='x', tight=True)
+#         tmp_min = np.min(data[i, :, 0, 0])
+#         tmp_max = np.max(data[i, :, 0, 0])
+#         if (itp is not None) and (its is not None):
+#             for j in range(len(itp[i])):
+#                 lb = "P" if j==0 else ""
+#                 plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'C0', label=lb, linewidth=0.5)
+#             for j in range(len(its[i])):
+#                 lb = "S" if j==0 else ""
+#                 plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'C1', label=lb, linewidth=0.5)
+#         if (itps is not None):
+#             for j in range(len(itps[i])):
+#                 lb = "PS" if j==0 else ""
+#                 plt.plot([itps[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'C2', label=lb, linewidth=0.5)
+#         plt.ylabel('Amplitude')
+#         plt.legend(loc='upper right', fontsize='small')
+#         plt.gca().set_xticklabels([])
+#         plt.text(text_loc[0], text_loc[1], '(i)', horizontalalignment='center',
+#                  transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+        
+#         plt.subplot(412)
+#         plt.plot(t, data[i, :, 0, 1], 'k', label='N', linewidth=0.5)
+#         plt.autoscale(enable=True, axis='x', tight=True)
+#         tmp_min = np.min(data[i, :, 0, 1])
+#         tmp_max = np.max(data[i, :, 0, 1])
+#         if (itp is not None) and (its is not None):
+#             for j in range(len(itp[i])):
+#                 lb = "P" if j==0 else ""
+#                 plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'C0', label=lb, linewidth=0.5)
+#             for j in range(len(its[i])):
+#                 lb = "S" if j==0 else ""
+#                 plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'C1', label=lb, linewidth=0.5)
+#         if (itps is not None):
+#             for j in range(len(itps[i])):
+#                 lb = "PS" if j==0 else ""
+#                 plt.plot([itps[i][j]*dt, itps[i][j]*dt], [tmp_min, tmp_max], 'C2', label=lb, linewidth=0.5)
+#         plt.ylabel('Amplitude')
+#         plt.legend(loc='upper right', fontsize='small')
+#         plt.gca().set_xticklabels([])
+#         plt.text(text_loc[0], text_loc[1], '(ii)', horizontalalignment='center',
+#                 transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+        
+#         plt.subplot(413)
+#         plt.plot(t, data[i, :, 0, 2], 'k', label='Z', linewidth=0.5)
+#         plt.autoscale(enable=True, axis='x', tight=True)
+#         tmp_min = np.min(data[i, :, 0, 2])
+#         tmp_max = np.max(data[i, :, 0, 2])
+#         if (itp is not None) and (its is not None):
+#             for j in range(len(itp[i])):
+#                 lb = "P" if j==0 else ""
+#                 plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'C0', label=lb, linewidth=0.5)
+#             for j in range(len(its[i])):
+#                 lb = "S" if j==0 else ""
+#                 plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'C1', label=lb, linewidth=0.5)
+#         if (itps is not None):
+#             for j in range(len(itps[i])):
+#                 lb = "PS" if j==0 else ""
+#                 plt.plot([itps[i][j]*dt, itps[i][j]*dt], [tmp_min, tmp_max], 'C2', label=lb, linewidth=0.5)
+#         plt.ylabel('Amplitude')
+#         plt.legend(loc='upper right', fontsize='small')
+#         plt.gca().set_xticklabels([])
+#         plt.text(text_loc[0], text_loc[1], '(iii)', horizontalalignment='center',
+#                 transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+        
+#         plt.subplot(414)
+#         if label is not None:
+#             plt.plot(t, label[i, :, 0, 1], 'C0', label='P', linewidth=1)
+#             plt.plot(t, label[i, :, 0, 2], 'C1', label='S', linewidth=1)
+#             if label.shape[-1] == 4:
+#                 plt.plot(t, label[i, :, 0, 3], 'C2', label='PS', linewidth=1)
+#         plt.plot(t, pred[i, :, 0, 1], '--C0', label='$\hat{P}$', linewidth=1)
+#         plt.plot(t, pred[i, :, 0, 2], '--C1', label='$\hat{S}$', linewidth=1)
+#         if pred.shape[-1] == 4:
+#             plt.plot(t, pred[i, :, 0, 3], '--C2', label='$\hat{PS}$', linewidth=1)
+#         plt.autoscale(enable=True, axis='x', tight=True)
+#         if (itp_pred is not None) and (its_pred is not None) :
+#             for j in range(len(itp_pred)):
+#                 plt.plot([itp_pred[j]*dt, itp_pred[j]*dt], [-0.1, 1.1], '--C0', linewidth=1)
+#             for j in range(len(its_pred)):
+#                 plt.plot([its_pred[j]*dt, its_pred[j]*dt], [-0.1, 1.1], '--C1', linewidth=1)
+#         if (itps_pred is not None):
+#             for j in range(len(itps_pred)):
+#                 plt.plot([itps_pred[j]*dt, itps_pred[j]*dt], [-0.1, 1.1], '--C2', linewidth=1)
+#         plt.ylim([-0.05, 1.05])
+#         plt.text(text_loc[0], text_loc[1], '(iv)', horizontalalignment='center',
+#                  transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+#         plt.legend(loc='upper right', fontsize='small', ncol=2)
+#         plt.xlabel('Time (s)')
+#         plt.ylabel('Probability')
+#         plt.tight_layout()
+#         plt.gcf().align_labels()
+
+#         try:
+#             plt.savefig(os.path.join(figure_dir, fname[i]+'.png'), bbox_inches='tight')
+#         except FileNotFoundError:
+#             os.makedirs(os.path.dirname(os.path.join(figure_dir, fname[i])), exist_ok=True)
+#             plt.savefig(os.path.join(figure_dir, fname[i]+'.png'), bbox_inches='tight')
+
+#         plt.close(i)
+#     return 0
+
+
+def plot_waveform(data, pred, fname, label=None, 
                   itp=None, its=None, itps=None,
                   itp_pred=None, its_pred=None, itps_pred=None,
-                  fname=None, figure_dir="./", epoch=0, max_fig=10):
+                  figure_dir="./", dt=0.01):
 
-    dt = config.dt if hasattr(config, "dt") else 1.0
-    t = np.arange(0, pred.shape[1]) * dt
+    t = np.arange(0, pred.shape[0]) * dt
     box = dict(boxstyle='round', facecolor='white', alpha=1)
     text_loc = [0.05, 0.77]
-    if fname is None:
-        fname = [f"{epoch:03d}_{i:02d}" for i in range(len(data))]
-    else:
-        fname = [fname[i].decode().rstrip(".npz") for i in range(len(fname))]
-        
-    for i in range(min(len(data), max_fig)):
-        plt.figure(i)
-        
-        plt.subplot(411)
-        plt.plot(t, data[i, :, 0, 0], 'k', label='E', linewidth=0.5)
-        plt.autoscale(enable=True, axis='x', tight=True)
-        tmp_min = np.min(data[i, :, 0, 0])
-        tmp_max = np.max(data[i, :, 0, 0])
-        if (itp is not None) and (its is not None):
-            for j in range(len(itp[i])):
-                lb = "P" if j==0 else ""
-                plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'C0', label=lb, linewidth=0.5)
-            for j in range(len(its[i])):
-                lb = "S" if j==0 else ""
-                plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'C1', label=lb, linewidth=0.5)
-        if (itps is not None):
-            for j in range(len(itps[i])):
-                lb = "PS" if j==0 else ""
-                plt.plot([itps[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'C2', label=lb, linewidth=0.5)
-        plt.ylabel('Amplitude')
-        plt.legend(loc='upper right', fontsize='small')
-        plt.gca().set_xticklabels([])
-        plt.text(text_loc[0], text_loc[1], '(i)', horizontalalignment='center',
-                 transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
-        
-        plt.subplot(412)
-        plt.plot(t, data[i, :, 0, 1], 'k', label='N', linewidth=0.5)
-        plt.autoscale(enable=True, axis='x', tight=True)
-        tmp_min = np.min(data[i, :, 0, 1])
-        tmp_max = np.max(data[i, :, 0, 1])
-        if (itp is not None) and (its is not None):
-            for j in range(len(itp[i])):
-                lb = "P" if j==0 else ""
-                plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'C0', label=lb, linewidth=0.5)
-            for j in range(len(its[i])):
-                lb = "S" if j==0 else ""
-                plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'C1', label=lb, linewidth=0.5)
-        if (itps is not None):
-            for j in range(len(itps[i])):
-                lb = "PS" if j==0 else ""
-                plt.plot([itps[i][j]*dt, itps[i][j]*dt], [tmp_min, tmp_max], 'C2', label=lb, linewidth=0.5)
-        plt.ylabel('Amplitude')
-        plt.legend(loc='upper right', fontsize='small')
-        plt.gca().set_xticklabels([])
-        plt.text(text_loc[0], text_loc[1], '(ii)', horizontalalignment='center',
-                transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
-        
-        plt.subplot(413)
-        plt.plot(t, data[i, :, 0, 2], 'k', label='Z', linewidth=0.5)
-        plt.autoscale(enable=True, axis='x', tight=True)
-        tmp_min = np.min(data[i, :, 0, 2])
-        tmp_max = np.max(data[i, :, 0, 2])
-        if (itp is not None) and (its is not None):
-            for j in range(len(itp[i])):
-                lb = "P" if j==0 else ""
-                plt.plot([itp[i][j]*dt, itp[i][j]*dt], [tmp_min, tmp_max], 'C0', label=lb, linewidth=0.5)
-            for j in range(len(its[i])):
-                lb = "S" if j==0 else ""
-                plt.plot([its[i][j]*dt, its[i][j]*dt], [tmp_min, tmp_max], 'C1', label=lb, linewidth=0.5)
-        if (itps is not None):
-            for j in range(len(itps[i])):
-                lb = "PS" if j==0 else ""
-                plt.plot([itps[i][j]*dt, itps[i][j]*dt], [tmp_min, tmp_max], 'C2', label=lb, linewidth=0.5)
-        plt.ylabel('Amplitude')
-        plt.legend(loc='upper right', fontsize='small')
-        plt.gca().set_xticklabels([])
-        plt.text(text_loc[0], text_loc[1], '(iii)', horizontalalignment='center',
-                transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
-        
-        plt.subplot(414)
-        if label is not None:
-            plt.plot(t, label[i, :, 0, 1], 'C0', label='P', linewidth=1)
-            plt.plot(t, label[i, :, 0, 2], 'C1', label='S', linewidth=1)
-            if label.shape[-1] == 4:
-                plt.plot(t, label[i, :, 0, 3], 'C2', label='PS', linewidth=1)
-        plt.plot(t, pred[i, :, 0, 1], '--C0', label='$\hat{P}$', linewidth=1)
-        plt.plot(t, pred[i, :, 0, 2], '--C1', label='$\hat{S}$', linewidth=1)
-        if pred.shape[-1] == 4:
-            plt.plot(t, pred[i, :, 0, 3], '--C2', label='$\hat{PS}$', linewidth=1)
-        plt.autoscale(enable=True, axis='x', tight=True)
-        if (itp_pred is not None) and (its_pred is not None) :
-            for j in range(len(itp_pred)):
-                plt.plot([itp_pred[j]*dt, itp_pred[j]*dt], [-0.1, 1.1], '--C0', linewidth=1)
-            for j in range(len(its_pred)):
-                plt.plot([its_pred[j]*dt, its_pred[j]*dt], [-0.1, 1.1], '--C1', linewidth=1)
-        if (itps_pred is not None):
-            for j in range(len(itps_pred)):
-                plt.plot([itps_pred[j]*dt, itps_pred[j]*dt], [-0.1, 1.1], '--C2', linewidth=1)
-        plt.ylim([-0.05, 1.05])
-        plt.text(text_loc[0], text_loc[1], '(iv)', horizontalalignment='center',
-                 transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
-        plt.legend(loc='upper right', fontsize='small', ncol=2)
-        plt.xlabel('Time (s)')
-        plt.ylabel('Probability')
-        plt.tight_layout()
-        plt.gcf().align_labels()
 
-        try:
-            plt.savefig(os.path.join(figure_dir, fname[i]+'.png'), bbox_inches='tight')
-        except FileNotFoundError:
-            os.makedirs(os.path.dirname(os.path.join(figure_dir, fname[i])), exist_ok=True)
-            plt.savefig(os.path.join(figure_dir, fname[i]+'.png'), bbox_inches='tight')
+    plt.figure()
+    
+    plt.subplot(411)
+    plt.plot(t, data[:, 0, 0], 'k', label='E', linewidth=0.5)
+    plt.autoscale(enable=True, axis='x', tight=True)
+    tmp_min = np.min(data[:, 0, 0])
+    tmp_max = np.max(data[:, 0, 0])
+    if (itp is not None) and (its is not None):
+        for j in range(len(itp)):
+            lb = "P" if j==0 else ""
+            plt.plot([itp[j]*dt, itp[j]*dt], [tmp_min, tmp_max], 'C0', label=lb, linewidth=0.5)
+        for j in range(len(its[i])):
+            lb = "S" if j==0 else ""
+            plt.plot([its[j]*dt, its[j]*dt], [tmp_min, tmp_max], 'C1', label=lb, linewidth=0.5)
+    if (itps is not None):
+        for j in range(len(itps)):
+            lb = "PS" if j==0 else ""
+            plt.plot([itps[j]*dt, its[j]*dt], [tmp_min, tmp_max], 'C2', label=lb, linewidth=0.5)
+    plt.ylabel('Amplitude')
+    plt.legend(loc='upper right', fontsize='small')
+    plt.gca().set_xticklabels([])
+    plt.text(text_loc[0], text_loc[1], '(i)', horizontalalignment='center',
+                transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+    
+    plt.subplot(412)
+    plt.plot(t, data[:, 0, 1], 'k', label='N', linewidth=0.5)
+    plt.autoscale(enable=True, axis='x', tight=True)
+    tmp_min = np.min(data[:, 0, 1])
+    tmp_max = np.max(data[:, 0, 1])
+    if (itp is not None) and (its is not None):
+        for j in range(len(itp)):
+            lb = "P" if j==0 else ""
+            plt.plot([itp[j]*dt, itp[j]*dt], [tmp_min, tmp_max], 'C0', label=lb, linewidth=0.5)
+        for j in range(len(its)):
+            lb = "S" if j==0 else ""
+            plt.plot([its[j]*dt, its[j]*dt], [tmp_min, tmp_max], 'C1', label=lb, linewidth=0.5)
+    if (itps is not None):
+        for j in range(len(itps)):
+            lb = "PS" if j==0 else ""
+            plt.plot([itps[j]*dt, itps[j]*dt], [tmp_min, tmp_max], 'C2', label=lb, linewidth=0.5)
+    plt.ylabel('Amplitude')
+    plt.legend(loc='upper right', fontsize='small')
+    plt.gca().set_xticklabels([])
+    plt.text(text_loc[0], text_loc[1], '(ii)', horizontalalignment='center',
+            transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+    
+    plt.subplot(413)
+    plt.plot(t, data[:, 0, 2], 'k', label='Z', linewidth=0.5)
+    plt.autoscale(enable=True, axis='x', tight=True)
+    tmp_min = np.min(data[:, 0, 2])
+    tmp_max = np.max(data[:, 0, 2])
+    if (itp is not None) and (its is not None):
+        for j in range(len(itp)):
+            lb = "P" if j==0 else ""
+            plt.plot([itp[j]*dt, itp[j]*dt], [tmp_min, tmp_max], 'C0', label=lb, linewidth=0.5)
+        for j in range(len(its)):
+            lb = "S" if j==0 else ""
+            plt.plot([its[j]*dt, its[j]*dt], [tmp_min, tmp_max], 'C1', label=lb, linewidth=0.5)
+    if (itps is not None):
+        for j in range(len(itps)):
+            lb = "PS" if j==0 else ""
+            plt.plot([itps[j]*dt, itps[j]*dt], [tmp_min, tmp_max], 'C2', label=lb, linewidth=0.5)
+    plt.ylabel('Amplitude')
+    plt.legend(loc='upper right', fontsize='small')
+    plt.gca().set_xticklabels([])
+    plt.text(text_loc[0], text_loc[1], '(iii)', horizontalalignment='center',
+            transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+    
+    plt.subplot(414)
+    if label is not None:
+        plt.plot(t, label[:, 0, 1], 'C0', label='P', linewidth=1)
+        plt.plot(t, label[:, 0, 2], 'C1', label='S', linewidth=1)
+        if label.shape[-1] == 4:
+            plt.plot(t, label[:, 0, 3], 'C2', label='PS', linewidth=1)
+    plt.plot(t, pred[:, 0, 1], '--C0', label='$\hat{P}$', linewidth=1)
+    plt.plot(t, pred[:, 0, 2], '--C1', label='$\hat{S}$', linewidth=1)
+    if pred.shape[-1] == 4:
+        plt.plot(t, pred[:, 0, 3], '--C2', label='$\hat{PS}$', linewidth=1)
+    plt.autoscale(enable=True, axis='x', tight=True)
+    if (itp_pred is not None) and (its_pred is not None) :
+        for j in range(len(itp_pred)):
+            plt.plot([itp_pred[j]*dt, itp_pred[j]*dt], [-0.1, 1.1], '--C0', linewidth=1)
+        for j in range(len(its_pred)):
+            plt.plot([its_pred[j]*dt, its_pred[j]*dt], [-0.1, 1.1], '--C1', linewidth=1)
+    if (itps_pred is not None):
+        for j in range(len(itps_pred)):
+            plt.plot([itps_pred[j]*dt, itps_pred[j]*dt], [-0.1, 1.1], '--C2', linewidth=1)
+    plt.ylim([-0.05, 1.05])
+    plt.text(text_loc[0], text_loc[1], '(iv)', horizontalalignment='center',
+                transform=plt.gca().transAxes, fontsize="small", fontweight="normal", bbox=box)
+    plt.legend(loc='upper right', fontsize='small', ncol=2)
+    plt.xlabel('Time (s)')
+    plt.ylabel('Probability')
+    plt.tight_layout()
+    plt.gcf().align_labels()
 
-        plt.close(i)
+    try:
+        plt.savefig(os.path.join(figure_dir, fname+'.png'), bbox_inches='tight')
+    except FileNotFoundError:
+        os.makedirs(os.path.dirname(os.path.join(figure_dir, fname)), exist_ok=True)
+        plt.savefig(os.path.join(figure_dir, fname+'.png'), bbox_inches='tight')
+
+    plt.close()
     return 0
 
 

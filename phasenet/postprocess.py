@@ -208,3 +208,26 @@ def calc_performance(picks, true_picks, tol=3.0, dt=1.0):
         logging.info(f"Residual mean={np.mean(residual):.4f}, std={np.std(residual):.4f}")
 
     return metrics
+
+
+def save_prob_h5(probs, fnames, output_h5):
+    if fnames is None:
+        fnames = [f"{i:04d}" for i in range(len(probs))]
+    elif type(fnames[0]) is bytes:
+        fnames = [f.decode().rstrip(".npz") for f in fnames]
+    else:
+        fnames = [f.rstrip(".npz") for f in fnames]
+    for prob, fname in zip(probs, fnames):
+        output_h5.create_dataset(fname, data=prob, dtype="float32")
+    return 0
+
+def save_prob(probs, fnames, prob_dir):
+    if fnames is None:
+        fnames = [f"{i:04d}" for i in range(len(probs))]
+    elif type(fnames[0]) is bytes:
+        fnames = [f.decode().rstrip(".npz") for f in fnames]
+    else:
+        fnames = [f.rstrip(".npz") for f in fnames]
+    for prob, fname in zip(probs, fnames):
+        np.savez(os.path.join(prob_dir, fname+".npz"), prob=prob)
+    return 0

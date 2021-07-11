@@ -1,16 +1,31 @@
+import argparse
+import logging
+import multiprocessing
+import os
+import pickle
+import time
+from functools import partial
+
+import h5py
 import numpy as np
+import pandas as pd
 import tensorflow as tf
+from tqdm import tqdm
+
+from data_reader import DataReader_mseed_array, DataReader_pred
+from model import ModelConfig, UNet
+from postprocess import (
+    extract_amplitude,
+    extract_picks,
+    save_picks,
+    save_picks_json,
+    save_prob_h5,
+)
+from visulization import plot_waveform
+
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-import argparse, os, time, logging
-from tqdm import tqdm
-import pandas as pd
-import multiprocessing
-from functools import partial
-import pickle
-from model import UNet, ModelConfig
-from data_reader import DataReader_pred, DataReader_mseed_array
-from postprocess import extract_picks, save_picks, save_picks_json, extract_amplitude
+
 
 def read_args():
 
@@ -48,9 +63,12 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         if not os.path.exists(figure_dir):
             os.makedirs(figure_dir)
     if (args.save_prob == True) and (prob_dir is None):
-        prob_dir = os.path.join(log_dir, 'results')
+        prob_dir = os.path.join(log_dir, 'probs')
         if not os.path.exists(prob_dir):
             os.makedirs(prob_dir)
+    if args.save_prob:
+        h5 = h5py.File(os.path.join(args.result_dir, "result.h5"), "w", libver='latest')
+        prob_h5 = h5.create_group("/prob")
     logging.info("Pred log: %s" % log_dir)
     logging.info("Dataset size: {}".format(data_reader.num_data))
 
@@ -84,15 +102,22 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
         picks = []
         amps = [] if args.amplitude else None
+        if args.plot_figure:
+            multiprocessing.set_start_method('spawn')
+            pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
         for _ in tqdm(range(0, data_reader.num_data, batch_size), desc="Pred"):
             if args.amplitude:
-                pred_batch, X_batch, amp_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2], batch[3]], 
-                                                                                  feed_dict={model.drop_rate: 0, model.is_training: False})
+                pred_batch, X_batch, amp_batch, fname_batch, t0_batch = sess.run(
+                    [model.preds, batch[0], batch[1], batch[2], batch[3]],
+                    feed_dict={model.drop_rate: 0, model.is_training: False},
+                )
             #    X_batch, amp_batch, fname_batch, t0_batch = sess.run([batch[0], batch[1], batch[2], batch[3]])
             else:
-                pred_batch, X_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2]],
-                                                                       feed_dict={model.drop_rate: 0, model.is_training: False})
+                pred_batch, X_batch, fname_batch, t0_batch = sess.run(
+                    [model.preds, batch[0], batch[1], batch[2]],
+                    feed_dict={model.drop_rate: 0, model.is_training: False},
+                )
             #    X_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2]])
             # pred_batch = []
             # for i in range(0, len(X_batch), 1):
@@ -105,10 +130,25 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 amps_ = extract_amplitude(amp_batch, picks_)
                 amps.extend(amps_)
 
+            if args.plot_figure:
+                pool.starmap(
+                    partial(
+                        plot_waveform,
+                        figure_dir=figure_dir,
+                    ),
+                    zip(X_batch, pred_batch, [x.decode() for x in fname_batch]),
+                )
+
+            if args.save_prob:
+                # save_prob(pred_batch, fname_batch, prob_dir=prob_dir)
+                save_prob_h5(pred_batch, [x.decode() for x in fname_batch], prob_h5)
+
         save_picks(picks, args.result_dir, amps=amps)
         save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps)
 
-    print(f"Done with {sum([len(x) for pick in picks for x in pick.p_idx])} P-picks and {sum([len(x) for pick in picks for x in pick.s_idx])} S-picks")
+    print(
+        f"Done with {sum([len(x) for pick in picks for x in pick.p_idx])} P-picks and {sum([len(x) for pick in picks for x in pick.s_idx])} S-picks"
+    )
     return 0
 
 
@@ -119,21 +159,23 @@ def main(args):
     with tf.compat.v1.name_scope('create_inputs'):
 
         if args.format == "mseed_array":
-            data_reader = DataReader_mseed_array(data_dir=args.data_dir,
-                                                 data_list=args.data_list,
-                                                 stations=args.stations,
-                                                 amplitude=args.amplitude)
+            data_reader = DataReader_mseed_array(
+                data_dir=args.data_dir, data_list=args.data_list, stations=args.stations, amplitude=args.amplitude
+            )
         else:
-            data_reader = DataReader_pred(format=args.format,
-                                          data_dir=args.data_dir,
-                                          data_list=args.data_list,
-                                          hdf5_file=args.hdf5_file,
-                                          hdf5_group=args.hdf5_group,
-                                          amplitude=args.amplitude)
-        
+            data_reader = DataReader_pred(
+                format=args.format,
+                data_dir=args.data_dir,
+                data_list=args.data_list,
+                hdf5_file=args.hdf5_file,
+                hdf5_group=args.hdf5_group,
+                amplitude=args.amplitude,
+            )
+
         pred_fn(args, data_reader, log_dir=args.result_dir)
 
     return
+
 
 if __name__ == '__main__':
     args = read_args()
