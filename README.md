@@ -37,5 +37,5 @@ See details in the [notebook](https://github.com/wayneweiqiang/PhaseNet/blob/mas
 
 ## 6. Training
 
-
+Please let us know of any bugs found in the code. Suggestions and collaborations are welcomed!
 
