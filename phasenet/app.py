@@ -25,8 +25,7 @@ X_SHAPE = [3000, 1, 3]
 SAMPLING_RATE = 100
 
 # load model
-config = ModelConfig(X_shape=X_SHAPE)
-model = UNet(config=config, mode="pred")
+model = UNet(mode="pred")
 sess_config = tf.compat.v1.ConfigProto()
 sess_config.gpu_options.allow_growth = True
 
@@ -224,7 +223,7 @@ class Data(BaseModel):
     # vec: Union[List[List[List[float]]], List[List[float]]]
     id: List[str]
     timestamp: List[str]
-    vec: List[List[List[float]]]
+    vec: Union[List[List[List[float]]], List[List[float]]]
     dt: float = 0.01
 
 
