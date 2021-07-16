@@ -33,8 +33,7 @@ sess = tf.compat.v1.Session(config=sess_config)
 saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables())
 init = tf.compat.v1.global_variables_initializer()
 sess.run(init)
-latest_check_point = tf.train.latest_checkpoint(
-    f"{PROJECT_ROOT}/model/190703-214543")
+latest_check_point = tf.train.latest_checkpoint(f"{PROJECT_ROOT}/model/190703-214543")
 print(f"restoring model {latest_check_point}")
 saver.restore(sess, latest_check_point)
 
@@ -80,17 +79,13 @@ def normalize_batch(data, window=3000):
     nsta, nt, nch = data.shape
 
     # std in slide windows
-    data_pad = np.pad(
-        data, ((0, 0), (window // 2, window // 2), (0, 0)), mode="reflect"
-    )
+    data_pad = np.pad(data, ((0, 0), (window // 2, window // 2), (0, 0)), mode="reflect")
     t = np.arange(0, nt, shift, dtype="int")
     std = np.zeros([nsta, len(t) + 1, nch])
     mean = np.zeros([nsta, len(t) + 1, nch])
     for i in range(1, len(t)):
-        std[:, i, :] = np.std(
-            data_pad[:, i * shift: i * shift + window, :], axis=1)
-        mean[:, i, :] = np.mean(
-            data_pad[:, i * shift: i * shift + window, :], axis=1)
+        std[:, i, :] = np.std(data_pad[:, i * shift : i * shift + window, :], axis=1)
+        mean[:, i, :] = np.mean(data_pad[:, i * shift : i * shift + window, :], axis=1)
 
     t = np.append(t, nt)
     # std[:, -1, :] = np.std(data_pad[:, -window:, :], axis=1)
@@ -118,9 +113,7 @@ def preprocess(data):
 
 
 def calc_timestamp(timestamp, sec):
-    timestamp = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f") + timedelta(
-        seconds=sec
-    )
+    timestamp = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f") + timedelta(seconds=sec)
     return timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
 
@@ -158,10 +151,7 @@ def format_data(data):
     #            "123": {"3":0, "2":1, "1":2},
     #            "12Z": {"1":0, "2":1, "Z":2}}
     chn2idx = {"E": 0, "N": 1, "Z": 2, "3": 0, "2": 1, "1": 2}
-    Data = NamedTuple(
-        "data", [("id", list), ("timestamp", list),
-                 ("vec", list), ("dt", float)]
-    )
+    # Data = NamedTuple("data", [("id", list), ("timestamp", list), ("vec", list), ("dt", float)])
 
     # Group by station
     chn_ = defaultdict(list)
@@ -170,11 +160,7 @@ def format_data(data):
     for i in range(len(data.id)):
         key = data.id[i][:-1]
         chn_[key].append(data.id[i][-1])
-        t0_[key].append(
-            datetime.strptime(
-                data.timestamp[i], "%Y-%m-%dT%H:%M:%S.%f").timestamp()
-            * SAMPLING_RATE
-        )
+        t0_[key].append(datetime.strptime(data.timestamp[i], "%Y-%m-%dT%H:%M:%S.%f").timestamp() * SAMPLING_RATE)
         vv_[key].append(np.array(data.vec[i]))
 
     # Merge to Data tuple
@@ -184,33 +170,31 @@ def format_data(data):
     for k in chn_:
         id_.append(k)
         min_t0 = min(t0_[k])
-        timestamp_.append(
-            datetime.fromtimestamp(min_t0 / SAMPLING_RATE).strftime(
-                "%Y-%m-%dT%H:%M:%S.%f"
-            )[:-3]
-        )
+        timestamp_.append(datetime.fromtimestamp(min_t0 / SAMPLING_RATE).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
         vec = np.zeros([X_SHAPE[0], X_SHAPE[-1]])
         for i in range(len(chn_[k])):
             # vec[int(t0_[k][i]-min_t0):len(vv_[k][i]), chn2idx[chn_[k][i]]] = vv_[k][i][int(t0_[k][i]-min_t0):X_SHAPE[0]] - np.mean(vv_[k][i])
             shift = int(t0_[k][i] - min_t0)
-            vec[shift: len(vv_[k][i]) + shift, chn2idx[chn_[k][i]]] = vv_[k][i][
-                : X_SHAPE[0] - shift
-            ] - np.mean(vv_[k][i][: X_SHAPE[0] - shift])
+            vec[shift : len(vv_[k][i]) + shift, chn2idx[chn_[k][i]]] = vv_[k][i][: X_SHAPE[0] - shift] - np.mean(
+                vv_[k][i][: X_SHAPE[0] - shift]
+            )
         vec_.append(vec.tolist())
-    return Data(id=id_, timestamp=timestamp_, vec=vec_, dt=1 / SAMPLING_RATE)
+
+    # return Data(id=id_, timestamp=timestamp_, vec=vec_, dt=1 / SAMPLING_RATE)
+    return {"id": id_, "timestamp": timestamp_, "vec": vec_, "dt":1 / SAMPLING_RATE}
 
 
 def get_prediction(data, return_preds=False):
 
-    vec = np.array(data.vec)
+    vec = np.array(data["vec"])
     vec, vec_raw = preprocess(vec)
 
     feed = {model.X: vec, model.drop_rate: 0, model.is_training: False}
     preds = sess.run(model.preds, feed_dict=feed)
 
-    picks = extract_picks(preds, fnames=data.id, t0=data.timestamp)
+    picks = extract_picks(preds, fnames=data["id"], t0=data["timestamp"])
     amps = extract_amplitude(vec_raw, picks)
-    picks = format_picks(picks, data.dt, amps)
+    picks = format_picks(picks, data["dt"], amps)
 
     if return_preds:
         return picks, preds
@@ -253,10 +237,8 @@ def predict(data: Data):
     if use_kafka:
         for pick in picks:
             producer.send("phasenet_picks", key=pick["id"], value=pick)
-
     try:
-        catalog = requests.get(
-            f"{GMMA_API_URL}/predict", json={"picks": picks})
+        catalog = requests.get(f"{GMMA_API_URL}/predict", json={"picks": picks})
         print(catalog.json())
         return catalog.json()
     except Exception as error:
@@ -287,10 +269,9 @@ def predict(data: Data):
     if use_kafka:
         for pick in picks:
             producer.send("phasenet_picks", key=pick["id"], value=pick)
-
+        producer.send("waveform_phasenet", value=data)
     try:
-        catalog = requests.get(
-            f"{GMMA_API_URL}/predict", json={"picks": picks})
+        catalog = requests.get(f"{GMMA_API_URL}/predict", json={"picks": picks})
         print("GMMA:", catalog.json())
         return catalog.json()
     except Exception as error:
