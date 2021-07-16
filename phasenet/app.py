@@ -151,7 +151,7 @@ def format_data(data):
     #            "123": {"3":0, "2":1, "1":2},
     #            "12Z": {"1":0, "2":1, "Z":2}}
     chn2idx = {"E": 0, "N": 1, "Z": 2, "3": 0, "2": 1, "1": 2}
-    # Data = NamedTuple("data", [("id", list), ("timestamp", list), ("vec", list), ("dt", float)])
+    Data = NamedTuple("data", [("id", list), ("timestamp", list), ("vec", list), ("dt", float)])
 
     # Group by station
     chn_ = defaultdict(list)
@@ -180,21 +180,21 @@ def format_data(data):
             )
         vec_.append(vec.tolist())
 
-    # return Data(id=id_, timestamp=timestamp_, vec=vec_, dt=1 / SAMPLING_RATE)
-    return {"id": id_, "timestamp": timestamp_, "vec": vec_, "dt":1 / SAMPLING_RATE}
+    return Data(id=id_, timestamp=timestamp_, vec=vec_, dt=1 / SAMPLING_RATE)
+    # return {"id": id_, "timestamp": timestamp_, "vec": vec_, "dt":1 / SAMPLING_RATE}
 
 
 def get_prediction(data, return_preds=False):
 
-    vec = np.array(data["vec"])
+    vec = np.array(data.vec)
     vec, vec_raw = preprocess(vec)
 
     feed = {model.X: vec, model.drop_rate: 0, model.is_training: False}
     preds = sess.run(model.preds, feed_dict=feed)
 
-    picks = extract_picks(preds, fnames=data["id"], t0=data["timestamp"])
+    picks = extract_picks(preds, fnames=data.id, t0=data.timestamp)
     amps = extract_amplitude(vec_raw, picks)
-    picks = format_picks(picks, data["dt"], amps)
+    picks = format_picks(picks, data.dt, amps)
 
     if return_preds:
         return picks, preds
@@ -269,7 +269,8 @@ def predict(data: Data):
     if use_kafka:
         for pick in picks:
             producer.send("phasenet_picks", key=pick["id"], value=pick)
-        producer.send("waveform_phasenet", value=data)
+        # print("Push waveform")
+        producer.send("waveform_phasenet", value=data._asdict())
     try:
         catalog = requests.get(f"{GMMA_API_URL}/predict", json={"picks": picks})
         print("GMMA:", catalog.json())
