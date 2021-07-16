@@ -1,17 +1,19 @@
 import os
-import numpy as np
-import tensorflow as tf
 from collections import defaultdict, namedtuple
-from json import dumps
-from scipy.interpolate import interp1d
-from typing import List, Any, List, NamedTuple, Union, Dict, AnyStr
 from datetime import datetime, timedelta
+from json import dumps
+from typing import Any, AnyStr, Dict, List, NamedTuple, Union
+
+import numpy as np
 import requests
+import tensorflow as tf
 from fastapi import FastAPI
-from pydantic import BaseModel
 from kafka import KafkaProducer
-from postprocess import extract_picks, extract_amplitude
-from model import UNet, ModelConfig
+from pydantic import BaseModel
+from scipy.interpolate import interp1d
+
+from model import ModelConfig, UNet
+from postprocess import extract_amplitude, extract_picks
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -43,8 +45,6 @@ GMMA_API_URL = "http://gmma-api:8001"
 
 # Kafak producer
 use_kafka = False
-# BROKER_URL = 'localhost:9092'
-# BROKER_URL = 'my-kafka-headless:9092'
 
 try:
     print("Connecting to k8s kafka")
@@ -69,6 +69,7 @@ except BaseException:
         print("local kafka connection success!")
     except BaseException:
         print("local Kafka connection error")
+print(f"Kafka status: {use_kafka}")
 
 
 def normalize_batch(data, window=3000):
@@ -232,8 +233,6 @@ def predict(data: Data):
 
     picks = get_prediction(data)
 
-    # TODO
-    # push prediction results to Kafka
     if use_kafka:
         for pick in picks:
             producer.send("phasenet_picks", key=pick["id"], value=pick)
@@ -264,21 +263,23 @@ def predict(data: Data):
     picks = get_prediction(data)
     print("PhaseNet:", picks)
 
-    # TODO
-    # push prediction results to Kafka
-    if use_kafka:
-        for pick in picks:
-            producer.send("phasenet_picks", key=pick["id"], value=pick)
-        # print("Push waveform")
-        producer.send("waveform_phasenet", value=data._asdict())
+    return_value = {}
     try:
         catalog = requests.get(f"{GMMA_API_URL}/predict", json={"picks": picks})
         print("GMMA:", catalog.json())
-        return catalog.json()
+        return_value = catalog.json()
     except Exception as error:
         print(error)
 
-    return {}
+    if use_kafka:
+        print("Push picks to kafka...")
+        for pick in picks:
+            producer.send("phasenet_picks", key=pick["id"], value=pick)
+        print("Push waveform to kafka...")
+        for id, timestamp, vec in zip(data.id, data.timestamp, data.vec):
+            producer.send("waveform_phasenet", key=id, value={"timestamp": timestamp, "vec": vec, "dt": data.dt})
+
+    return return_value
 
 
 @app.get("/test")
