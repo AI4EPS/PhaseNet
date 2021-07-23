@@ -37,7 +37,7 @@ def read_args():
     parser.add_argument("--hdf5_file", default="", help="Input hdf5 file")
     parser.add_argument("--hdf5_group", default="data", help="data group name in hdf5 file")
     parser.add_argument("--result_dir", default="results", help="Output directory")
-    parser.add_argument("--result_fname", default="picks.csv", help="Output file")
+    parser.add_argument("--result_fname", default="picks", help="Output file")
     parser.add_argument("--min_p_prob", default=0.3, type=float, help="Probability threshold for P pick")
     parser.add_argument("--min_s_prob", default=0.3, type=float, help="Probability threshold for S pick")
     parser.add_argument("--mpd", default=50, type=float, help="Minimum peak distance")
