@@ -143,8 +143,8 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 # save_prob(pred_batch, fname_batch, prob_dir=prob_dir)
                 save_prob_h5(pred_batch, [x.decode() for x in fname_batch], prob_h5)
 
-        save_picks(picks, args.result_dir, amps=amps)
-        save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps)
+        save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
+        save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
 
     print(
         f"Done with {sum([len(x) for pick in picks for x in pick.p_idx])} P-picks and {sum([len(x) for pick in picks for x in pick.s_idx])} S-picks"

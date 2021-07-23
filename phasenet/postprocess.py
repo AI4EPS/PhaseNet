@@ -85,26 +85,28 @@ def extract_amplitude(data, picks, window_p=10, window_s=5, config=None):
     return amps
 
 
-def save_picks(picks, output_dir, amps=None):
+def save_picks(picks, output_dir, amps=None, fname=None):
+    if fname is None:
+        fname = "picks.csv"
 
     int2s = lambda x: ",".join(["["+",".join(map(str, i))+"]" for i in x])
     flt2s = lambda x: ",".join(["["+",".join(map("{:0.3f}".format, i))+"]" for i in x])
     sci2s = lambda x: ",".join(["["+",".join(map("{:0.3e}".format, i))+"]" for i in x])
     if amps is None:
         if hasattr(picks[0], "ps_idx"):
-            with open(os.path.join(output_dir, "picks.csv"), "w") as fp:
+            with open(os.path.join(output_dir, fname), "w") as fp:
                 fp.write("fname\tt0\tp_idx\tp_prob\ts_idx\ts_prob\tps_idx\tps_prob\n")
                 for pick in picks:
                     fp.write(f"{pick.fname}\t{pick.t0}\t{int2s(pick.p_idx)}\t{flt2s(pick.p_prob)}\t{int2s(pick.s_idx)}\t{flt2s(pick.s_prob)}\t{int2s(pick.ps_idx)}\t{flt2s(pick.ps_prob)}\n")
                 fp.close()
         else:
-            with open(os.path.join(output_dir, "picks.csv"), "w") as fp:
+            with open(os.path.join(output_dir, fname), "w") as fp:
                 fp.write("fname\tt0\tp_idx\tp_prob\ts_idx\ts_prob\n")
                 for pick in picks:
                     fp.write(f"{pick.fname}\t{pick.t0}\t{int2s(pick.p_idx)}\t{flt2s(pick.p_prob)}\t{int2s(pick.s_idx)}\t{flt2s(pick.s_prob)}\n")
                 fp.close()
     else:
-        with open(os.path.join(output_dir, "picks.csv"), "w") as fp:
+        with open(os.path.join(output_dir, fname), "w") as fp:
             fp.write("fname\tt0\tp_idx\tp_prob\ts_idx\ts_prob\tp_amp\ts_amp\n")
             for pick, amp in zip(picks, amps):
                 fp.write(f"{pick.fname}\t{pick.t0}\t{int2s(pick.p_idx)}\t{flt2s(pick.p_prob)}\t{int2s(pick.s_idx)}\t{flt2s(pick.s_prob)}\t{sci2s(amp.p_amp)}\t{sci2s(amp.s_amp)}\n")
@@ -118,8 +120,10 @@ def calc_timestamp(timestamp, sec):
     return timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
     
-def save_picks_json(picks, output_dir, dt=0.01, amps=None):
-    
+def save_picks_json(picks, output_dir, dt=0.01, amps=None, fname=None):
+    if fname is None:
+        fname = "picks.json"
+
     picks_ = []
     if amps is None:
         for pick in picks:
@@ -151,7 +155,7 @@ def save_picks_json(picks, output_dir, dt=0.01, amps=None):
                                 "prob": prob.astype(float), 
                                 "amp": amp.astype(float),
                                 "type": "s"})
-    with open(os.path.join(output_dir, "picks.json"), "w") as fp:
+    with open(os.path.join(output_dir, fname), "w") as fp:
         json.dump(picks_, fp)
 
     return 0

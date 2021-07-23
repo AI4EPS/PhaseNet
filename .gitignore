@@ -9,3 +9,6 @@ result*/
 *.png
 *.egg-info
 *.ipynb_checkpoints
+._.DS_Store
+.DS_Store
+test_data
