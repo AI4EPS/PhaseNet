@@ -213,6 +213,16 @@ class DataReader():
                     meta["its"] = [[npz["s_idx"]]]
                 else:
                     meta["its"] = npz["s_idx"]
+            if "itp" in npz.files:
+                if len(npz["itp"].shape) == 0:
+                    meta["itp"] = [[npz["itp"]]]
+                else:
+                    meta["itp"] = npz["itp"]
+            if "its" in npz.files:
+                if len(npz["its"].shape) == 0:
+                    meta["its"] = [[npz["its"]]]
+                else:
+                    meta["its"] = npz["its"]
             if "t0" in npz.files:
                 meta["t0"] = npz["t0"]
             self.buffer[fname] = meta
@@ -241,6 +251,16 @@ class DataReader():
                 meta["its"] = [[attrs["s_idx"]]]
             else:
                 meta["its"] = attrs["s_idx"]
+        if "itp" in attrs:
+            if len(attrs["itp"].shape) == 0:
+                meta["itp"] = [[attrs["itp"]]]
+            else:
+                meta["itp"] = attrs["itp"]
+        if "its" in attrs:
+            if len(attrs["its"].shape) == 0:
+                meta["its"] = [[attrs["its"]]]
+            else:
+                meta["its"] = attrs["its"]
         if "t0" in attrs:
             meta["t0"] = attrs["t0"]
         return meta
@@ -548,7 +568,7 @@ class DataReader_train(DataReader):
             its_list = [[]]
 
         sample = normalize(sample)
-        return (sample, target, base_name)
+        return (sample.astype(self.dtype), target.astype(self.dtype), base_name)
 
     def dataset(self, batch_size, num_parallel_calls=2, shuffle=True, drop_remainder=True):
         dataset = dataset_map(self, output_types=(self.dtype, self.dtype, "string"),

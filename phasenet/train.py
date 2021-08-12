@@ -50,17 +50,18 @@ def read_args():
 
 
 def train_fn(args, data_reader, data_reader_valid=None):
+    
     current_time = time.strftime("%y%m%d-%H%M%S")
     log_dir = os.path.join(args.log_dir, current_time)
-    logging.info("Training log: {}".format(log_dir))
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
+    logging.info("Training log: {}".format(log_dir))
+    model_dir = os.path.join(log_dir, 'models')
+    os.makedirs(model_dir)
+    
     figure_dir = os.path.join(log_dir, 'figures')
     if not os.path.exists(figure_dir):
         os.makedirs(figure_dir)
-    if args.model_dir is None:
-        model_dir = os.path.join(log_dir, 'models')
-        os.makedirs(model_dir)
         
     config = ModelConfig(X_shape=data_reader.X_shape, Y_shape=data_reader.Y_shape)
     if args.decay_step == -1:
@@ -88,10 +89,14 @@ def train_fn(args, data_reader, data_reader_valid=None):
         init = tf.compat.v1.global_variables_initializer()
         sess.run(init)
 
-        if args.load_model:
+        if args.model_dir is not None:
             logging.info("restoring models...")
             latest_check_point = tf.train.latest_checkpoint(args.model_dir)
             saver.restore(sess, latest_check_point)
+
+        if args.plot_figure:
+            multiprocessing.set_start_method('spawn')
+            pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
         flog = open(os.path.join(log_dir, 'loss.log'), 'w')
         train_loss = EMA(0.9)
@@ -115,14 +120,22 @@ def train_fn(args, data_reader, data_reader_valid=None):
                     progressbar.set_description("valid, loss={:.6f}, mean={:.6f}".format(loss_batch, valid_loss.value))
                 if valid_loss.value < best_valid_loss:
                     best_valid_loss = valid_loss.value
-                    saver.save(sess, os.path.join(args.model_dir, "model_{}.ckpt".format(epoch)))
+                    saver.save(sess, os.path.join(model_dir, "model_{}.ckpt".format(epoch)))
                 flog.write("Valid: mean loss: {}\n".format(valid_loss.value))
             else:
                 loss_batch, preds_batch, X_batch, Y_batch, fname_batch = sess.run([model.loss, model.preds, batch[0], batch[1], batch[2]], 
                                                                                    feed_dict={model.drop_rate: 0, model.is_training: False})
-                saver.save(sess, os.path.join(args.model_dir, "model_{}.ckpt".format(epoch)))
+                saver.save(sess, os.path.join(model_dir, "model_{}.ckpt".format(epoch)))
             
-            plot_waveform(data_reader.config, X_batch, preds_batch, label=Y_batch, figure_dir=figure_dir, epoch=epoch)
+            if args.plot_figure:
+                pool.starmap(
+                    partial(
+                        plot_waveform,
+                        figure_dir=figure_dir,
+                    ),
+                    zip(X_batch, preds_batch, [x.decode() for x in fname_batch], Y_batch),
+                )
+            # plot_waveform(X_batch, preds_batch, fname_batch, label=Y_batch, figure_dir=figure_dir)
             flog.flush()
 
         flog.close()
