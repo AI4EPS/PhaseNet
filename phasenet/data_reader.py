@@ -284,7 +284,7 @@ class DataReader():
         endtime = max([st.stats.endtime for st in mseed])
         mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
         if mseed[0].stats.sampling_rate != self.config.sampling_rate:
-            logging.warning(f"Sampling rate {mseed[0].stats.sampling_rate} != {self.config.sampling_rate} Hz")
+            logging.warning(f"Sampling rate mismatch in {fname.split('/')[-1]}: {mseed[0].stats.sampling_rate}Hz != {self.config.sampling_rate}Hz ")
 
         order = ['3','2','1','E','N','Z']
         order = {key: i for i, key in enumerate(order)}
@@ -659,6 +659,8 @@ class DataReader_pred(DataReader):
         raw_amp[:meta["data"].shape[0],...] = meta["data"][:self.X_shape[0],...]
         sample = np.zeros(self.X_shape, dtype=self.dtype)
         sample[:meta["data"].shape[0],...] = normalize_long(meta["data"])[:self.X_shape[0],...]
+        if meta["data"].shape[0] != self.X_shape[0]:
+            logging.warning(f"Data length mismatch in {base_name}: {meta['data'].shape[0]} != {self.X_shape[0]}")
 
         if "t0" in meta:
             t0 = meta["t0"]
