@@ -748,7 +748,7 @@ class DataReader_mseed_array(DataReader):
         else:
             return (sample, base_name, t0)
 
-    def dataset(self, num_parallel_calls=2, shuffle=False):
+    def dataset(self, num_parallel_calls=1, shuffle=False):
         if self.amplitude:
             dataset = dataset_map(self, output_types=(self.dtype, self.dtype, "string", "string"),
                                         output_shapes=([None,*self.X_shape[1:]], [None,*self.X_shape[1:]], None, None), 
@@ -757,7 +757,7 @@ class DataReader_mseed_array(DataReader):
             dataset = dataset_map(self, output_types=(self.dtype, "string", "string"),
                                         output_shapes=([None,*self.X_shape[1:]], None, None), 
                                         num_parallel_calls=num_parallel_calls)
-        dataset = dataset.prefetch(2)
+        # dataset = dataset.prefetch(1)
 #         dataset = dataset.prefetch(len(self.stations)*2)
         return dataset
 
