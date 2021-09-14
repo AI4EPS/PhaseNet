@@ -35,7 +35,10 @@ See details in the [notebook](https://github.com/wayneweiqiang/PhaseNet/blob/mas
 ## 5. Batch prediction
 See details in the [notebook](https://github.com/wayneweiqiang/PhaseNet/blob/master/docs/example_batch_prediction.ipynb): [example_batch_prediction.ipynb](example_batch_prediction.ipynb)
 
-## 6. Training
+## 6. QuakeFlow example
+Earthquake detection workflows can be found in the [QuakeFlow](https://wayneweiqiang.github.io/QuakeFlow/) project.
+
+## 7. Training
 
 Please let us know of any bugs found in the code. Suggestions and collaborations are welcomed
 
