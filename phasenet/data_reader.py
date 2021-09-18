@@ -171,12 +171,15 @@ class DataReader():
         self.label_width = config.label_width
         self.config = config
         self.format = format
-        if format in ["numpy", "mseed"]:
+        if format in ["numpy", "mseed", "sac"]:
             self.data_dir = kwargs["data_dir"]
             try:
-                self.data_list = pd.read_csv(kwargs["data_list"], header=0, sep="\t")['fname']
+                csv= pd.read_csv(kwargs["data_list"], header=0, sep="\t")
             except:
-                self.data_list = pd.read_csv(kwargs["data_list"], header=0)['fname']
+                csv = pd.read_csv(kwargs["data_list"], header=0)
+            self.data_list = csv['fname']
+            if format == "sac":
+                self.sac_trace = csv[["E", "N", "Z"]]
             self.num_data = len(self.data_list)
         elif format == "hdf5":
             self.h5 = h5py.File(kwargs["hdf5_file"], 'r', libver='latest', swmr=True)
@@ -283,7 +286,7 @@ class DataReader():
         starttime = min([st.stats.starttime for st in mseed])
         endtime = max([st.stats.endtime for st in mseed])
         mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
-        if mseed[0].stats.sampling_rate != self.config.sampling_rate:
+        if abs(mseed[0].stats.sampling_rate - self.config.sampling_rate) > 1:
             logging.warning(f"Sampling rate mismatch in {fname.split('/')[-1]}: {mseed[0].stats.sampling_rate}Hz != {self.config.sampling_rate}Hz ")
 
         order = ['3','2','1','E','N','Z']
@@ -303,6 +306,38 @@ class DataReader():
             for jj, id in enumerate(ids):
                 j = comp2idx[id[-1]]
                 data[:, j] = mseed.select(id=id)[0].data.astype(self.dtype)
+
+        data = data[:,np.newaxis,:]
+        meta = {"data": data, "t0": t0}
+        return meta
+
+    def read_sac(self, fname, traces):
+
+        mseed = obspy.Stream()
+        for tr in traces:
+            mseed += obspy.read(tr, format="sac")
+        mseed = mseed.detrend("spline", order=2, dspline=5*mseed[0].stats.sampling_rate)
+        mseed = mseed.merge(fill_value=0)
+        starttime = min([st.stats.starttime for st in mseed])
+        endtime = max([st.stats.endtime for st in mseed])
+        mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
+        if abs(mseed[0].stats.sampling_rate - self.config.sampling_rate) > 1:
+            logging.warning(f"Sampling rate mismatch in {fname.split('/')[-1]}: {mseed[0].stats.sampling_rate}Hz != {self.config.sampling_rate}Hz ")
+
+        order = ['3','2','1','E','N','Z']
+        order = {key: i for i, key in enumerate(order)}
+        comp2idx = {"3":0, "2":1, "1":2, "E":0, "N":1, "Z":2}
+
+        t0 = starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+        nt = len(mseed[0].data)
+        data = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
+        ids = [x.get_id() for x in mseed]
+        for j, id in enumerate(sorted(ids, key=lambda x: order[x[-1]])):
+            if len(ids) != 3:
+                if len(ids) > 3:
+                    logging.warning(f"More than 3 channels {ids}!")
+                j = comp2idx[id[-1]]
+            data[:, j] = mseed.select(id=id)[0].data.astype(self.dtype)
 
         data = data[:,np.newaxis,:]
         meta = {"data": data, "t0": t0}
@@ -629,6 +664,8 @@ class DataReader_pred(DataReader):
             meta = self.read_numpy(os.path.join(self.data_dir, base_name))
         elif self.format == "mseed":
             meta = self.read_mseed(os.path.join(self.data_dir, base_name))
+        elif self.format == "sac":
+            meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[0]])
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
         return meta["data"].shape
@@ -648,6 +685,8 @@ class DataReader_pred(DataReader):
             meta = self.read_numpy(os.path.join(self.data_dir, base_name))
         elif self.format == "mseed":
             meta = self.read_mseed(os.path.join(self.data_dir, base_name))
+        elif self.format == "sac":
+            meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[i]])
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
         else:
@@ -659,7 +698,7 @@ class DataReader_pred(DataReader):
         raw_amp[:meta["data"].shape[0],...] = meta["data"][:self.X_shape[0],...]
         sample = np.zeros(self.X_shape, dtype=self.dtype)
         sample[:meta["data"].shape[0],...] = normalize_long(meta["data"])[:self.X_shape[0],...]
-        if meta["data"].shape[0] != self.X_shape[0]:
+        if abs(meta["data"].shape[0] - self.X_shape[0]) > 1:
             logging.warning(f"Data length mismatch in {base_name}: {meta['data'].shape[0]} != {self.X_shape[0]}")
 
         if "t0" in meta:
