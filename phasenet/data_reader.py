@@ -666,7 +666,7 @@ class DataReader_pred(DataReader):
         elif self.format == "mseed":
             meta = self.read_mseed(os.path.join(self.data_dir, base_name))
         elif self.format == "sac":
-            meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[0]])
+            meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[0] if pd.notna(trace)])
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
         return meta["data"].shape
@@ -687,7 +687,7 @@ class DataReader_pred(DataReader):
         elif self.format == "mseed":
             meta = self.read_mseed(os.path.join(self.data_dir, base_name))
         elif self.format == "sac":
-            meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[i]])
+            meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[i] if pd.notna(trace)])
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
         else:
