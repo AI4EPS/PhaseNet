@@ -178,9 +178,9 @@ class DataReader:
         if format in ["numpy", "mseed", "sac"]:
             self.data_dir = kwargs["data_dir"]
             try:
-                csv = pd.read_csv(kwargs["data_list"], header=0, sep="\t")
-            except:
                 csv = pd.read_csv(kwargs["data_list"], header=0)
+            except:
+                csv = pd.read_csv(kwargs["data_list"], header=0, sep="\t")
             self.data_list = csv['fname']
             if format == "sac":
                 self.sac_trace = csv[["E", "N", "Z"]]
@@ -744,9 +744,9 @@ class DataReader_mseed_array(DataReader):
 
         super().__init__(format="mseed", config=config, **kwargs)
         try:
-            self.stations = pd.read_csv(stations, delimiter="\t")
-        except:
             self.stations = pd.read_csv(stations)
+        except:
+            self.stations = pd.read_csv(stations, delimiter="\t")
         print(self.stations)
         self.amplitude = amplitude
         self.remove_resp = remove_resp
