@@ -178,7 +178,7 @@ class DataReader:
         if format in ["numpy", "mseed", "sac"]:
             self.data_dir = kwargs["data_dir"]
             try:
-                csv = pd.read_csv(kwargs["data_list"], header=0, sep=None, egine="python")
+                csv = pd.read_csv(kwargs["data_list"], header=0, sep=None, engine="python")
             except:
                 csv = pd.read_csv(kwargs["data_list"], header=0, sep="\t")
             self.data_list = csv['fname']
@@ -744,7 +744,7 @@ class DataReader_mseed_array(DataReader):
 
         super().__init__(format="mseed", config=config, **kwargs)
         try:
-            self.stations = pd.read_csv(stations, sep=None, egine="python")
+            self.stations = pd.read_csv(stations, sep=None, engine="python")
         except:
             self.stations = pd.read_csv(stations, delimiter="\t")
         print(self.stations)
