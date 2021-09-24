@@ -38,6 +38,7 @@ def read_args():
     parser.add_argument("--hdf5_group", default="data", help="data group name in hdf5 file")
     parser.add_argument("--result_dir", default="results", help="Output directory")
     parser.add_argument("--result_fname", default="picks", help="Output file")
+    parser.add_argument("--highpass_filter", default=0.0, type=float, help="Highpass filter")
     parser.add_argument("--min_p_prob", default=0.3, type=float, help="Probability threshold for P pick")
     parser.add_argument("--min_s_prob", default=0.3, type=float, help="Probability threshold for S pick")
     parser.add_argument("--mpd", default=50, type=float, help="Minimum peak distance")
@@ -170,6 +171,7 @@ def main(args):
                 hdf5_file=args.hdf5_file,
                 hdf5_group=args.hdf5_group,
                 amplitude=args.amplitude,
+                highpass_filter=args.highpass_filter,
             )
 
         pred_fn(args, data_reader, log_dir=args.result_dir)

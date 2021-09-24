@@ -175,6 +175,8 @@ class DataReader:
         self.label_width = config.label_width
         self.config = config
         self.format = format
+        if "highpass_filter" in kwargs:
+            self.highpass_filter = kwargs["highpass_filter"]
         if format in ["numpy", "mseed", "sac"]:
             self.data_dir = kwargs["data_dir"]
             try:
@@ -291,6 +293,8 @@ class DataReader:
         mseed = obspy.read(fname)
         mseed = mseed.detrend("spline", order=2, dspline=5 * mseed[0].stats.sampling_rate)
         mseed = mseed.merge(fill_value=0)
+        if self.highpass_filter > 0:
+            mseed = mseed.filter("highpass", freq=self.highpass_filter)
         starttime = min([st.stats.starttime for st in mseed])
         endtime = max([st.stats.endtime for st in mseed])
         mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
@@ -326,6 +330,8 @@ class DataReader:
             mseed += obspy.read(tr, format="sac")
         mseed = mseed.detrend("spline", order=2, dspline=5 * mseed[0].stats.sampling_rate)
         mseed = mseed.merge(fill_value=0)
+        if self.highpass_filter > 0:
+            mseed = mseed.filter("highpass", freq=self.highpass_filter)
         starttime = min([st.stats.starttime for st in mseed])
         endtime = max([st.stats.endtime for st in mseed])
         mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
