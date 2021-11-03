@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 import logging
 from detect_peaks import detect_peaks
 
-def extract_picks(preds, fnames=None, t0=None, config=None):
+def extract_picks(preds, fnames=None, station_ids=None, t0=None, config=None):
 
     if preds.shape[-1] == 4:
-        record = namedtuple("phase", ["fname", "t0", "p_idx", "p_prob", "s_idx", "s_prob", "ps_idx", "ps_prob"])
+        record = namedtuple("phase", ["fname", "station_id", "t0", "p_idx", "p_prob", "s_idx", "s_prob", "ps_idx", "ps_prob"])
     else:
-        record = namedtuple("phase", ["fname", "t0", "p_idx", "p_prob", "s_idx", "s_prob"])
+        record = namedtuple("phase", ["fname", "station_id", "t0", "p_idx", "p_prob", "s_idx", "s_prob"])
 
     picks = []
     for i, pred in enumerate(preds):
@@ -30,9 +30,17 @@ def extract_picks(preds, fnames=None, t0=None, config=None):
                 fname = fnames[i]
             else:
                 fname = fnames[i].decode()
+    
+        if (station_ids is None):
+            station_ids = f"{i:04d}"
+        else:
+            if isinstance(station_ids[i], str):
+                station_id = station_ids[i]
+            else:
+                station_id = station_ids[i].decode()
             
         if (t0 is None):
-            start_time = "0"
+            start_time = "1970-01-01T00:00:00.000"
         else:
             if isinstance(t0[i], str):
                 start_time = t0[i]
@@ -50,9 +58,9 @@ def extract_picks(preds, fnames=None, t0=None, config=None):
 
         if pred.shape[-1] == 4:
             ps_idx, ps_prob = detect_peaks(pred[:,0,3], mph=0.3, mpd=mpd, show=False)
-            picks.append(record(fname, start_time, list(p_idx), list(p_prob), list(s_idx), list(s_prob), list(ps_idx), list(ps_prob)))
+            picks.append(record(fname, station_id, start_time, list(p_idx), list(p_prob), list(s_idx), list(s_prob), list(ps_idx), list(ps_prob)))
         else:
-            picks.append(record(fname, start_time, list(p_idx), list(p_prob), list(s_idx), list(s_prob)))
+            picks.append(record(fname, station_id, start_time, list(p_idx), list(p_prob), list(s_idx), list(s_prob)))
 
     return picks
 
@@ -129,13 +137,13 @@ def save_picks_json(picks, output_dir, dt=0.01, amps=None, fname=None):
         for pick in picks:
             for idxs, probs in zip(pick.p_idx, pick.p_prob):
                 for idx, prob in zip(idxs, probs):
-                    picks_.append({"id": pick.fname, 
+                    picks_.append({"id": pick.station_id, 
                                 "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
                                 "prob": prob.astype(float), 
                                 "type": "p"})
             for idxs, probs in zip(pick.s_idx, pick.s_prob):
                 for idx, prob in zip(idxs, probs):
-                    picks_.append({"id": pick.fname, 
+                    picks_.append({"id": pick.station_id, 
                                 "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
                                 "prob": prob.astype(float), 
                                 "type": "s"})
@@ -143,14 +151,14 @@ def save_picks_json(picks, output_dir, dt=0.01, amps=None, fname=None):
         for pick, amplitude in zip(picks, amps):
             for idxs, probs, amps in zip(pick.p_idx, pick.p_prob, amplitude.p_amp):
                 for idx, prob, amp in zip(idxs, probs, amps):
-                    picks_.append({"id": pick.fname, 
+                    picks_.append({"id": pick.station_id,
                                 "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
                                 "prob": prob.astype(float), 
                                 "amp": amp.astype(float),
                                 "type": "p"})
             for idxs, probs, amps in zip(pick.s_idx, pick.s_prob, amplitude.s_amp):
                 for idx, prob, amp in zip(idxs, probs, amps):
-                    picks_.append({"id": pick.fname, 
+                    picks_.append({"id": pick.station_id, 
                                 "timestamp":calc_timestamp(pick.t0, float(idx)*dt), 
                                 "prob": prob.astype(float), 
                                 "amp": amp.astype(float),

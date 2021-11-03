@@ -109,14 +109,14 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
         for _ in tqdm(range(0, data_reader.num_data, batch_size), desc="Pred"):
             if args.amplitude:
-                pred_batch, X_batch, amp_batch, fname_batch, t0_batch = sess.run(
-                    [model.preds, batch[0], batch[1], batch[2], batch[3]],
+                pred_batch, X_batch, amp_batch, fname_batch, t0_batch, station_batch = sess.run(
+                    [model.preds, batch[0], batch[1], batch[2], batch[3], batch[4]],
                     feed_dict={model.drop_rate: 0, model.is_training: False},
                 )
             #    X_batch, amp_batch, fname_batch, t0_batch = sess.run([batch[0], batch[1], batch[2], batch[3]])
             else:
-                pred_batch, X_batch, fname_batch, t0_batch = sess.run(
-                    [model.preds, batch[0], batch[1], batch[2]],
+                pred_batch, X_batch, fname_batch, t0_batch, station_batch = sess.run(
+                    [model.preds, batch[0], batch[1], batch[2], batch[3]],
                     feed_dict={model.drop_rate: 0, model.is_training: False},
                 )
             #    X_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2]])
@@ -125,7 +125,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             #     pred_batch.append(sess.run(model.preds, feed_dict={model.X: X_batch[i:i+1], model.drop_rate: 0, model.is_training: False}))
             # pred_batch = np.vstack(pred_batch)
 
-            picks_ = extract_picks(preds=pred_batch, fnames=fname_batch, t0=t0_batch, config=args)
+            picks_ = extract_picks(preds=pred_batch, fnames=fname_batch, station_ids=station_batch, t0=t0_batch, config=args)
             picks.extend(picks_)
             if args.amplitude:
                 amps_ = extract_amplitude(amp_batch, picks_)

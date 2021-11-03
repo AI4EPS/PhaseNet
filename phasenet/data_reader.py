@@ -236,6 +236,10 @@ class DataReader:
                     meta["its"] = [[npz["its"]]]
                 else:
                     meta["its"] = npz["its"]
+            if "station_id" in npz.files:
+                meta["station_id"] = npz["station_id"]
+            if "sta_id" in npz.files:
+                meta["station_id"] = npz["sta_id"]
             if "t0" in npz.files:
                 meta["t0"] = npz["t0"]
             self.buffer[fname] = meta
@@ -386,7 +390,7 @@ class DataReader:
         nsta = len(stations)
         nt = len(mseed[0].data)
         data = []
-        fname = []
+        station_id = []
         t0 = []
         raw_amp = []
         for i in range(nsta):
@@ -433,7 +437,7 @@ class DataReader:
                 data.append(trace_data)
                 if amplitude:
                     raw_amp.append(trace_amp)
-                fname.append(sta)
+                station_id.append(sta)
                 t0.append(starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
 
         data = np.stack(data)
@@ -445,9 +449,9 @@ class DataReader:
                 raw_amp = raw_amp[:, :, np.newaxis, :]
 
         if amplitude:
-            meta = {"data": data, "t0": t0, "fname": fname, "raw_amp": raw_amp}
+            meta = {"data": data, "t0": t0, "station_id": station_id, "fname": station_id,  "raw_amp": raw_amp}
         else:
-            meta = {"data": data, "t0": t0, "fname": fname}
+            meta = {"data": data, "t0": t0, "station_id": station_id, "fname": station_id}
         return meta
 
     def generate_label(self, data, phase_list, mask=None):
@@ -713,6 +717,11 @@ class DataReader_pred(DataReader):
         else:
             t0 = "1970-01-01T00:00:00.000"
 
+        if "station_id" in meta:
+            station_id = meta["station_id"]
+        else:
+            station_id = base_name.rstrip(".npz")
+
         if np.isnan(sample).any() or np.isinf(sample).any():
             logging.warning(f"Data error: Nan or Inf found in {base_name}")
             sample[np.isnan(sample)] = 0
@@ -720,24 +729,24 @@ class DataReader_pred(DataReader):
 
         # sample = self.adjust_missingchannels(sample)
         if self.amplitude:
-            return (sample[: self.X_shape[0], ...], raw_amp[: self.X_shape[0], ...], base_name, t0)
+            return (sample[: self.X_shape[0], ...], raw_amp[: self.X_shape[0], ...], base_name, t0, station_id)
         else:
-            return (sample[: self.X_shape[0], ...], base_name, t0)
+            return (sample[: self.X_shape[0], ...], base_name, t0, station_id)
 
     def dataset(self, batch_size, num_parallel_calls=2, shuffle=False, drop_remainder=False):
         if self.amplitude:
             dataset = dataset_map(
                 self,
-                output_types=(self.dtype, self.dtype, "string", "string"),
-                output_shapes=(self.X_shape, self.X_shape, None, None),
+                output_types=(self.dtype, self.dtype, "string", "string", "string"),
+                output_shapes=(self.X_shape, self.X_shape, None, None, None),
                 num_parallel_calls=num_parallel_calls,
                 shuffle=shuffle,
             )
         else:
             dataset = dataset_map(
                 self,
-                output_types=(self.dtype, "string", "string"),
-                output_shapes=(self.X_shape, None, None),
+                output_types=(self.dtype, "string", "string", "string"),
+                output_shapes=(self.X_shape, None, None, None),
                 num_parallel_calls=num_parallel_calls,
                 shuffle=shuffle,
             )
@@ -749,10 +758,7 @@ class DataReader_mseed_array(DataReader):
     def __init__(self, stations, amplitude=True, remove_resp=True, config=DataConfig(), **kwargs):
 
         super().__init__(format="mseed", config=config, **kwargs)
-        try:
-            self.stations = pd.read_csv(stations, sep='[,|\s+]', engine="python")
-        except:
-            self.stations = pd.read_csv(stations, delimiter="\t")
+        self.stations = pd.read_csv(stations, delimiter="\t")
         print(self.stations)
         self.amplitude = amplitude
         self.remove_resp = remove_resp
@@ -785,6 +791,7 @@ class DataReader_mseed_array(DataReader):
             sample[np.isinf(sample)] = 0
         t0 = meta["t0"]
         base_name = meta["fname"]
+        station_id = meta["station_id"]
         #         base_name = [self.stations.iloc[i]["station"]+"."+t0[i] for i in range(len(self.stations))]
         # base_name = [self.stations.iloc[i]["station"] for i in range(len(self.stations))]
 
@@ -795,23 +802,23 @@ class DataReader_mseed_array(DataReader):
                 logging.warning(f"Data error: Nan or Inf found in {fp}")
                 raw_amp[np.isnan(raw_amp)] = 0
                 raw_amp[np.isinf(raw_amp)] = 0
-            return (sample, raw_amp, base_name, t0)
+            return (sample, raw_amp, base_name, t0, station_id)
         else:
-            return (sample, base_name, t0)
+            return (sample, base_name, t0, station_id)
 
     def dataset(self, num_parallel_calls=1, shuffle=False):
         if self.amplitude:
             dataset = dataset_map(
                 self,
-                output_types=(self.dtype, self.dtype, "string", "string"),
-                output_shapes=([None, *self.X_shape[1:]], [None, *self.X_shape[1:]], None, None),
+                output_types=(self.dtype, self.dtype, "string", "string", "string"),
+                output_shapes=([None, *self.X_shape[1:]], [None, *self.X_shape[1:]], None, None, None),
                 num_parallel_calls=num_parallel_calls,
             )
         else:
             dataset = dataset_map(
                 self,
-                output_types=(self.dtype, "string", "string"),
-                output_shapes=([None, *self.X_shape[1:]], None, None),
+                output_types=(self.dtype, "string", "string", "string"),
+                output_shapes=([None, *self.X_shape[1:]], None, None, None),
                 num_parallel_calls=num_parallel_calls,
             )
         dataset = dataset.prefetch(1)
