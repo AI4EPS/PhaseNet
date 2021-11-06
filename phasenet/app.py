@@ -294,3 +294,8 @@ def predict(data: JSONStructure):
     # picks = get_prediction(data)
 
     return {}
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
