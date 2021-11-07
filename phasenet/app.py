@@ -193,12 +193,13 @@ def get_prediction(data, return_preds=False):
     feed = {model.X: vec, model.drop_rate: 0, model.is_training: False}
     preds = sess.run(model.preds, feed_dict=feed)
 
-    picks = extract_picks(preds, fnames=data.id, t0=data.timestamp)
+    picks = extract_picks(preds, fnames=data.id, station_ids=data.id, t0=data.timestamp)
     amps = extract_amplitude(vec_raw, picks)
     picks = format_picks(picks, data.dt, amps)
 
     if return_preds:
         return picks, preds
+
     return picks
 
 
@@ -212,7 +213,7 @@ class Data(BaseModel):
     dt: float = 0.01
 
 
-@app.get("/predict")
+@app.post("/predict")
 def predict(data: Data):
 
     picks = get_prediction(data)
@@ -220,7 +221,7 @@ def predict(data: Data):
     return picks
 
 
-@app.get("/predict_prob")
+@app.post("/predict_prob")
 def predict(data: Data):
 
     picks, preds = get_prediction(data, True)
@@ -228,7 +229,7 @@ def predict(data: Data):
     return picks, preds.tolist()
 
 
-@app.get("/predict2gmma")
+@app.post("/predict2gmma")
 def predict(data: Data):
 
     picks = get_prediction(data)
@@ -246,7 +247,7 @@ def predict(data: Data):
     return {}
 
 
-@app.get("/predict_seedlink")
+@app.post("/predict_seedlink")
 def predict(data: Data):
 
     data = format_data(data)
@@ -280,20 +281,6 @@ def predict(data: Data):
             producer.send("waveform_phasenet", key=id, value={"timestamp": timestamp, "vec": vec, "dt": data.dt})
 
     return return_value
-
-
-@app.get("/test")
-def predict(data: JSONStructure):
-    # print(data)
-    # print(data)
-    # data = json.loads(data)
-    for row in data:
-        k, v = row
-        producer.send("waveform_raw", key=k, value=v)
-
-    # picks = get_prediction(data)
-
-    return {}
 
 
 @app.get("/healthz")

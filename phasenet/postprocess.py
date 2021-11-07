@@ -32,7 +32,7 @@ def extract_picks(preds, fnames=None, station_ids=None, t0=None, config=None):
                 fname = fnames[i].decode()
     
         if (station_ids is None):
-            station_ids = f"{i:04d}"
+            station_id = f"{i:04d}"
         else:
             if isinstance(station_ids[i], str):
                 station_id = station_ids[i]
