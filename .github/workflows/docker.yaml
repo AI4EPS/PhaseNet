@@ -26,7 +26,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: zhuwq0/phasenet:latest
+          tags: zhuwq0/phasenet:1.0
       -
         name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
