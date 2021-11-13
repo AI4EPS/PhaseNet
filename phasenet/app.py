@@ -2,7 +2,7 @@ import os
 from collections import defaultdict, namedtuple
 from datetime import datetime, timedelta
 from json import dumps
-from typing import Any, AnyStr, Dict, List, NamedTuple, Union
+from typing import Any, AnyStr, Dict, List, NamedTuple, Union, Optional
 
 import numpy as np
 import requests
@@ -39,9 +39,11 @@ latest_check_point = tf.train.latest_checkpoint(f"{PROJECT_ROOT}/model/190703-21
 print(f"restoring model {latest_check_point}")
 saver.restore(sess, latest_check_point)
 
-# GMMA API Endpoint
-GMMA_API_URL = "http://gmma-api:8001"
-# GMMA_API_URL = 'http://localhost:8001'
+# GAMMA API Endpoint
+GAMMA_API_URL = "http://gamma-api:8001"
+# GAMMA_API_URL = 'http://localhost:8001'
+GAMMA_API_URL = "http://gamma.quakeflow.com"
+# GAMMA_API_URL = "http://127.0.0.1:8001"
 
 # Kafak producer
 use_kafka = False
@@ -49,6 +51,7 @@ use_kafka = False
 try:
     print("Connecting to k8s kafka")
     BROKER_URL = "quakeflow-kafka-headless:9092"
+    # BROKER_URL = "34.83.137.139:9094"
     producer = KafkaProducer(
         bootstrap_servers=[BROKER_URL],
         key_serializer=lambda x: dumps(x).encode("utf-8"),
@@ -210,7 +213,10 @@ class Data(BaseModel):
     id: List[str]
     timestamp: List[str]
     vec: Union[List[List[List[float]]], List[List[float]]]
-    dt: float = 0.01
+    dt: Optional[float] = 0.01
+    ## gamma
+    stations: Optional[List[Dict[str, Union[float, str]]]] = None
+    config: Optional[Dict[str, Union[List[float], float, str]]] = None
 
 
 @app.post("/predict")
@@ -229,17 +235,20 @@ def predict(data: Data):
     return picks, preds.tolist()
 
 
-@app.post("/predict2gmma")
+@app.post("/predict_phasenet2gamma")
 def predict(data: Data):
 
     picks = get_prediction(data)
 
-    if use_kafka:
-        for pick in picks:
-            producer.send("phasenet_picks", key=pick["id"], value=pick)
+    # if use_kafka:
+    #     print("Push picks to kafka...")
+    #     for pick in picks:
+    #         producer.send("phasenet_picks", key=pick["id"], value=pick)
     try:
-        catalog = requests.get(f"{GMMA_API_URL}/predict", json={"picks": picks})
-        print(catalog.json())
+        catalog = requests.post(f"{GAMMA_API_URL}/predict", json={"picks": picks, 
+                                                                 "stations": data.stations, 
+                                                                 "config": data.config})
+        print(catalog.json()["catalog"])
         return catalog.json()
     except Exception as error:
         print(error)
@@ -247,7 +256,7 @@ def predict(data: Data):
     return {}
 
 
-@app.post("/predict_seedlink")
+@app.post("/predict_stream_phasenet2gamma")
 def predict(data: Data):
 
     data = format_data(data)
@@ -262,12 +271,11 @@ def predict(data: Data):
     #     plt.savefig(f"{data.id[i]}.png")
 
     picks = get_prediction(data)
-    print("PhaseNet:", picks)
 
     return_value = {}
     try:
-        catalog = requests.get(f"{GMMA_API_URL}/predict", json={"picks": picks})
-        print("GMMA:", catalog.json())
+        catalog = requests.post(f"{GAMMA_API_URL}/predict_stream", json={"picks": picks})
+        print("GMMA:", catalog.json()["catalog"])
         return_value = catalog.json()
     except Exception as error:
         print(error)
