@@ -42,7 +42,7 @@ saver.restore(sess, latest_check_point)
 # GAMMA API Endpoint
 GAMMA_API_URL = "http://gamma-api:8001"
 # GAMMA_API_URL = 'http://localhost:8001'
-GAMMA_API_URL = "http://gamma.quakeflow.com"
+# GAMMA_API_URL = "http://gamma.quakeflow.com"
 # GAMMA_API_URL = "http://127.0.0.1:8001"
 
 # Kafak producer
@@ -216,7 +216,7 @@ class Data(BaseModel):
     dt: Optional[float] = 0.01
     ## gamma
     stations: Optional[List[Dict[str, Union[float, str]]]] = None
-    config: Optional[Dict[str, Union[List[float], float, str]]] = None
+    config: Optional[Dict[str, Union[List[float], List[int], List[str], float, int, str]]] = None
 
 
 @app.post("/predict")
