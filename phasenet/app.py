@@ -255,6 +255,29 @@ def predict(data: Data):
 
     return {}
 
+@app.post("/predict_phasenet2gamma2ui")
+def predict(data: Data):
+
+    picks = get_prediction(data)
+
+    return_value = {}
+    try:
+        catalog = requests.post(f"{GAMMA_API_URL}/predict_stream", json={"picks": picks})
+        print("GMMA:", catalog.json()["catalog"])
+        return_value = catalog.json()
+    except Exception as error:
+        print(error)
+
+    if use_kafka:
+        print("Push picks to kafka...")
+        for pick in picks:
+            producer.send("phasenet_picks", key=pick["id"], value=pick)
+        print("Push waveform to kafka...")
+        for id, timestamp, vec in zip(data.id, data.timestamp, data.vec):
+            producer.send("waveform_phasenet", key=id, value={"timestamp": timestamp, "vec": vec, "dt": data.dt})
+
+    return return_value
+
 
 @app.post("/predict_stream_phasenet2gamma")
 def predict(data: Data):
