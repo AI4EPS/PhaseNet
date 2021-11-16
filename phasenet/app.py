@@ -264,7 +264,7 @@ def predict(data: Data):
         catalog = requests.post(f"{GAMMA_API_URL}/predict", json={"picks": picks,
                                                                   "stations": data.stations, 
                                                                   "config": data.config})
-        print("GMMA:", catalog.json()["catalog"])
+        print(catalog.json()["catalog"])
         return catalog.json()
     except Exception as error:
         print(error)
