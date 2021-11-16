@@ -260,11 +260,12 @@ def predict(data: Data):
 
     picks = get_prediction(data)
 
-    return_value = {}
     try:
-        catalog = requests.post(f"{GAMMA_API_URL}/predict_stream", json={"picks": picks})
+        catalog = requests.post(f"{GAMMA_API_URL}/predict", json={"picks": picks,
+                                                                  "stations": data.stations, 
+                                                                  "config": data.config})
         print("GMMA:", catalog.json()["catalog"])
-        return_value = catalog.json()
+        return catalog.json()
     except Exception as error:
         print(error)
 
@@ -276,7 +277,7 @@ def predict(data: Data):
         for id, timestamp, vec in zip(data.id, data.timestamp, data.vec):
             producer.send("waveform_phasenet", key=id, value={"timestamp": timestamp, "vec": vec, "dt": data.dt})
 
-    return return_value
+    return {}
 
 
 @app.post("/predict_stream_phasenet2gamma")
