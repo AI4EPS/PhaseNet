@@ -219,6 +219,17 @@ class Data(BaseModel):
     config: Optional[Dict[str, Union[List[float], List[int], List[str], float, int, str]]] = None
 
 
+@app.on_event("startup")
+def set_default_executor():
+    from concurrent.futures import ThreadPoolExecutor
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    loop.set_default_executor(
+        ThreadPoolExecutor(max_workers=2)
+    )
+
+
 @app.post("/predict")
 def predict(data: Data):
 

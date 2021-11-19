@@ -405,6 +405,7 @@ class DataReader:
 
             for j, c in enumerate(sorted(comp, key=lambda x: order[x[-1]])):
 
+                resp_j = resp[j]
                 if len(comp) != 3:  ## less than 3 component
                     j = comp2idx[c]
 
@@ -431,7 +432,8 @@ class DataReader:
                             f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!"
                         )
                 if amplitude and remove_resp:
-                    trace_amp[:, j] /= float(resp[j])
+                    #trace_amp[:, j] /= float(resp[j])
+                    trace_amp[:, j] /= float(resp_j)
                     
             if not empty_station:
                 data.append(trace_data)
