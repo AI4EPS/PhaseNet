@@ -39,6 +39,16 @@ See details in the [notebook](https://github.com/wayneweiqiang/PhaseNet/blob/mas
 Earthquake detection workflows can be found in the [QuakeFlow](https://wayneweiqiang.github.io/QuakeFlow/) project.
 
 ## 7. Training
+- Download a small sample dataset:
+```bash
+wget https://github.com/wayneweiqiang/PhaseNet/releases/download/test_data/test_data.zip
+unzip test_data.zip
+```
+- Start training from the pre-trained model
+```
+python phasenet/train.py  --model_dir=model/190703-214543/ --train_dir=test_data/npz --train_list=test_data/npz.csv  --plot_figure --epochs=10 --batch_size=10
+```
+- Check results in the **log** folder
 
-Please let us know of any bugs found in the code. Suggestions and collaborations are welcomed
+Please let us know of any bugs found in the code.
 
