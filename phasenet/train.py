@@ -108,7 +108,7 @@ def train_fn(args, data_reader, data_reader_valid=None):
                                             feed_dict={model.drop_rate: args.drop_rate, model.is_training: True})
                 train_loss(loss_batch)
                 progressbar.set_description("{}: epoch {}, loss={:.6f}, mean={:.6f}".format(log_dir.split("/")[-1], epoch, loss_batch, train_loss.value))
-            flog.write("epoch: {}, mean loss: {}\n".format(epoch, train_loss))
+            flog.write("epoch: {}, mean loss: {}\n".format(epoch, train_loss.value))
             
             if data_reader_valid is not None:
                 valid_loss = LMA()
