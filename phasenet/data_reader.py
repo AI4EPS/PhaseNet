@@ -366,11 +366,14 @@ class DataReader:
     def read_mseed_array(self, fname, stations, amplitude=False, remove_resp=True):
 
         mseed = obspy.read(fname)
-        try:
-            mseed = mseed.detrend("spline", order=2, dspline=5 * mseed[0].stats.sampling_rate)
-        except:
-            logging.error(f"Error: spline detrend failed at file {fname}")
-            mseed = mseed.detrend("demean")
+        if self.highpass_filter == 0:
+            try:
+                mseed = mseed.detrend("spline", order=2, dspline=5 * mseed[0].stats.sampling_rate)
+            except:
+                logging.error(f"Error: spline detrend failed at file {fname}")
+                mseed = mseed.detrend("demean")
+        else:
+            mseed = mseed.filter("highpass", freq=self.highpass_filter)
         mseed = mseed.merge(fill_value=0)
         starttime = min([st.stats.starttime for st in mseed])
         endtime = max([st.stats.endtime for st in mseed])

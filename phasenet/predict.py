@@ -161,7 +161,11 @@ def main(args):
 
         if args.format == "mseed_array":
             data_reader = DataReader_mseed_array(
-                data_dir=args.data_dir, data_list=args.data_list, stations=args.stations, amplitude=args.amplitude
+                data_dir=args.data_dir, 
+                data_list=args.data_list, 
+                stations=args.stations, 
+                amplitude=args.amplitude, 
+                highpass_filter=args.highpass_filter,
             )
         else:
             data_reader = DataReader_pred(
