@@ -9,6 +9,8 @@ import tensorflow as tf
 from model import ModelConfig, UNet
 from postprocess import extract_amplitude, extract_picks
 import pandas as pd
+import obspy
+
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -58,14 +60,28 @@ def format_picks(picks, dt):
     return picks_
 
 
-vec = np.random.randn(10, 3000, 1, 3) ## batch, nt, dummy_dim, channel
-dt = 0.01
+stream = obspy.read()
+stream = stream.sort() ## Assume it is NPZ sorted
+assert(len(stream) == 3)
+data = []
+for trace in stream:
+    data.append(trace.data)
+data = np.array(data).T
+assert(data.shape[-1] == 3)
 
-feed = {model.X: vec, model.drop_rate: 0, model.is_training: False}
+# data_id = stream[0].get_id()[:-1]
+# timestamp = stream[0].stats.starttime.datetime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+
+data = np.stack([data for i in range(10)]) ## Assume 10 windows
+data = data[:,:,np.newaxis,:] ## batch, nt, dummy_dim, channel
+print(f"{data.shape = }")
+data = (data - data.mean(axis=1, keepdims=True))/data.std(axis=1, keepdims=True)
+
+feed = {model.X: data, model.drop_rate: 0, model.is_training: False}
 preds = sess.run(model.preds, feed_dict=feed)
 
 picks = extract_picks(preds, fnames=None, station_ids=None, t0=None)
-picks = format_picks(picks, dt)
+picks = format_picks(picks, dt=0.01)
 
 
 picks = pd.DataFrame(picks)
