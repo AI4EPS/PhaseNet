@@ -58,7 +58,7 @@ def format_picks(picks, dt):
     return picks_
 
 
-vec = np.random.randn(10, 3000, 1, 3)
+vec = np.random.randn(10, 3000, 1, 3) ## batch, nt, dummy_dim, channel
 dt = 0.01
 
 feed = {model.X: vec, model.drop_rate: 0, model.is_training: False}
