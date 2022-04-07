@@ -1,6 +1,0 @@
-tensorflow==2.3
-matplotlib
-pandas
-tqdm
-scipy
-obspy==1.2.2
