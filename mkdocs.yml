@@ -1,0 +1,14 @@
+site_name: "PhaseNet"
+site_description: 'PhaseNet: a deep-neural-network-based seismic arrival-time picking method'
+site_author: 'Weiqiang Zhu'
+docs_dir: docs/
+repo_name: 'wayneweiqiang/PhaseNet'
+repo_url: 'https://github.com/wayneweiqiang/PhaseNet'
+nav:
+    - Overview: README.md
+    - Interactive Example: example_interactive.ipynb
+    - Batch Prediction: example_batch_prediction.ipynb
+theme:
+  name: 'material'
+plugins:
+  - mkdocs-jupyter

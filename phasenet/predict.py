@@ -1,17 +1,48 @@
+import argparse
+import logging
+import multiprocessing
+import os
+import pickle
+import time
+from functools import partial
+
+import h5py
 import numpy as np
+import pandas as pd
 import tensorflow as tf
+from tqdm import tqdm
+from pymongo import MongoClient
+
+from data_reader import DataReader_mseed_array, DataReader_pred
+from model import ModelConfig, UNet
+from postprocess import (
+    extract_amplitude,
+    extract_picks,
+    save_picks,
+    save_picks_json,
+    save_prob_h5,
+)
+from visulization import plot_waveform
+
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-import argparse, os, time, logging
-from tqdm import tqdm
-import pandas as pd
-import multiprocessing
-from functools import partial
-import pickle
-from model import UNet, ModelConfig
-from data_reader import DataReader_pred, DataReader_mseed, DataReader_s3
-# from util import *
-from postprocess import extract_picks, save_picks, save_picks_json, extract_amplitude
+
+username = "root"
+password = "quakeflow123"
+client = MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017")
+# db = client["quakeflow"]
+# collection = db["waveform"]
+
+def upload_mongodb(picks):
+    db = client["quakeflow"]
+    collection = db["waveform"]
+    for pick in picks:
+        try:
+            collection.insert_one(pick)
+        except Exception as e:
+            print("Warning:", e)
+            collection.replace_one({"_id": pick["_id"]}, pick)
+            
 
 def read_args():
 
@@ -20,18 +51,25 @@ def read_args():
     parser.add_argument("--model_dir", help="Checkpoint directory (default: None)")
     parser.add_argument("--data_dir", default="", help="Input file directory")
     parser.add_argument("--data_list", default="", help="Input csv file")
+    parser.add_argument("--hdf5_file", default="", help="Input hdf5 file")
+    parser.add_argument("--hdf5_group", default="data", help="data group name in hdf5 file")
     parser.add_argument("--result_dir", default="results", help="Output directory")
-    parser.add_argument("--result_fname", default="picks.csv", help="Output file")
+    parser.add_argument("--result_fname", default="picks", help="Output file")
+    parser.add_argument("--highpass_filter", default=0.0, type=float, help="Highpass filter")
     parser.add_argument("--min_p_prob", default=0.3, type=float, help="Probability threshold for P pick")
     parser.add_argument("--min_s_prob", default=0.3, type=float, help="Probability threshold for S pick")
+    parser.add_argument("--mpd", default=50, type=float, help="Minimum peak distance")
     parser.add_argument("--amplitude", action="store_true", help="if return amplitude value")
-    parser.add_argument("--input_mseed", action="store_true", help="mseed format")
-    parser.add_argument("--input_s3", action="store_true", help="s3 format")
+    parser.add_argument("--format", default="numpy", help="input format")
     parser.add_argument("--s3_url", default="localhost:9000", help="s3 url")
     parser.add_argument("--stations", default="", help="seismic station info")
     parser.add_argument("--plot_figure", action="store_true", help="If plot figure for test")
     parser.add_argument("--save_prob", action="store_true", help="If save result for test")
+    parser.add_argument("--upload_waveform", action="store_true", help="If upload waveform to mongodb")
+    parser.add_argument("--pre_sec", default=1, type=float, help="Window length before pick")
+    parser.add_argument("--post_sec", default=4, type=float, help="Window length after pick")
     args = parser.parse_args()
+
     return args
 
 
@@ -46,19 +84,21 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         if not os.path.exists(figure_dir):
             os.makedirs(figure_dir)
     if (args.save_prob == True) and (prob_dir is None):
-        prob_dir = os.path.join(log_dir, 'results')
+        prob_dir = os.path.join(log_dir, 'probs')
         if not os.path.exists(prob_dir):
             os.makedirs(prob_dir)
+    if args.save_prob:
+        h5 = h5py.File(os.path.join(args.result_dir, "result.h5"), "w", libver='latest')
+        prob_h5 = h5.create_group("/prob")
     logging.info("Pred log: %s" % log_dir)
     logging.info("Dataset size: {}".format(data_reader.num_data))
 
     with tf.compat.v1.name_scope('Input_Batch'):
-        dataset = data_reader.dataset().prefetch(20)
-        if args.input_mseed:
+        if args.format == "mseed_array":
             batch_size = 1
         else:
             batch_size = args.batch_size
-            dataset = dataset.batch(batch_size)
+        dataset = data_reader.dataset(batch_size)
         batch = tf.compat.v1.data.make_one_shot_iterator(dataset).get_next()
 
     config = ModelConfig(X_shape=data_reader.X_shape)
@@ -66,6 +106,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
 
     model = UNet(config=config, input_batch=batch, mode="pred")
+    # model = UNet(config=config, mode="pred")
     sess_config = tf.compat.v1.ConfigProto()
     sess_config.gpu_options.allow_growth = True
     # sess_config.log_device_placement = False
@@ -82,25 +123,61 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
         picks = []
         amps = [] if args.amplitude else None
+        if args.plot_figure:
+            multiprocessing.set_start_method('spawn')
+            pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
         for _ in tqdm(range(0, data_reader.num_data, batch_size), desc="Pred"):
             if args.amplitude:
-                pred_batch, X_batch, fname_batch, t0_batch, amp_batch = sess.run([model.preds, batch[0], batch[1], batch[2], batch[3]], 
-                                                                        feed_dict={model.drop_rate: 0, model.is_training: False})
+                pred_batch, X_batch, amp_batch, fname_batch, t0_batch, station_batch = sess.run(
+                    [model.preds, batch[0], batch[1], batch[2], batch[3], batch[4]],
+                    feed_dict={model.drop_rate: 0, model.is_training: False},
+                )
+            #    X_batch, amp_batch, fname_batch, t0_batch = sess.run([batch[0], batch[1], batch[2], batch[3]])
             else:
-                pred_batch, X_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2]], 
-                                                             feed_dict={model.drop_rate: 0, model.is_training: False})
+                pred_batch, X_batch, fname_batch, t0_batch, station_batch = sess.run(
+                    [model.preds, batch[0], batch[1], batch[2], batch[3]],
+                    feed_dict={model.drop_rate: 0, model.is_training: False},
+                )
+            #    X_batch, fname_batch, t0_batch = sess.run([model.preds, batch[0], batch[1], batch[2]])
+            # pred_batch = []
+            # for i in range(0, len(X_batch), 1):
+            #     pred_batch.append(sess.run(model.preds, feed_dict={model.X: X_batch[i:i+1], model.drop_rate: 0, model.is_training: False}))
+            # pred_batch = np.vstack(pred_batch)
 
-            picks_ = extract_picks(preds=pred_batch, fnames=fname_batch, t0=t0_batch)
+            if args.upload_waveform:
+                waveforms = X_batch
+            else:
+                waveforms = None
+            picks_ = extract_picks(preds=pred_batch, file_names=fname_batch, station_ids=station_batch, begin_times=t0_batch, config=args, waveforms=waveforms)
+            if args.upload_waveform:
+                upload_mongodb(picks_)
             picks.extend(picks_)
             if args.amplitude:
                 amps_ = extract_amplitude(amp_batch, picks_)
                 amps.extend(amps_)
 
-        save_picks(picks, args.result_dir, amps=amps)
-        save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps)
+            if args.plot_figure:
+                pool.starmap(
+                    partial(
+                        plot_waveform,
+                        figure_dir=figure_dir,
+                    ),
+                    zip(X_batch, pred_batch, [x.decode() for x in fname_batch]),
+                )
 
-    print("Done")
+            if args.save_prob:
+                # save_prob(pred_batch, fname_batch, prob_dir=prob_dir)
+                save_prob_h5(pred_batch, [x.decode() for x in fname_batch], prob_h5)
+
+        # save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
+        # save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
+        df = pd.DataFrame(picks)
+        df.to_csv(os.path.join(args.result_dir, args.result_fname+".csv"), index=False)
+
+    print(
+        f"Done with {len(df[df['phase_type'] == 'P'])} P-picks and {len(df[df['phase_type'] == 'S'])} S-picks"
+    )
     return 0
 
 
@@ -110,22 +187,25 @@ def main(args):
 
     with tf.compat.v1.name_scope('create_inputs'):
 
-        if args.input_mseed:
-            data_reader = DataReader_mseed(data_dir=args.data_dir,
-                                           data_list=args.data_list,
-                                           stations=args.stations,
-                                           amplitude=args.amplitude)
-        elif args.input_s3:
-            args.input_mseed = True
-            data_reader = DataReader_s3(data_list=args.data_list,
-                                        stations=args.stations,
-                                        s3_url=args.s3_url,
-                                        bucket="waveforms",
-                                        amplitude=args.amplitude)
+        if args.format == "mseed_array":
+            data_reader = DataReader_mseed_array(
+                data_dir=args.data_dir, 
+                data_list=args.data_list, 
+                stations=args.stations, 
+                amplitude=args.amplitude,
+                highpass_filter=args.highpass_filter,
+            )
         else:
-            data_reader = DataReader_pred(data_dir=args.data_dir,
-                                          data_list=args.data_list)
-        
+            data_reader = DataReader_pred(
+                format=args.format,
+                data_dir=args.data_dir,
+                data_list=args.data_list,
+                hdf5_file=args.hdf5_file,
+                hdf5_group=args.hdf5_group,
+                amplitude=args.amplitude,
+                highpass_filter=args.highpass_filter,
+            )
+
         pred_fn(args, data_reader, log_dir=args.result_dir)
 
     return

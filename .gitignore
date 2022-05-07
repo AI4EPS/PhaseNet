@@ -2,8 +2,15 @@ __pycache__
 build/
 mseed/
 log/
+phasenet/test_data
+site/
 output*/
 result*/
 *.pyc
 *.png
 *.egg-info
+*.ipynb_checkpoints
+._.DS_Store
+.DS_Store
+test_data
+

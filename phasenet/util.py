@@ -8,6 +8,41 @@ from data_reader import DataConfig
 from detect_peaks import detect_peaks
 import logging
 
+class EMA(object):
+    def __init__(self, alpha):
+        self.alpha = alpha
+        self.x = 0.
+        self.count = 0
+
+    @property
+    def value(self):
+        return self.x
+
+    def __call__(self, x):
+        if self.count == 0:
+            self.x = x
+        else:
+            self.x = self.alpha * self.x + (1 - self.alpha) * x
+        self.count += 1
+        return self.x
+
+class LMA(object):
+    def __init__(self):
+        self.x = 0.
+        self.count = 0
+
+    @property
+    def value(self):
+        return self.x
+
+    def __call__(self, x):
+        if self.count == 0:
+            self.x = x
+        else:
+            self.x += (x - self.x)/(self.count+1)
+        self.count += 1
+        return self.x
+
 def detect_peaks_thread(i, pred, fname=None, result_dir=None, args=None):
   if args is None:
     itp, prob_p = detect_peaks(pred[i,:,0,1], mph=0.5, mpd=0.5/DataConfig().dt, show=False)

@@ -1,17 +1,19 @@
-#FROM continuumio/miniconda3
-FROM zhuwq0/phasenet
-
-WORKDIR /app
+FROM tensorflow/tensorflow:2.6.1
 
 # Create the environment:
 # COPY env.yml /app
 # RUN conda env create --name cs329s --file=env.yml
 # Make RUN commands use the new environment:
 # SHELL ["conda", "run", "-n", "cs329s", "/bin/bash", "-c"]
+
+RUN pip install tqdm obspy pandas minio
 RUN pip install uvicorn fastapi kafka-python
 
+WORKDIR /opt
+
 # Copy files
-COPY . /app
+COPY phasenet /opt/phasenet
+COPY model /opt/model
 
 # Expose API port
 EXPOSE 8000
