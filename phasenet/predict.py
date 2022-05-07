@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tqdm import tqdm
+from pymongo import MongoClient
 
 from data_reader import DataReader_mseed_array, DataReader_pred
 from model import ModelConfig, UNet
@@ -26,6 +27,22 @@ from visulization import plot_waveform
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
+username = "root"
+password = "quakeflow123"
+client = MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017")
+# db = client["quakeflow"]
+# collection = db["waveform"]
+
+def upload_mongodb(picks):
+    db = client["quakeflow"]
+    collection = db["waveform"]
+    for pick in picks:
+        try:
+            collection.insert_one(pick)
+        except Exception as e:
+            print("Warning:", e)
+            collection.replace_one({"_id": pick["_id"]}, pick)
+            
 
 def read_args():
 
@@ -48,6 +65,9 @@ def read_args():
     parser.add_argument("--stations", default="", help="seismic station info")
     parser.add_argument("--plot_figure", action="store_true", help="If plot figure for test")
     parser.add_argument("--save_prob", action="store_true", help="If save result for test")
+    parser.add_argument("--upload_waveform", action="store_true", help="If upload waveform to mongodb")
+    parser.add_argument("--pre_sec", default=1, type=float, help="Window length before pick")
+    parser.add_argument("--post_sec", default=4, type=float, help="Window length after pick")
     args = parser.parse_args()
 
     return args
@@ -125,7 +145,13 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             #     pred_batch.append(sess.run(model.preds, feed_dict={model.X: X_batch[i:i+1], model.drop_rate: 0, model.is_training: False}))
             # pred_batch = np.vstack(pred_batch)
 
-            picks_ = extract_picks(preds=pred_batch, fnames=fname_batch, station_ids=station_batch, t0=t0_batch, config=args)
+            if args.upload_waveform:
+                waveforms = X_batch
+            else:
+                waveforms = None
+            picks_ = extract_picks(preds=pred_batch, file_names=fname_batch, station_ids=station_batch, begin_times=t0_batch, config=args, waveforms=waveforms)
+            if args.upload_waveform:
+                upload_mongodb(picks_)
             picks.extend(picks_)
             if args.amplitude:
                 amps_ = extract_amplitude(amp_batch, picks_)
@@ -144,11 +170,13 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 # save_prob(pred_batch, fname_batch, prob_dir=prob_dir)
                 save_prob_h5(pred_batch, [x.decode() for x in fname_batch], prob_h5)
 
-        save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
-        save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
+        # save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
+        # save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
+        df = pd.DataFrame(picks)
+        df.to_csv(os.path.join(args.result_dir, args.result_fname+".csv"), index=False)
 
     print(
-        f"Done with {sum([len(x) for pick in picks for x in pick.p_idx])} P-picks and {sum([len(x) for pick in picks for x in pick.s_idx])} S-picks"
+        f"Done with {len(df[df['phase_type'] == 'P'])} P-picks and {len(df[df['phase_type'] == 'S'])} S-picks"
     )
     return 0
 
@@ -164,7 +192,7 @@ def main(args):
                 data_dir=args.data_dir, 
                 data_list=args.data_list, 
                 stations=args.stations, 
-                amplitude=args.amplitude, 
+                amplitude=args.amplitude,
                 highpass_filter=args.highpass_filter,
             )
         else:
