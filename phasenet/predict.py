@@ -36,12 +36,12 @@ client = MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017")
 def upload_mongodb(picks):
     db = client["quakeflow"]
     collection = db["waveform"]
-    for pick in picks:
-        try:
-            collection.insert_one(pick)
-        except Exception as e:
-            print("Warning:", e)
-            collection.replace_one({"_id": pick["_id"]}, pick)
+    try:
+        collection.insert_many(picks)
+    except Exception as e:
+        # print("Warning:", e)
+        collection.delete_many({"_id": {"$in": [p["_id"] for p in picks]}})
+        collection.insert_many(picks)
             
 
 def read_args():
@@ -147,15 +147,14 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
             if args.upload_waveform:
                 waveforms = X_batch
+                if args.amplitude:
+                    waveforms = amp_batch
             else:
                 waveforms = None
             picks_ = extract_picks(preds=pred_batch, file_names=fname_batch, station_ids=station_batch, begin_times=t0_batch, config=args, waveforms=waveforms)
             if args.upload_waveform:
                 upload_mongodb(picks_)
             picks.extend(picks_)
-            if args.amplitude:
-                amps_ = extract_amplitude(amp_batch, picks_)
-                amps.extend(amps_)
 
             if args.plot_figure:
                 pool.starmap(
@@ -173,10 +172,24 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         # save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
         # save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
         df = pd.DataFrame(picks)
+        # df["fname"] = df["file_name"]
+        # df["id"] = df["station_id"]
+        # df["timestamp"] = df["phase_time"]
+        # df["prob"] = df["phase_prob"]
+        # df["type"] = df["phase_type"]
+        if args.amplitude:
+            # df["amp"] = df["phase_amp"]
+            df = df[["file_name", "station_name", "timestamp", "prob", "amp", "type"]]
+        else:
+            df = df[["file_name", "station_name", "timestamp", "prob", "type"]]
+        # if args.amplitude:
+        #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_amplitude", "phase_type","dt",]]
+        # else:
+        #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_type","dt"]]
         df.to_csv(os.path.join(args.result_dir, args.result_fname+".csv"), index=False)
 
     print(
-        f"Done with {len(df[df['phase_type'] == 'P'])} P-picks and {len(df[df['phase_type'] == 'S'])} S-picks"
+        f"Done with {len(df[df['type'] == 'P'])} P-picks and {len(df[df['type'] == 'S'])} S-picks"
     )
     return 0
 

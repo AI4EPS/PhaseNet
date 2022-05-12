@@ -135,22 +135,34 @@ def extract_picks(
                 idxs, probs = detect_peaks(
                     preds[i, :, j, k + 1], mph=mph[phases[k]], mpd=mpd, show=False
                 )
-                for phase_index, phase_prob in zip(idxs, probs):
+                for l, (phase_index, phase_prob) in enumerate(zip(idxs, probs)):
                     pick_time = begin_time + timedelta(seconds=phase_index * dt)
                     pick = {
                         "file_name": file_name,
-                        "station_id": station_id,
+                        "station_name": station_id,
                         # "begin_time": begin_time.isoformat(timespec="milliseconds"),
-                        "phase_index": int(phase_index),
-                        "phase_time": pick_time.isoformat(timespec="milliseconds"),
+                        "index": int(phase_index),
+                        "timestamp": pick_time.isoformat(timespec="milliseconds"),
                         # "phase_prob": f"{phase_prob:.3f}",
-                        "phase_prob": round(phase_prob, 3),
-                        "phase_type": phases[k],
+                        "prob": round(phase_prob, 3),
+                        "type": phases[k],
                         "dt": dt,
                     }
                     if waveforms is not None:
-                        pick["waveform"] = waveforms[i, phase_index-pre_idx:phase_index+post_idx, j, :].tolist()
-                        pick["_id"] = f"{pick['station_id']}_{pick['phase_time']}_{pick['phase_type']}"
+                        tmp = np.zeros((pre_idx + post_idx, 3))
+                        lo = phase_index - pre_idx
+                        hi = phase_index + post_idx
+                        insert_idx = 0
+                        if lo < 0:
+                            lo = 0
+                            insert_idx = -lo
+                        if hi > waveforms.shape[1]:
+                            hi = waveforms.shape[0]
+                        tmp[insert_idx:insert_idx+hi-lo, :] = waveforms[i, lo:hi, j, :]
+                        pick["waveform"] = tmp.tolist()
+                        next_pick = idxs[l+1] if l < len(idxs)-1 else (phase_index+post_idx*3)
+                        pick["amp"] = np.max(waveforms[i, phase_index:min(phase_index+post_idx*3, next_pick), j, :]).item()
+                        pick["_id"] = f"{pick['station_id']}_{pick['timestamp']}_{pick['type']}"
                     picks.append(pick)
 
     return picks
