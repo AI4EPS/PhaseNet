@@ -2,7 +2,10 @@ name: docker
 
 on:
   push:
-    branches: [master, quakeflow]
+    branches:
+      - master
+      - main
+      - quakeflow
 
 jobs:
   main:
