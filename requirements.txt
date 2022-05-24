@@ -1,4 +1,4 @@
-tensorflow==2.3
+tensorflow==2.6.4
 matplotlib
 pandas
 tqdm
