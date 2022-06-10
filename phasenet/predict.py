@@ -127,7 +127,6 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             # for i in range(0, len(X_batch), 1):
             #     pred_batch.append(sess.run(model.preds, feed_dict={model.X: X_batch[i:i+1], model.drop_rate: 0, model.is_training: False}))
             # pred_batch = np.vstack(pred_batch)
-
             picks_ = extract_picks(preds=pred_batch, file_names=fname_batch, begin_times=t0_batch, station_ids=station_batch, config=args)
             picks.extend(picks_)
 
@@ -159,7 +158,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         df.to_csv(os.path.join(args.result_dir, args.result_fname+".csv"), index=False)
 
     print(
-        f"Done with {len(df[df['phase_type'] == 'p'])} P-picks and {len(df[df['phase_type'] == 's'])} S-picks"
+        f"Done with {len(df[df['phase_type'] == 'P'])} P-picks and {len(df[df['phase_type'] == 'S'])} S-picks"
     )
     return 0
 

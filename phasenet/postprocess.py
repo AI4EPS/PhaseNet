@@ -8,7 +8,7 @@ import logging
 from detect_peaks import detect_peaks
 
 
-def extract_picks(preds, file_names=None, begin_times=None, station_ids=None, dt=0.01, phases=["p", "s"], config=None):
+def extract_picks(preds, file_names=None, begin_times=None, station_ids=None, dt=0.01, phases=["P", "S"], config=None):
     """Extract picks from prediction results.
     Args:
         preds ([type]): [Nb, Nt, Ns, Nc] "batch, time, station, channel"
@@ -27,9 +27,9 @@ def extract_picks(preds, file_names=None, begin_times=None, station_ids=None, dt
             mph[x] = 0.3
         mpd = 50
     else:
-        mph["p"] = config.min_p_prob
-        mph["s"] = config.min_s_prob
-        mph["ps"] = 0.3
+        mph["P"] = config.min_p_prob
+        mph["S"] = config.min_s_prob
+        mph["PS"] = 0.3
         mpd = config.mpd
 
     picks = []
@@ -56,10 +56,10 @@ def extract_picks(preds, file_names=None, begin_times=None, station_ids=None, dt
             if (station_ids is None) or (len(station_ids[i]) == 0):
                 station_id = f"{j:04d}"
             else:
-                if isinstance(station_ids[i], str):
-                    station_id = station_ids[i]
+                if isinstance(station_ids[i][j], str):
+                    station_id = station_ids[i][j]
                 else:
-                    station_id = station_ids[i].decode()
+                    station_id = station_ids[i][j].decode()
 
             for k in range(preds.shape[3]-1):  # 0: noise
                 idxs, probs = detect_peaks(preds[i, :, j, k+1], mph=mph[phases[k]], mpd=mpd, show=False)
@@ -164,7 +164,7 @@ def save_picks_json(picks, output_dir, dt=0.01, amps=None, fname=None):
                             "id": pick.station_id,
                             "timestamp": calc_timestamp(pick.t0, float(idx) * dt),
                             "prob": prob.astype(float),
-                            "type": "p",
+                            "type": "P",
                         }
                     )
             for idxs, probs in zip(pick.s_idx, pick.s_prob):
@@ -174,7 +174,7 @@ def save_picks_json(picks, output_dir, dt=0.01, amps=None, fname=None):
                             "id": pick.station_id,
                             "timestamp": calc_timestamp(pick.t0, float(idx) * dt),
                             "prob": prob.astype(float),
-                            "type": "s",
+                            "type": "S",
                         }
                     )
     else:
@@ -187,7 +187,7 @@ def save_picks_json(picks, output_dir, dt=0.01, amps=None, fname=None):
                             "timestamp": calc_timestamp(pick.t0, float(idx) * dt),
                             "prob": prob.astype(float),
                             "amp": amp.astype(float),
-                            "type": "p",
+                            "type": "P",
                         }
                     )
             for idxs, probs, amps in zip(pick.s_idx, pick.s_prob, amplitude.s_amp):
@@ -198,7 +198,7 @@ def save_picks_json(picks, output_dir, dt=0.01, amps=None, fname=None):
                             "timestamp": calc_timestamp(pick.t0, float(idx) * dt),
                             "prob": prob.astype(float),
                             "amp": amp.astype(float),
-                            "type": "s",
+                            "type": "S",
                         }
                     )
     with open(os.path.join(output_dir, fname), "w") as fp:

@@ -203,6 +203,10 @@ class DataReader:
             self.h5_data = self.h5[kwargs["hdf5_group"]]
             self.data_list = list(self.h5_data.keys())
             self.num_data = len(self.data_list)
+        elif format == "hdf5_array":
+            self.data_dir = kwargs["data_dir"]
+            self.data_list = sorted(glob.glob(os.path.join(self.data_dir, "*.h5")))
+            self.num_data = len(self.data_list)
         elif format == "hdf5_das":
             self.data_dir = kwargs["data_dir"]
             self.data_list = sorted(glob.glob(os.path.join(self.data_dir, "*.h5")))
@@ -305,6 +309,23 @@ class DataReader:
         meta["data"] = data
         return meta
 
+    def read_hdf5_array(self, fname):
+        meta = {}
+        with h5py.File(fname, 'r', libver='latest', swmr=True) as fp:
+            stations = list(fp.keys())
+            stations.remove("Event")
+            raw_data = []
+            for sta in stations:
+                raw_data.append(fp[sta][:]) ## nt, nch
+            max_len = max([len(d) for d in raw_data])
+            data = np.zeros([max_len, len(raw_data), 3])
+            for i, d in enumerate(raw_data):
+                data[:len(d), i, :] = d
+            # data = np.array(data).transpose([1, 0, 2])
+            meta["t0"] = fp["Event"].attrs["begin_time"]
+            meta["station_id"] = stations
+        meta["data"] = data
+        return meta
 
     def read_s3(self, format, fname, bucket, key, secret, s3_url, use_ssl):
         with self.s3fs.open(bucket + "/" + fname, 'rb') as fp:
@@ -710,6 +731,8 @@ class DataReader_pred(DataReader):
             meta = self.read_hdf5(base_name)
         elif self.format == "hdf5_das":
             meta = self.read_hdf5_das(base_name)
+        elif self.format == "hdf5_array":
+            meta = self.read_hdf5_array(base_name)
         else:
             raise (f"Format {self.format} does not support!")
         return meta["data"].shape
@@ -735,6 +758,8 @@ class DataReader_pred(DataReader):
             meta = self.read_hdf5(base_name)
         elif self.format == "hdf5_das":
             meta = self.read_hdf5_das(base_name)
+        elif self.format == "hdf5_array":
+            meta = self.read_hdf5_array(base_name)
         else:
             raise (f"Format {self.format} does not support!")
         if meta == -1:
