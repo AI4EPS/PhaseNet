@@ -14,6 +14,7 @@ import h5py
 import obspy
 from scipy.interpolate import interp1d
 from tqdm import tqdm
+import glob
 
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
@@ -163,8 +164,16 @@ class DataConfig:
 
 
 class DataReader:
-    def __init__(self, format="numpy", config=DataConfig(), **kwargs):
+    def __init__(self, format="numpy", highpass_filter=0, config=DataConfig(), **kwargs):
+        """ Data Reader for Seismic Data
+
+        Args:
+            format (str, optional): [description]. Defaults to "numpy".
+            highpass (int, optional): [description]. Defaults to 0.
+            config ([type], optional): [description]. Defaults to DataConfig().
+        """
         self.buffer = {}
+        self.use_buffer = False
         self.n_channel = config.n_channel
         self.n_class = config.n_class
         self.X_shape = config.X_shape
@@ -175,15 +184,17 @@ class DataReader:
         self.label_width = config.label_width
         self.config = config
         self.format = format
-        if "highpass_filter" in kwargs:
-            self.highpass_filter = kwargs["highpass_filter"]
+        self.highpass_filter = highpass_filter
         if format in ["numpy", "mseed", "sac"]:
             self.data_dir = kwargs["data_dir"]
-            try:
-                csv = pd.read_csv(kwargs["data_list"], header=0, sep='[,|\s+]', engine="python")
-            except:
-                csv = pd.read_csv(kwargs["data_list"], header=0, sep="\t")
-            self.data_list = csv['fname']
+            if kwargs["data_list"] is not None:
+                try:
+                    csv = pd.read_csv(kwargs["data_list"], header=0, sep='[,|\s+]', engine="python")
+                except:
+                    csv = pd.read_csv(kwargs["data_list"], header=0, sep="\t")
+                self.data_list = csv['fname']
+            else:
+                self.data_list = sorted(glob.glob(os.path.join(self.data_dir, "*.npz")))
             if format == "sac":
                 self.sac_trace = csv[["E", "N", "Z"]]
             self.num_data = len(self.data_list)
@@ -191,6 +202,10 @@ class DataReader:
             self.h5 = h5py.File(kwargs["hdf5_file"], 'r', libver='latest', swmr=True)
             self.h5_data = self.h5[kwargs["hdf5_group"]]
             self.data_list = list(self.h5_data.keys())
+            self.num_data = len(self.data_list)
+        elif format == "hdf5_das":
+            self.data_dir = kwargs["data_dir"]
+            self.data_list = sorted(glob.glob(os.path.join(self.data_dir, "*.h5")))
             self.num_data = len(self.data_list)
         elif format == "s3":
             self.s3fs = s3fs.S3FileSystem(
@@ -202,19 +217,18 @@ class DataReader:
             )
             self.num_data = 0
         else:
-            raise (f"{format} not support!")
+            raise (f"Format {format} not support!")
 
     def __len__(self):
         return self.num_data
 
     def read_numpy(self, fname):
-        # try:
         if fname not in self.buffer:
             npz = np.load(fname)
             meta = {}
-            if len(npz['data'].shape) == 2:
+            if len(npz['data'].shape) == 2: # Time, Channel
                 meta["data"] = npz['data'][:, np.newaxis, :]
-            else:
+            else: # Time, Station, Channel
                 meta["data"] = npz['data']
             if "p_idx" in npz.files:
                 if len(npz["p_idx"].shape) == 0:
@@ -242,13 +256,11 @@ class DataReader:
                 meta["station_id"] = npz["sta_id"]
             if "t0" in npz.files:
                 meta["t0"] = npz["t0"]
-            self.buffer[fname] = meta
+            if self.use_buffer:
+                self.buffer[fname] = meta
         else:
             meta = self.buffer[fname]
         return meta
-        # except:
-        #     logging.error("Failed reading {}".format(fname))
-        #     return None
 
     def read_hdf5(self, fname):
         data = self.h5_data[fname][()]
@@ -281,6 +293,18 @@ class DataReader:
         if "t0" in attrs:
             meta["t0"] = attrs["t0"]
         return meta
+
+
+    def read_hdf5_das(self, fname):
+        meta = {}
+        with h5py.File(fname, 'r', libver='latest', swmr=True) as fp:
+            raw_data = fp["data"][:]
+            data = np.zeros([*raw_data.shape, 3])
+            data[:, :, -1] = raw_data[:,:]
+            meta["t0"] = fp["data"].attrs["begin_time"]
+        meta["data"] = data
+        return meta
+
 
     def read_s3(self, format, fname, bucket, key, secret, s3_url, use_ssl):
         with self.s3fs.open(bucket + "/" + fname, 'rb') as fp:
@@ -684,6 +708,10 @@ class DataReader_pred(DataReader):
             meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[0] if pd.notna(trace)])
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
+        elif self.format == "hdf5_das":
+            meta = self.read_hdf5_das(base_name)
+        else:
+            raise (f"Format {self.format} does not support!")
         return meta["data"].shape
 
     def adjust_missingchannels(self, data):
@@ -705,17 +733,20 @@ class DataReader_pred(DataReader):
             meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[i] if pd.notna(trace)])
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
+        elif self.format == "hdf5_das":
+            meta = self.read_hdf5_das(base_name)
         else:
-            raise (f"{self.format} does not support!")
+            raise (f"Format {self.format} does not support!")
         if meta == -1:
             return (np.zeros(self.X_shape, dtype=self.dtype), base_name)
 
-        raw_amp = np.zeros(self.X_shape, dtype=self.dtype)
-        raw_amp[: meta["data"].shape[0], ...] = meta["data"][: self.X_shape[0], ...]
-        sample = np.zeros(self.X_shape, dtype=self.dtype)
-        sample[: meta["data"].shape[0], ...] = normalize_long(meta["data"])[: self.X_shape[0], ...]
-        if abs(meta["data"].shape[0] - self.X_shape[0]) > 1:
-            logging.warning(f"Data length mismatch in {base_name}: {meta['data'].shape[0]} != {self.X_shape[0]}")
+        # raw_amp = np.zeros(self.X_shape, dtype=self.dtype)
+        # raw_amp[: meta["data"].shape[0], ...] = meta["data"][: self.X_shape[0], ...]
+        # sample = np.zeros(self.X_shape, dtype=self.dtype)
+        # sample[: meta["data"].shape[0], ...] = normalize_long(meta["data"])[: self.X_shape[0], ...]
+        # if abs(meta["data"].shape[0] - self.X_shape[0]) > 1:
+        #     logging.warning(f"Data length mismatch in {base_name}: {meta['data'].shape[0]} != {self.X_shape[0]}")
+        sample = normalize_long(meta["data"]).astype(self.dtype)
 
         if "t0" in meta:
             t0 = meta["t0"]
@@ -725,7 +756,8 @@ class DataReader_pred(DataReader):
         if "station_id" in meta:
             station_id = meta["station_id"]
         else:
-            station_id = base_name.rstrip(".npz")
+            # station_id = base_name.split("/")[-1].rstrip(".npz")
+            station_id = ""
 
         if np.isnan(sample).any() or np.isinf(sample).any():
             logging.warning(f"Data error: Nan or Inf found in {base_name}")
@@ -733,10 +765,13 @@ class DataReader_pred(DataReader):
             sample[np.isinf(sample)] = 0
 
         # sample = self.adjust_missingchannels(sample)
-        if self.amplitude:
-            return (sample[: self.X_shape[0], ...], raw_amp[: self.X_shape[0], ...], base_name, t0, station_id)
-        else:
-            return (sample[: self.X_shape[0], ...], base_name, t0, station_id)
+
+        # if self.amplitude:
+        #     return (sample[: self.X_shape[0], ...], raw_amp[: self.X_shape[0], ...], base_name.split("/")[-1], t0, station_id)
+        # else:
+        #     return (sample[: self.X_shape[0], ...], base_name.split("/")[-1], t0, station_id)
+
+        return (sample, base_name.split("/")[-1], t0, station_id)
 
     def dataset(self, batch_size, num_parallel_calls=2, shuffle=False, drop_remainder=False):
         if self.amplitude:
@@ -751,7 +786,7 @@ class DataReader_pred(DataReader):
             dataset = dataset_map(
                 self,
                 output_types=(self.dtype, "string", "string", "string"),
-                output_shapes=(self.X_shape, None, None, None),
+                output_shapes=([None, None, 3], None, None, None),
                 num_parallel_calls=num_parallel_calls,
                 shuffle=shuffle,
             )

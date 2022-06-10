@@ -33,7 +33,7 @@ def read_args():
     parser.add_argument("--batch_size", default=20, type=int, help="batch size")
     parser.add_argument("--model_dir", help="Checkpoint directory (default: None)")
     parser.add_argument("--data_dir", default="", help="Input file directory")
-    parser.add_argument("--data_list", default="", help="Input csv file")
+    parser.add_argument("--data_list", default=None, help="Input csv file")
     parser.add_argument("--hdf5_file", default="", help="Input hdf5 file")
     parser.add_argument("--hdf5_group", default="data", help="data group name in hdf5 file")
     parser.add_argument("--result_dir", default="results", help="Output directory")
@@ -43,7 +43,7 @@ def read_args():
     parser.add_argument("--min_s_prob", default=0.3, type=float, help="Probability threshold for S pick")
     parser.add_argument("--mpd", default=50, type=float, help="Minimum peak distance")
     parser.add_argument("--amplitude", action="store_true", help="if return amplitude value")
-    parser.add_argument("--format", default="numpy", help="input format")
+    parser.add_argument("--format", default="numpy", help="input file format")
     parser.add_argument("--s3_url", default="localhost:9000", help="s3 url")
     parser.add_argument("--stations", default="", help="seismic station info")
     parser.add_argument("--plot_figure", action="store_true", help="If plot figure for test")
@@ -59,6 +59,9 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         log_dir = os.path.join(args.log_dir, "pred", current_time)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
+    picks_dir = os.path.join(log_dir, "picks")
+    if not os.path.exists(picks_dir):
+        os.makedirs(picks_dir)
     if (args.plot_figure == True) and (figure_dir is None):
         figure_dir = os.path.join(log_dir, 'figures')
         if not os.path.exists(figure_dir):
@@ -125,8 +128,14 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             #     pred_batch.append(sess.run(model.preds, feed_dict={model.X: X_batch[i:i+1], model.drop_rate: 0, model.is_training: False}))
             # pred_batch = np.vstack(pred_batch)
 
-            picks_ = extract_picks(preds=pred_batch, fnames=fname_batch, station_ids=station_batch, t0=t0_batch, config=args)
+            picks_ = extract_picks(preds=pred_batch, file_names=fname_batch, begin_times=t0_batch, station_ids=station_batch, config=args)
             picks.extend(picks_)
+
+            if len(fname_batch) == 1:
+                df = pd.DataFrame(picks_)
+                df.drop(columns=['file_name', 'dt'], inplace=True)
+                df.to_csv(os.path.join(picks_dir, f"{'.'.join(fname_batch[0].decode().split('.')[:-1])}.csv"), index=False)
+
             if args.amplitude:
                 amps_ = extract_amplitude(amp_batch, picks_)
                 amps.extend(amps_)
@@ -144,11 +153,13 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 # save_prob(pred_batch, fname_batch, prob_dir=prob_dir)
                 save_prob_h5(pred_batch, [x.decode() for x in fname_batch], prob_h5)
 
-        save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
-        save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
+        # save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
+        # save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
+        df = pd.DataFrame(picks)
+        df.to_csv(os.path.join(args.result_dir, args.result_fname+".csv"), index=False)
 
     print(
-        f"Done with {sum([len(x) for pick in picks for x in pick.p_idx])} P-picks and {sum([len(x) for pick in picks for x in pick.s_idx])} S-picks"
+        f"Done with {len(df[df['phase_type'] == 'p'])} P-picks and {len(df[df['phase_type'] == 's'])} S-picks"
     )
     return 0
 
