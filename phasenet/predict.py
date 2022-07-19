@@ -29,7 +29,9 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 username = "root"
 password = "quakeflow123"
-client = MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017")
+# client = MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017")
+client = MongoClient(f"mongodb://{username}:{password}@quakeflow-mongodb-headless.default.svc.cluster.local:27017")
+
 # db = client["quakeflow"]
 # collection = db["waveform"]
 
@@ -39,7 +41,7 @@ def upload_mongodb(picks):
     try:
         collection.insert_many(picks)
     except Exception as e:
-        # print("Warning:", e)
+        print("Warning:", e)
         collection.delete_many({"_id": {"$in": [p["_id"] for p in picks]}})
         collection.insert_many(picks)
             
@@ -151,7 +153,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             if args.amplitude:
                 waveforms = amp_batch
                 
-            picks_ = extract_picks(preds=pred_batch, file_names=fname_batch, station_ids=station_batch, begin_times=t0_batch, config=args, waveforms=waveforms)
+            picks_ = extract_picks(preds=pred_batch, file_names=fname_batch, station_ids=station_batch, begin_times=t0_batch, config=args, waveforms=waveforms, use_amplitude=args.amplitude, upload_waveform=args.upload_waveform)
             if args.upload_waveform:
                 upload_mongodb(picks_)
             picks.extend(picks_)
@@ -179,9 +181,9 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         # df["type"] = df["phase_type"]
         if args.amplitude:
             # df["amp"] = df["phase_amp"]
-            df = df[["file_name", "station_name", "timestamp", "prob", "amp", "type"]]
+            df = df[["file_name", "station_id", "timestamp", "prob", "amp", "type"]]
         else:
-            df = df[["file_name", "station_name", "timestamp", "prob", "type"]]
+            df = df[["file_name", "station_id", "timestamp", "prob", "type"]]
         # if args.amplitude:
         #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_amplitude", "phase_type","dt",]]
         # else:

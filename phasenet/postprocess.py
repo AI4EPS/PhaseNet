@@ -73,6 +73,8 @@ def extract_picks(
     phases=["P", "S"],
     config=None,
     waveforms=None,
+    use_amplitude=False,
+    upload_waveform=False,
 ):
     """Extract picks from prediction results.
     Args:
@@ -139,7 +141,7 @@ def extract_picks(
                     pick_time = begin_time + timedelta(seconds=phase_index * dt)
                     pick = {
                         "file_name": file_name,
-                        "station_name": station_id,
+                        "station_id": station_id,
                         # "begin_time": begin_time.isoformat(timespec="milliseconds"),
                         "index": int(phase_index),
                         "timestamp": pick_time.isoformat(timespec="milliseconds"),
@@ -159,10 +161,14 @@ def extract_picks(
                         if hi > waveforms.shape[1]:
                             hi = waveforms.shape[0]
                         tmp[insert_idx:insert_idx+hi-lo, :] = waveforms[i, lo:hi, j, :]
-                        pick["waveform"] = tmp.tolist()
-                        next_pick = idxs[l+1] if l < len(idxs)-1 else (phase_index+post_idx*3)
-                        pick["amp"] = np.max(waveforms[i, phase_index:min(phase_index+post_idx*3, next_pick), j, :]).item()
-                        pick["_id"] = f"{pick['station_id']}_{pick['timestamp']}_{pick['type']}"
+                        if upload_waveform:
+                            pick["waveform"] = tmp.tolist()
+                            pick["_id"] = f"{pick['station_id']}_{pick['timestamp']}_{pick['type']}"
+                        if use_amplitude:
+                            next_pick = idxs[l+1] if l < len(idxs)-1 else (phase_index+post_idx*3)
+                            amp = np.max(np.abs(waveforms[i, :, j, :]), axis=-1)
+                            pick["amp"] = np.max(amp[phase_index:min(phase_index+post_idx*3, next_pick)]).item()
+                        
                     picks.append(pick)
 
     return picks
