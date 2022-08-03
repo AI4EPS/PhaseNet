@@ -154,6 +154,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 waveforms = amp_batch
                 
             picks_ = extract_picks(preds=pred_batch, file_names=fname_batch, station_ids=station_batch, begin_times=t0_batch, config=args, waveforms=waveforms, use_amplitude=args.amplitude, upload_waveform=args.upload_waveform)
+            
             if args.upload_waveform:
                 upload_mongodb(picks_)
             picks.extend(picks_)
@@ -181,9 +182,9 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         # df["type"] = df["phase_type"]
         if args.amplitude:
             # df["amp"] = df["phase_amp"]
-            df = df[["file_name", "station_id", "timestamp", "prob", "amp", "type"]]
+            df = df[["file_name", "begin_time", "station_id", "phase_index", "phase_time", "phase_score", "phase_amp", "phase_type"]]
         else:
-            df = df[["file_name", "station_id", "timestamp", "prob", "type"]]
+            df = df[["file_name", "begin_time", "station_id", "phase_index", "phase_timestamp",  "phase_prob", "phase_type"]]
         # if args.amplitude:
         #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_amplitude", "phase_type","dt",]]
         # else:
@@ -191,7 +192,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         df.to_csv(os.path.join(args.result_dir, args.result_fname+".csv"), index=False)
 
     print(
-        f"Done with {len(df[df['type'] == 'P'])} P-picks and {len(df[df['type'] == 'S'])} S-picks"
+        f"Done with {len(df[df['phase_type'] == 'P'])} P-picks and {len(df[df['phase_type'] == 'S'])} S-picks"
     )
     return 0
 

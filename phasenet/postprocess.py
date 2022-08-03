@@ -93,7 +93,7 @@ def extract_picks(
         for x in phases:
             mph[x] = 0.3
         mpd = 50
-        ## waveform
+        ## upload waveform
         pre_idx = int(1 / dt)
         post_idx = int(4 / dt)
     else:
@@ -104,36 +104,35 @@ def extract_picks(
         pre_idx = int(config.pre_sec / dt)
         post_idx = int(config.post_sec / dt)
 
+    Nb, Nt, Ns, Nc = preds.shape
+
+    if file_names is None:
+        file_names = [f"{i:04d}" for i in range(Nb)]
+    elif not isinstance(file_names, list):
+        if isinstance(file_names, bytes):
+            file_names = file_names.decode()
+        file_names = [file_names] * Nb
+    else:
+        file_names = [x.decode() if isinstance(x, bytes) else x for x in file_names]
+
+    if begin_times is None:
+        begin_times = ["1970-01-01T00:00:00.000+00:00"] * Nb
+    else:
+        begin_times = [x.decode() if isinstance(x, bytes) else x for x in begin_times]
+
     picks = []
-    for i in range(preds.shape[0]):
+    for i in range(Nb):
 
-        if file_names is None:
-            file_name = f"{i:04d}"
-        else:
-            if isinstance(file_names[i], str):
-                file_name = file_names[i]
-            else:
-                file_name = file_names[i].decode()
+        file_name = file_names[i]
+        begin_time = datetime.fromisoformat(begin_times[i])
 
-        if begin_times is None:
-            begin_time = "1970-01-01T00:00:00.000"
-        else:
-            if isinstance(begin_times[i], str):
-                begin_time = begin_times[i]
-            else:
-                begin_time = begin_times[i].decode()
-        begin_time = datetime.fromisoformat(begin_time)
-
-        for j in range(preds.shape[2]):
+        for j in range(Ns):
             if (station_ids is None) or (len(station_ids[i]) == 0):
                 station_id = f"{j:04d}"
             else:
-                if isinstance(station_ids[i], str):
-                    station_id = station_ids[i]
-                else:
-                    station_id = station_ids[i].decode()
+                station_id = station_ids[i].decode() if isinstance(station_ids[i], bytes) else station_ids[i]
 
-            for k in range(preds.shape[3] - 1):  # 0: noise
+            for k in range(Nc - 1):  # 0-th channel noise
                 idxs, probs = detect_peaks(
                     preds[i, :, j, k + 1], mph=mph[phases[k]], mpd=mpd, show=False
                 )
@@ -142,14 +141,15 @@ def extract_picks(
                     pick = {
                         "file_name": file_name,
                         "station_id": station_id,
-                        # "begin_time": begin_time.isoformat(timespec="milliseconds"),
-                        "index": int(phase_index),
-                        "timestamp": pick_time.isoformat(timespec="milliseconds"),
-                        # "phase_prob": f"{phase_prob:.3f}",
-                        "prob": round(phase_prob, 3),
-                        "type": phases[k],
+                        "begin_time": begin_time.isoformat(timespec="milliseconds"),
+                        "phase_index": int(phase_index),
+                        "phase_time": pick_time.isoformat(timespec="milliseconds"),
+                        "phase_score": round(phase_prob, 3),
+                        "phase_type": phases[k],
                         "dt": dt,
                     }
+
+                    ## process waveform
                     if waveforms is not None:
                         tmp = np.zeros((pre_idx + post_idx, 3))
                         lo = phase_index - pre_idx
@@ -158,16 +158,16 @@ def extract_picks(
                         if lo < 0:
                             lo = 0
                             insert_idx = -lo
-                        if hi > waveforms.shape[1]:
-                            hi = waveforms.shape[0]
+                        if hi > Nt:
+                            hi = Nt
                         tmp[insert_idx:insert_idx+hi-lo, :] = waveforms[i, lo:hi, j, :]
                         if upload_waveform:
                             pick["waveform"] = tmp.tolist()
                             pick["_id"] = f"{pick['station_id']}_{pick['timestamp']}_{pick['type']}"
                         if use_amplitude:
                             next_pick = idxs[l+1] if l < len(idxs)-1 else (phase_index+post_idx*3)
-                            amp = np.max(np.abs(waveforms[i, :, j, :]), axis=-1)
-                            pick["amp"] = np.max(amp[phase_index:min(phase_index+post_idx*3, next_pick)]).item()
+                            amp = np.max(np.abs(waveforms[i, :, j, :]), axis=-1) ## amplitude over three channels
+                            pick["phase_amp"] = np.max(amp[phase_index:min(phase_index+post_idx*3, next_pick)]).item() ## peak amplitude
                         
                     picks.append(pick)
 
