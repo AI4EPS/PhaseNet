@@ -184,7 +184,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             # df["amp"] = df["phase_amp"]
             df = df[["file_name", "begin_time", "station_id", "phase_index", "phase_time", "phase_score", "phase_amp", "phase_type"]]
         else:
-            df = df[["file_name", "begin_time", "station_id", "phase_index", "phase_timestamp",  "phase_prob", "phase_type"]]
+            df = df[["file_name", "begin_time", "station_id", "phase_index", "phase_time", "phase_score", "phase_type"]]
         # if args.amplitude:
         #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_amplitude", "phase_type","dt",]]
         # else:
