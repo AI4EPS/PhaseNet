@@ -12,3 +12,7 @@ theme:
   name: 'material'
 plugins:
   - mkdocs-jupyter
+extra:
+  analytics:
+    provider: google
+    property: G-RZQ9LRPL0S
