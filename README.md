@@ -62,6 +62,9 @@ python phasenet/predict.py --model=model/190703-214543 --hdf5_file=test_data/dat
 ```
 python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed_array.csv --data_dir=test_data/mseed_array --stations=test_data/stations.csv  --format=mseed_array --amplitude
 ```
+```
+python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed2.csv --data_dir=test_data/mseed --stations=test_data/stations.csv  --format=mseed_array --amplitude
+```
 
 Notes: 
 1. Remove the "--plot_figure" argument for large datasets, becasue plotting can be very slow.
