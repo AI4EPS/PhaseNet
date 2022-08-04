@@ -3,4 +3,6 @@ matplotlib
 pandas
 tqdm
 scipy
+pymongo
 obspy==1.2.2
+
