@@ -67,7 +67,7 @@ python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mse
 ```
 
 Notes: 
-1. Remove the "--plot_figure" argument for large datasets, becasue plotting can be very slow.
+1. Remove the "--plot_figure" argument for large datasets, because plotting can be very slow.
 
 Optional arguments:
 ```
@@ -111,11 +111,11 @@ optional arguments:
 
 - The output picks are saved to "results/picks.csv" on default
 
-|file_name                  |begin_time             |station_id                |phase_index|phase_time             |phase_score|phase_type|
-|---------------------------|-----------------------|--------------------------|-----------|-----------------------|-----------|----------|
-|CI.BOM.2020-10-01T00:00.HH*|2020-10-01T00:00:00.008|CI.BOM.2020-10-01T00:00.HH|14728      |2020-10-01T00:02:27.288|0.771      |P         |
-|CI.BOM.2020-10-01T00:00.HH*|2020-10-01T00:00:00.008|CI.BOM.2020-10-01T00:00.HH|15488      |2020-10-01T00:02:34.888|0.602      |S         |
-|CI.COA.2020-10-01T00:00.HH*|2020-10-01T00:00:00.008|CI.COA.2020-10-01T00:00.HH|317        |2020-10-01T00:00:03.178|0.783      |P         |
+|file_name        |begin_time             |station_id|phase_index|phase_time             |phase_score|phase_amp             |phase_type|
+|-----------------|-----------------------|----------|-----------|-----------------------|-----------|----------------------|----------|
+|2020-10-01T00:00*|2020-10-01T00:00:00.003|CI.BOM..HH|14734      |2020-10-01T00:02:27.343|0.708      |2.4998866231208325e-14|P         |
+|2020-10-01T00:00*|2020-10-01T00:00:00.003|CI.BOM..HH|15487      |2020-10-01T00:02:34.873|0.416      |2.4998866231208325e-14|S         |
+|2020-10-01T00:00*|2020-10-01T00:00:00.003|CI.COA..HH|319        |2020-10-01T00:00:03.193|0.762      |3.708662269972206e-14 |P         |
 
 Notes:
 1. The *phase_index* means which data point is the pick in the original sequence. So *phase_time* = *begin_time* + *phase_index* / *sampling rate*. The default *sampling_rate* is 100Hz 
