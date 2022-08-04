@@ -1,7 +1,9 @@
 import tensorflow as tf
-# tf.compat.v1.disable_eager_execution()
+tf.compat.v1.disable_eager_execution()
 import numpy as np
 import logging
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning)
 
 class ModelConfig:
 
