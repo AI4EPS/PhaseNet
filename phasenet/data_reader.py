@@ -184,8 +184,6 @@ class DataReader:
             except:
                 csv = pd.read_csv(kwargs["data_list"], header=0, sep="\t")
             self.data_list = csv['fname']
-            if format == "sac":
-                self.sac_trace = csv[["E", "N", "Z"]]
             self.num_data = len(self.data_list)
         elif format == "hdf5":
             self.h5 = h5py.File(kwargs["hdf5_file"], 'r', libver='latest', swmr=True)
@@ -327,11 +325,9 @@ class DataReader:
         meta = {"data": data, "t0": t0}
         return meta
 
-    def read_sac(self, fname, traces):
+    def read_sac(self, fname):
 
-        mseed = obspy.Stream()
-        for tr in traces:
-            mseed += obspy.read(tr, format="sac")
+        mseed = obspy.read(fname)
         mseed = mseed.detrend("spline", order=2, dspline=5 * mseed[0].stats.sampling_rate)
         mseed = mseed.merge(fill_value=0)
         if self.highpass_filter > 0:
@@ -681,7 +677,7 @@ class DataReader_pred(DataReader):
         elif self.format == "mseed":
             meta = self.read_mseed(os.path.join(self.data_dir, base_name))
         elif self.format == "sac":
-            meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[0] if pd.notna(trace)])
+            meta = self.read_sac(os.path.join(self.data_dir, base_name))
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
         return meta["data"].shape
@@ -702,7 +698,7 @@ class DataReader_pred(DataReader):
         elif self.format == "mseed":
             meta = self.read_mseed(os.path.join(self.data_dir, base_name))
         elif self.format == "sac":
-            meta = self.read_sac(base_name, [os.path.join(self.data_dir, trace) for trace in self.sac_trace.iloc[i] if pd.notna(trace)])
+            meta = self.read_sac(os.path.join(self.data_dir, base_name))
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
         else:
@@ -723,9 +719,10 @@ class DataReader_pred(DataReader):
             t0 = "1970-01-01T00:00:00.000"
 
         if "station_id" in meta:
-            station_id = meta["station_id"]
+            station_id = meta["station_id"].split("/")[-1].rstrip("*")
         else:
-            station_id = base_name.rstrip(".npz")
+            # station_id = base_name.split("/")[-1].rstrip("*")
+            station_id = os.path.basename(base_name).rstrip("*")
 
         if np.isnan(sample).any() or np.isinf(sample).any():
             logging.warning(f"Data error: Nan or Inf found in {base_name}")
