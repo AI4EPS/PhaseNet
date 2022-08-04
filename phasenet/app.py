@@ -13,109 +13,7 @@ from pydantic import BaseModel
 from scipy.interpolate import interp1d
 
 from model import ModelConfig, UNet
-# from postprocess import extract_amplitude, extract_picks
-from detect_peaks import detect_peaks
-
-def extract_picks(preds, fnames=None, station_ids=None, t0=None, config=None):
-
-    if preds.shape[-1] == 4:
-        record = namedtuple("phase", ["fname", "station_id", "t0", "p_idx", "p_prob", "s_idx", "s_prob", "ps_idx", "ps_prob"])
-    else:
-        record = namedtuple("phase", ["fname", "station_id", "t0", "p_idx", "p_prob", "s_idx", "s_prob"])
-
-    picks = []
-    for i, pred in enumerate(preds):
-
-        if config is None:
-            mph_p, mph_s, mpd = 0.3, 0.3, 50
-        else:
-            mph_p, mph_s, mpd = config.min_p_prob, config.min_s_prob, config.mpd
-
-        if (fnames is None):
-            fname = f"{i:04d}"
-        else:
-            if isinstance(fnames[i], str):
-                fname = fnames[i]
-            else:
-                fname = fnames[i].decode()
-
-        if (station_ids is None):
-            station_id = f"{i:04d}"
-        else:
-            if isinstance(station_ids[i], str):
-                station_id = station_ids[i]
-            else:
-                station_id = station_ids[i].decode()
-
-        if (t0 is None):
-            start_time = "1970-01-01T00:00:00.000"
-        else:
-            if isinstance(t0[i], str):
-                start_time = t0[i]
-            else:
-                start_time = t0[i].decode()
-
-        p_idx, p_prob, s_idx, s_prob = [], [], [], []
-        for j in range(pred.shape[1]):
-            p_idx_, p_prob_ = detect_peaks(pred[:,j,1], mph=mph_p, mpd=mpd, show=False)
-            s_idx_, s_prob_ = detect_peaks(pred[:,j,2], mph=mph_s, mpd=mpd, show=False)
-            p_idx.append(list(p_idx_))
-            p_prob.append(list(p_prob_))
-            s_idx.append(list(s_idx_))
-            s_prob.append(list(s_prob_))
-
-        if pred.shape[-1] == 4:
-            ps_idx, ps_prob = detect_peaks(pred[:,0,3], mph=0.3, mpd=mpd, show=False)
-            picks.append(record(fname, station_id, start_time, list(p_idx), list(p_prob), list(s_idx), list(s_prob), list(ps_idx), list(ps_prob)))
-        else:
-            picks.append(record(fname, station_id, start_time, list(p_idx), list(p_prob), list(s_idx), list(s_prob)))
-
-    return picks
-
-
-def extract_amplitude(data, picks, window_p=10, window_s=5, config=None):
-    record = namedtuple("amplitude", ["p_amp", "s_amp"])
-    dt = 0.01 if config is None else config.dt
-    window_p = int(window_p / dt)
-    window_s = int(window_s / dt)
-    amps = []
-    for i, (da, pi) in enumerate(zip(data, picks)):
-        p_amp, s_amp = [], []
-        for j in range(da.shape[1]):
-            amp = np.max(np.abs(da[:, j, :]), axis=-1)
-            # amp = np.median(np.abs(da[:,j,:]), axis=-1)
-            # amp = np.linalg.norm(da[:,j,:], axis=-1)
-            tmp = []
-            for k in range(len(pi.p_idx[j]) - 1):
-                tmp.append(
-                    np.max(
-                        amp[
-                            pi.p_idx[j][k] : min(
-                                pi.p_idx[j][k] + window_p, pi.p_idx[j][k + 1]
-                            )
-                        ]
-                    )
-                )
-            if len(pi.p_idx[j]) >= 1:
-                tmp.append(np.max(amp[pi.p_idx[j][-1] : pi.p_idx[j][-1] + window_p]))
-            p_amp.append(tmp)
-            tmp = []
-            for k in range(len(pi.s_idx[j]) - 1):
-                tmp.append(
-                    np.max(
-                        amp[
-                            pi.s_idx[j][k] : min(
-                                pi.s_idx[j][k] + window_s, pi.s_idx[j][k + 1]
-                            )
-                        ]
-                    )
-                )
-            if len(pi.s_idx[j]) >= 1:
-                tmp.append(np.max(amp[pi.s_idx[j][-1] : pi.s_idx[j][-1] + window_s]))
-            s_amp.append(tmp)
-        amps.append(record(p_amp, s_amp))
-    return amps
-
+from postprocess import extract_picks
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -298,9 +196,9 @@ def get_prediction(data, return_preds=False):
     feed = {model.X: vec, model.drop_rate: 0, model.is_training: False}
     preds = sess.run(model.preds, feed_dict=feed)
 
-    picks = extract_picks(preds, fnames=data.id, station_ids=data.id, t0=data.timestamp)
-    amps = extract_amplitude(vec_raw, picks)
-    picks = format_picks(picks, data.dt, amps)
+    picks = extract_picks(preds, station_ids=data.id, begin_times=data.timestamp, waveforms=vec_raw)
+
+    picks = [{k: v for k, v in pick.items() if k in ["station_id", "phase_time", "phase_score", "phase_type", "dt"]} for pick in picks]
 
     if return_preds:
         return picks, preds

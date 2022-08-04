@@ -109,7 +109,7 @@ def extract_picks(
 
     if file_names is None:
         file_names = [f"{i:04d}" for i in range(Nb)]
-    elif not isinstance(file_names, np.ndarray):
+    elif not (isinstance(file_names, np.ndarray) or isinstance(file_names, list)):
         if isinstance(file_names, bytes):
             file_names = file_names.decode()
         file_names = [file_names] * Nb
