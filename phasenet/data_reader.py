@@ -443,7 +443,7 @@ class DataReader:
                 if amplitude:
                     raw_amp.append(trace_amp)
                 station_id.append(sta)
-                t0.append(starttime.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])
+                t0.append(starttime.datetime.isoformat(timespec="milliseconds"))
 
         data = np.stack(data)
         if len(data.shape) == 3:
@@ -454,9 +454,9 @@ class DataReader:
                 raw_amp = raw_amp[:, :, np.newaxis, :]
 
         if amplitude:
-            meta = {"data": data, "t0": t0, "station_id": station_id, "fname": station_id,  "raw_amp": raw_amp}
+            meta = {"data": data, "t0": t0, "station_id": station_id, "fname": fname.split("/")[-1],  "raw_amp": raw_amp}
         else:
-            meta = {"data": data, "t0": t0, "station_id": station_id, "fname": station_id}
+            meta = {"data": data, "t0": t0, "station_id": station_id, "fname": fname.split("/")[-1]}
         return meta
 
     def generate_label(self, data, phase_list, mask=None):

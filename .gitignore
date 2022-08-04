@@ -3,6 +3,7 @@ build/
 mseed/
 log/
 phasenet/test_data
+site/
 output*/
 result*/
 *.pyc
