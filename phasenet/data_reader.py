@@ -14,7 +14,7 @@ import h5py
 import obspy
 from scipy.interpolate import interp1d
 from tqdm import tqdm
-
+import json
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
     def decorator(func):
@@ -392,15 +392,18 @@ class DataReader:
         station_id = []
         t0 = []
         raw_amp = []
-        for i in range(nsta):
+        # for i in range(nsta):
+        for sta in stations:
             trace_data = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
             if amplitude:
                 trace_amp = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
             empty_station = True
-            sta = stations.iloc[i]["station"]
-            comp = stations.iloc[i]["component"].split(",")
+            # sta = stations.iloc[i]["station"]
+            # comp = stations.iloc[i]["component"].split(",")
+            comp = stations[sta]["component"]
             if amplitude:
-                resp = stations.iloc[i]["response"].split(",")
+                # resp = stations.iloc[i]["response"].split(",")
+                resp = stations[sta]["response"]
 
             for j, c in enumerate(sorted(comp, key=lambda x: order[x[-1]])):
 
@@ -417,13 +420,15 @@ class DataReader:
                 tmp = mseed.select(id=sta + c)[0].data.astype(self.dtype)
                 trace_data[: len(tmp), j] = tmp[:nt]
                 if amplitude:
-                    if stations.iloc[i]["unit"] == "m/s**2":
+                    # if stations.iloc[i]["unit"] == "m/s**2":
+                    if stations[sta]["unit"] == "m/s**2":
                         tmp = mseed.select(id=sta + c)[0]
                         tmp = tmp.integrate()
                         tmp = tmp.filter("highpass", freq=1.0)
                         tmp = tmp.data.astype(self.dtype)
                         trace_amp[: len(tmp), j] = tmp[:nt]
-                    elif stations.iloc[i]["unit"] == "m/s":
+                    # elif stations.iloc[i]["unit"] == "m/s":
+                    elif stations[sta]["unit"] == "m/s":
                         tmp = mseed.select(id=sta + c)[0].data.astype(self.dtype)
                         trace_amp[: len(tmp), j] = tmp[:nt]
                     else:
@@ -760,8 +765,12 @@ class DataReader_mseed_array(DataReader):
     def __init__(self, stations, amplitude=True, remove_resp=True, config=DataConfig(), **kwargs):
 
         super().__init__(format="mseed", config=config, **kwargs)
-        self.stations = pd.read_csv(stations, delimiter="\t")
-        print(self.stations)
+        
+        # self.stations = pd.read_json(stations)
+        with open(stations, "r") as f:
+            self.stations = json.load(f)
+        print(pd.DataFrame.from_dict(self.stations, orient="index").to_string())
+
         self.amplitude = amplitude
         self.remove_resp = remove_resp
         self.X_shape = self.get_data_shape()
