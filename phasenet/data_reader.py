@@ -9,12 +9,14 @@ import numpy as np
 import pandas as pd
 
 pd.options.mode.chained_assignment = None
+import json
+
 # import s3fs
 import h5py
 import obspy
 from scipy.interpolate import interp1d
 from tqdm import tqdm
-import json
+
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
     def decorator(func):
@@ -180,13 +182,13 @@ class DataReader:
         if format in ["numpy", "mseed", "sac"]:
             self.data_dir = kwargs["data_dir"]
             try:
-                csv = pd.read_csv(kwargs["data_list"], header=0, sep='[,|\s+]', engine="python")
+                csv = pd.read_csv(kwargs["data_list"], header=0, sep="[,|\s+]", engine="python")
             except:
                 csv = pd.read_csv(kwargs["data_list"], header=0, sep="\t")
-            self.data_list = csv['fname']
+            self.data_list = csv["fname"]
             self.num_data = len(self.data_list)
         elif format == "hdf5":
-            self.h5 = h5py.File(kwargs["hdf5_file"], 'r', libver='latest', swmr=True)
+            self.h5 = h5py.File(kwargs["hdf5_file"], "r", libver="latest", swmr=True)
             self.h5_data = self.h5[kwargs["hdf5_group"]]
             self.data_list = list(self.h5_data.keys())
             self.num_data = len(self.data_list)
@@ -195,7 +197,7 @@ class DataReader:
                 anon=kwargs["anon"],
                 key=kwargs["key"],
                 secret=kwargs["secret"],
-                client_kwargs={'endpoint_url': kwargs["s3_url"]},
+                client_kwargs={"endpoint_url": kwargs["s3_url"]},
                 use_ssl=kwargs["use_ssl"],
             )
             self.num_data = 0
@@ -210,10 +212,10 @@ class DataReader:
         if fname not in self.buffer:
             npz = np.load(fname)
             meta = {}
-            if len(npz['data'].shape) == 2:
-                meta["data"] = npz['data'][:, np.newaxis, :]
+            if len(npz["data"].shape) == 2:
+                meta["data"] = npz["data"][:, np.newaxis, :]
             else:
-                meta["data"] = npz['data']
+                meta["data"] = npz["data"]
             if "p_idx" in npz.files:
                 if len(npz["p_idx"].shape) == 0:
                     meta["itp"] = [[npz["p_idx"]]]
@@ -281,7 +283,7 @@ class DataReader:
         return meta
 
     def read_s3(self, format, fname, bucket, key, secret, s3_url, use_ssl):
-        with self.s3fs.open(bucket + "/" + fname, 'rb') as fp:
+        with self.s3fs.open(bucket + "/" + fname, "rb") as fp:
             if format == "numpy":
                 meta = self.read_numpy(fp)
             elif format == "mseed":
@@ -305,7 +307,7 @@ class DataReader:
                 f"Sampling rate mismatch in {fname.split('/')[-1]}: {mseed[0].stats.sampling_rate}Hz != {self.config.sampling_rate}Hz "
             )
 
-        order = ['3', '2', '1', 'E', 'N', 'Z']
+        order = ["3", "2", "1", "E", "N", "Z"]
         order = {key: i for i, key in enumerate(order)}
         comp2idx = {"3": 0, "2": 1, "1": 2, "E": 0, "N": 1, "Z": 2}
 
@@ -340,7 +342,7 @@ class DataReader:
                 f"Sampling rate mismatch in {fname.split('/')[-1]}: {mseed[0].stats.sampling_rate}Hz != {self.config.sampling_rate}Hz "
             )
 
-        order = ['3', '2', '1', 'E', 'N', 'Z']
+        order = ["3", "2", "1", "E", "N", "Z"]
         order = {key: i for i, key in enumerate(order)}
         comp2idx = {"3": 0, "2": 1, "1": 2, "E": 0, "N": 1, "Z": 2}
 
@@ -382,7 +384,7 @@ class DataReader:
                 )
                 mseed[i] = mseed[i].interpolate(self.config.sampling_rate, method="linear")
 
-        order = ['3', '2', '1', 'E', 'N', 'Z']
+        order = ["3", "2", "1", "E", "N", "Z"]
         order = {key: i for i, key in enumerate(order)}
         comp2idx = {"3": 0, "2": 1, "1": 2, "E": 0, "N": 1, "Z": 2}
 
@@ -436,9 +438,9 @@ class DataReader:
                             f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!"
                         )
                 if amplitude and remove_resp:
-                    #trace_amp[:, j] /= float(resp[j])
+                    # trace_amp[:, j] /= float(resp[j])
                     trace_amp[:, j] /= float(resp_j)
-                    
+
             if not empty_station:
                 data.append(trace_data)
                 if amplitude:
@@ -446,16 +448,23 @@ class DataReader:
                 station_id.append(sta)
                 t0.append(starttime.datetime.isoformat(timespec="milliseconds"))
 
-        data = np.stack(data)
-        if len(data.shape) == 3:
-            data = data[:, :, np.newaxis, :]
-        if amplitude:
-            raw_amp = np.stack(raw_amp)
-            if len(raw_amp.shape) == 3:
-                raw_amp = raw_amp[:, :, np.newaxis, :]
+        if len(data) > 0:
+            data = np.stack(data)
+            if len(data.shape) == 3:
+                data = data[:, :, np.newaxis, :]
+            if amplitude:
+                raw_amp = np.stack(raw_amp)
+                if len(raw_amp.shape) == 3:
+                    raw_amp = raw_amp[:, :, np.newaxis, :]
+        else:
+            data = np.zeros([1, nt, 1, self.config.n_channel], dtype=self.dtype)
+            if amplitude:
+                raw_amp = np.zeros([1, nt, 1, self.config.n_channel], dtype=self.dtype)
+            t0 = ["1970-01-01T00:00:00.000"]
+            station_id = ["None"]
 
         if amplitude:
-            meta = {"data": data, "t0": t0, "station_id": station_id, "fname": fname.split("/")[-1],  "raw_amp": raw_amp}
+            meta = {"data": data, "t0": t0, "station_id": station_id, "fname": fname.split("/")[-1], "raw_amp": raw_amp}
         else:
             meta = {"data": data, "t0": t0, "station_id": station_id, "fname": fname.split("/")[-1]}
         return meta
@@ -765,7 +774,7 @@ class DataReader_mseed_array(DataReader):
     def __init__(self, stations, amplitude=True, remove_resp=True, config=DataConfig(), **kwargs):
 
         super().__init__(format="mseed", config=config, **kwargs)
-        
+
         # self.stations = pd.read_json(stations)
         with open(stations, "r") as f:
             self.stations = json.load(f)

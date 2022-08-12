@@ -10,9 +10,6 @@ import h5py
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from tqdm import tqdm
-from pymongo import MongoClient
-
 from data_reader import DataReader_mseed_array, DataReader_pred
 from model import ModelConfig, UNet
 from postprocess import (
@@ -22,6 +19,8 @@ from postprocess import (
     save_picks_json,
     save_prob_h5,
 )
+from pymongo import MongoClient
+from tqdm import tqdm
 from visulization import plot_waveform
 
 tf.compat.v1.disable_eager_execution()
@@ -35,6 +34,7 @@ client = MongoClient(f"mongodb://{username}:{password}@quakeflow-mongodb-headles
 # db = client["quakeflow"]
 # collection = db["waveform"]
 
+
 def upload_mongodb(picks):
     db = client["quakeflow"]
     collection = db["waveform"]
@@ -44,7 +44,7 @@ def upload_mongodb(picks):
         print("Warning:", e)
         collection.delete_many({"_id": {"$in": [p["_id"] for p in picks]}})
         collection.insert_many(picks)
-            
+
 
 def read_args():
 
@@ -82,20 +82,20 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     if (args.plot_figure == True) and (figure_dir is None):
-        figure_dir = os.path.join(log_dir, 'figures')
+        figure_dir = os.path.join(log_dir, "figures")
         if not os.path.exists(figure_dir):
             os.makedirs(figure_dir)
     if (args.save_prob == True) and (prob_dir is None):
-        prob_dir = os.path.join(log_dir, 'probs')
+        prob_dir = os.path.join(log_dir, "probs")
         if not os.path.exists(prob_dir):
             os.makedirs(prob_dir)
     if args.save_prob:
-        h5 = h5py.File(os.path.join(args.result_dir, "result.h5"), "w", libver='latest')
+        h5 = h5py.File(os.path.join(args.result_dir, "result.h5"), "w", libver="latest")
         prob_h5 = h5.create_group("/prob")
     logging.info("Pred log: %s" % log_dir)
     logging.info("Dataset size: {}".format(data_reader.num_data))
 
-    with tf.compat.v1.name_scope('Input_Batch'):
+    with tf.compat.v1.name_scope("Input_Batch"):
         if args.format == "mseed_array":
             batch_size = 1
         else:
@@ -104,8 +104,8 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         batch = tf.compat.v1.data.make_one_shot_iterator(dataset).get_next()
 
     config = ModelConfig(X_shape=data_reader.X_shape)
-    with open(os.path.join(log_dir, 'config.log'), 'w') as fp:
-        fp.write('\n'.join("%s: %s" % item for item in vars(config).items()))
+    with open(os.path.join(log_dir, "config.log"), "w") as fp:
+        fp.write("\n".join("%s: %s" % item for item in vars(config).items()))
 
     model = UNet(config=config, input_batch=batch, mode="pred")
     # model = UNet(config=config, mode="pred")
@@ -126,7 +126,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         picks = []
         amps = [] if args.amplitude else None
         if args.plot_figure:
-            multiprocessing.set_start_method('spawn')
+            multiprocessing.set_start_method("spawn")
             pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
         for _ in tqdm(range(0, data_reader.num_data, batch_size), desc="Pred"):
@@ -152,9 +152,18 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 waveforms = X_batch
             if args.amplitude:
                 waveforms = amp_batch
-                
-            picks_ = extract_picks(preds=pred_batch, file_names=fname_batch, station_ids=station_batch, begin_times=t0_batch, config=args, waveforms=waveforms, use_amplitude=args.amplitude, upload_waveform=args.upload_waveform)
-            
+
+            picks_ = extract_picks(
+                preds=pred_batch,
+                file_names=fname_batch,
+                station_ids=station_batch,
+                begin_times=t0_batch,
+                config=args,
+                waveforms=waveforms,
+                use_amplitude=args.amplitude,
+                upload_waveform=args.upload_waveform,
+            )
+
             if args.upload_waveform:
                 upload_mongodb(picks_)
             picks.extend(picks_)
@@ -172,42 +181,58 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 # save_prob(pred_batch, fname_batch, prob_dir=prob_dir)
                 save_prob_h5(pred_batch, [x.decode() for x in fname_batch], prob_h5)
 
-        # save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
-        # save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
-        df = pd.DataFrame(picks)
-        # df["fname"] = df["file_name"]
-        # df["id"] = df["station_id"]
-        # df["timestamp"] = df["phase_time"]
-        # df["prob"] = df["phase_prob"]
-        # df["type"] = df["phase_type"]
-        if args.amplitude:
-            # df["amp"] = df["phase_amp"]
-            df = df[["file_name", "begin_time", "station_id", "phase_index", "phase_time", "phase_score", "phase_amp", "phase_type"]]
-        else:
-            df = df[["file_name", "begin_time", "station_id", "phase_index", "phase_time", "phase_score", "phase_type"]]
-        # if args.amplitude:
-        #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_amplitude", "phase_type","dt",]]
-        # else:
-        #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_type","dt"]]
-        df.to_csv(os.path.join(args.result_dir, args.result_fname+".csv"), index=False)
+        if len(picks) > 0:
+            # save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
+            # save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
+            df = pd.DataFrame(picks)
+            # df["fname"] = df["file_name"]
+            # df["id"] = df["station_id"]
+            # df["timestamp"] = df["phase_time"]
+            # df["prob"] = df["phase_prob"]
+            # df["type"] = df["phase_type"]
+            if args.amplitude:
+                # df["amp"] = df["phase_amp"]
+                df = df[
+                    [
+                        "file_name",
+                        "begin_time",
+                        "station_id",
+                        "phase_index",
+                        "phase_time",
+                        "phase_score",
+                        "phase_amp",
+                        "phase_type",
+                    ]
+                ]
+            else:
+                df = df[
+                    ["file_name", "begin_time", "station_id", "phase_index", "phase_time", "phase_score", "phase_type"]
+                ]
+            # if args.amplitude:
+            #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_amplitude", "phase_type","dt",]]
+            # else:
+            #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_type","dt"]]
+            df.to_csv(os.path.join(args.result_dir, args.result_fname + ".csv"), index=False)
 
-    print(
-        f"Done with {len(df[df['phase_type'] == 'P'])} P-picks and {len(df[df['phase_type'] == 'S'])} S-picks"
-    )
+            print(
+                f"Done with {len(df[df['phase_type'] == 'P'])} P-picks and {len(df[df['phase_type'] == 'S'])} S-picks"
+            )
+        else:
+            print(f"Done with 0 P-picks and 0 S-picks")
     return 0
 
 
 def main(args):
 
-    logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+    logging.basicConfig(format="%(asctime)s %(message)s", level=logging.INFO)
 
-    with tf.compat.v1.name_scope('create_inputs'):
+    with tf.compat.v1.name_scope("create_inputs"):
 
         if args.format == "mseed_array":
             data_reader = DataReader_mseed_array(
-                data_dir=args.data_dir, 
-                data_list=args.data_list, 
-                stations=args.stations, 
+                data_dir=args.data_dir,
+                data_list=args.data_list,
+                stations=args.stations,
                 amplitude=args.amplitude,
                 highpass_filter=args.highpass_filter,
             )
@@ -227,6 +252,6 @@ def main(args):
     return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = read_args()
     main(args)
