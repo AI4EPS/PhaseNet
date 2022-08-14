@@ -364,6 +364,14 @@ class DataReader:
     def read_mseed_array(self, fname, stations, amplitude=False, remove_resp=True):
 
         mseed = obspy.read(fname)
+
+        for i in range(len(mseed)):
+            if mseed[i].stats.sampling_rate != self.config.sampling_rate:
+                logging.warning(
+                    f"Resampling {mseed[i].id} from {mseed[i].stats.sampling_rate} to {self.config.sampling_rate} Hz"
+                )
+                mseed[i] = mseed[i].interpolate(self.config.sampling_rate, method="linear")
+
         if self.highpass_filter == 0:
             try:
                 mseed = mseed.detrend("spline", order=2, dspline=5 * mseed[0].stats.sampling_rate)
@@ -372,17 +380,11 @@ class DataReader:
                 mseed = mseed.detrend("demean")
         else:
             mseed = mseed.filter("highpass", freq=self.highpass_filter)
+
         mseed = mseed.merge(fill_value=0)
         starttime = min([st.stats.starttime for st in mseed])
         endtime = max([st.stats.endtime for st in mseed])
         mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
-
-        for i in range(len(mseed)):
-            if mseed[i].stats.sampling_rate != self.config.sampling_rate:
-                logging.warning(
-                    f"Resampling {mseed[i].id} from {mseed[i].stats.sampling_rate} to {self.config.sampling_rate} Hz"
-                )
-                mseed[i] = mseed[i].interpolate(self.config.sampling_rate, method="linear")
 
         order = ["3", "2", "1", "E", "N", "Z"]
         order = {key: i for i, key in enumerate(order)}
