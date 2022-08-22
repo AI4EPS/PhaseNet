@@ -364,6 +364,10 @@ class DataReader:
     def read_mseed_array(self, fname, stations, amplitude=False, remove_resp=True):
 
         mseed = obspy.read(fname)
+        try:
+            mseed = mseed.merge(fill_value=0)
+        except Exception as e:
+            print(e)
 
         for i in range(len(mseed)):
             if mseed[i].stats.sampling_rate != self.config.sampling_rate:
@@ -381,7 +385,6 @@ class DataReader:
         else:
             mseed = mseed.filter("highpass", freq=self.highpass_filter)
 
-        mseed = mseed.merge(fill_value=0)
         starttime = min([st.stats.starttime for st in mseed])
         endtime = max([st.stats.endtime for st in mseed])
         mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
