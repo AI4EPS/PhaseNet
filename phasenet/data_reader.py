@@ -363,95 +363,99 @@ class DataReader:
 
     def read_mseed_array(self, fname, stations, amplitude=False, remove_resp=True):
 
-        mseed = obspy.read(fname)
-        try:
-            mseed = mseed.merge(fill_value=0)
-        except Exception as e:
-            print(e)
-
-        for i in range(len(mseed)):
-            if mseed[i].stats.sampling_rate != self.config.sampling_rate:
-                logging.warning(
-                    f"Resampling {mseed[i].id} from {mseed[i].stats.sampling_rate} to {self.config.sampling_rate} Hz"
-                )
-                mseed[i] = mseed[i].interpolate(self.config.sampling_rate, method="linear")
-
-        if self.highpass_filter == 0:
-            try:
-                mseed = mseed.detrend("spline", order=2, dspline=5 * mseed[0].stats.sampling_rate)
-            except:
-                logging.error(f"Error: spline detrend failed at file {fname}")
-                mseed = mseed.detrend("demean")
-        else:
-            mseed = mseed.filter("highpass", freq=self.highpass_filter)
-
-        starttime = min([st.stats.starttime for st in mseed])
-        endtime = max([st.stats.endtime for st in mseed])
-        mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
-
-        order = ["3", "2", "1", "E", "N", "Z"]
-        order = {key: i for i, key in enumerate(order)}
-        comp2idx = {"3": 0, "2": 1, "1": 2, "E": 0, "N": 1, "Z": 2}
-
-        nsta = len(stations)
-        nt = len(mseed[0].data)
         data = []
         station_id = []
         t0 = []
         raw_amp = []
-        # for i in range(nsta):
-        for sta in stations:
-            trace_data = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
-            if amplitude:
-                trace_amp = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
-            empty_station = True
-            # sta = stations.iloc[i]["station"]
-            # comp = stations.iloc[i]["component"].split(",")
-            comp = stations[sta]["component"]
-            if amplitude:
-                # resp = stations.iloc[i]["response"].split(",")
-                resp = stations[sta]["response"]
 
-            for j, c in enumerate(sorted(comp, key=lambda x: order[x[-1]])):
+        if os.path.exists(fname):
 
-                resp_j = resp[j]
-                if len(comp) != 3:  ## less than 3 component
-                    j = comp2idx[c]
+            mseed = obspy.read(fname)
 
-                if len(mseed.select(id=sta + c)) == 0:
-                    print(f"Empty trace: {sta+c} {starttime}")
-                    continue
-                else:
-                    empty_station = False
+            try:
+                mseed = mseed.merge(fill_value=0)
+            except Exception as e:
+                print(e)
 
-                tmp = mseed.select(id=sta + c)[0].data.astype(self.dtype)
-                trace_data[: len(tmp), j] = tmp[:nt]
+            for i in range(len(mseed)):
+                if mseed[i].stats.sampling_rate != self.config.sampling_rate:
+                    logging.warning(
+                        f"Resampling {mseed[i].id} from {mseed[i].stats.sampling_rate} to {self.config.sampling_rate} Hz"
+                    )
+                    mseed[i] = mseed[i].interpolate(self.config.sampling_rate, method="linear")
+
+            if self.highpass_filter == 0:
+                try:
+                    mseed = mseed.detrend("spline", order=2, dspline=5 * mseed[0].stats.sampling_rate)
+                except:
+                    logging.error(f"Error: spline detrend failed at file {fname}")
+                    mseed = mseed.detrend("demean")
+            else:
+                mseed = mseed.filter("highpass", freq=self.highpass_filter)
+
+            starttime = min([st.stats.starttime for st in mseed])
+            endtime = max([st.stats.endtime for st in mseed])
+            mseed = mseed.trim(starttime, endtime, pad=True, fill_value=0)
+
+            order = ["3", "2", "1", "E", "N", "Z"]
+            order = {key: i for i, key in enumerate(order)}
+            comp2idx = {"3": 0, "2": 1, "1": 2, "E": 0, "N": 1, "Z": 2}
+
+            nsta = len(stations)
+            nt = len(mseed[0].data)
+            # for i in range(nsta):
+            for sta in stations:
+                trace_data = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
                 if amplitude:
-                    # if stations.iloc[i]["unit"] == "m/s**2":
-                    if stations[sta]["unit"] == "m/s**2":
-                        tmp = mseed.select(id=sta + c)[0]
-                        tmp = tmp.integrate()
-                        tmp = tmp.filter("highpass", freq=1.0)
-                        tmp = tmp.data.astype(self.dtype)
-                        trace_amp[: len(tmp), j] = tmp[:nt]
-                    # elif stations.iloc[i]["unit"] == "m/s":
-                    elif stations[sta]["unit"] == "m/s":
-                        tmp = mseed.select(id=sta + c)[0].data.astype(self.dtype)
-                        trace_amp[: len(tmp), j] = tmp[:nt]
+                    trace_amp = np.zeros([nt, self.config.n_channel], dtype=self.dtype)
+                empty_station = True
+                # sta = stations.iloc[i]["station"]
+                # comp = stations.iloc[i]["component"].split(",")
+                comp = stations[sta]["component"]
+                if amplitude:
+                    # resp = stations.iloc[i]["response"].split(",")
+                    resp = stations[sta]["response"]
+
+                for j, c in enumerate(sorted(comp, key=lambda x: order[x[-1]])):
+
+                    resp_j = resp[j]
+                    if len(comp) != 3:  ## less than 3 component
+                        j = comp2idx[c]
+
+                    if len(mseed.select(id=sta + c)) == 0:
+                        print(f"Empty trace: {sta+c} {starttime}")
+                        continue
                     else:
-                        print(
-                            f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!"
-                        )
-                if amplitude and remove_resp:
-                    # trace_amp[:, j] /= float(resp[j])
-                    trace_amp[:, j] /= float(resp_j)
+                        empty_station = False
 
-            if not empty_station:
-                data.append(trace_data)
-                if amplitude:
-                    raw_amp.append(trace_amp)
-                station_id.append(sta)
-                t0.append(starttime.datetime.isoformat(timespec="milliseconds"))
+                    tmp = mseed.select(id=sta + c)[0].data.astype(self.dtype)
+                    trace_data[: len(tmp), j] = tmp[:nt]
+                    if amplitude:
+                        # if stations.iloc[i]["unit"] == "m/s**2":
+                        if stations[sta]["unit"] == "m/s**2":
+                            tmp = mseed.select(id=sta + c)[0]
+                            tmp = tmp.integrate()
+                            tmp = tmp.filter("highpass", freq=1.0)
+                            tmp = tmp.data.astype(self.dtype)
+                            trace_amp[: len(tmp), j] = tmp[:nt]
+                        # elif stations.iloc[i]["unit"] == "m/s":
+                        elif stations[sta]["unit"] == "m/s":
+                            tmp = mseed.select(id=sta + c)[0].data.astype(self.dtype)
+                            trace_amp[: len(tmp), j] = tmp[:nt]
+                        else:
+                            print(
+                                f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!"
+                            )
+                    if amplitude and remove_resp:
+                        # trace_amp[:, j] /= float(resp[j])
+                        trace_amp[:, j] /= float(resp_j)
+
+                if not empty_station:
+                    data.append(trace_data)
+                    if amplitude:
+                        raw_amp.append(trace_amp)
+                    station_id.append(sta)
+                    t0.append(starttime.datetime.isoformat(timespec="milliseconds"))
 
         if len(data) > 0:
             data = np.stack(data)
