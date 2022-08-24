@@ -382,7 +382,10 @@ class DataReader:
                     logging.warning(
                         f"Resampling {mseed[i].id} from {mseed[i].stats.sampling_rate} to {self.config.sampling_rate} Hz"
                     )
-                    mseed[i] = mseed[i].interpolate(self.config.sampling_rate, method="linear")
+                    try:
+                        mseed[i] = mseed[i].interpolate(self.config.sampling_rate, method="linear")
+                    except Exception as e:
+                        print(e)
 
             if self.highpass_filter == 0:
                 try:
