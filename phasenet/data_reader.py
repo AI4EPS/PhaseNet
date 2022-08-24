@@ -466,6 +466,7 @@ class DataReader:
                 if len(raw_amp.shape) == 3:
                     raw_amp = raw_amp[:, :, np.newaxis, :]
         else:
+            nt = 60 * 60 * 100  # assume 1 hour data
             data = np.zeros([1, nt, 1, self.config.n_channel], dtype=self.dtype)
             if amplitude:
                 raw_amp = np.zeros([1, nt, 1, self.config.n_channel], dtype=self.dtype)
