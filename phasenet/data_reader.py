@@ -368,10 +368,14 @@ class DataReader:
         t0 = []
         raw_amp = []
 
-        if os.path.exists(fname):
-
+        try:
             mseed = obspy.read(fname)
+            read_success = True
+        except Exception as e:
+            read_success = False
+            print(e)
 
+        if read_success:
             try:
                 mseed = mseed.merge(fill_value=0)
             except Exception as e:
@@ -386,7 +390,7 @@ class DataReader:
                         mseed[i] = mseed[i].interpolate(self.config.sampling_rate, method="linear")
                     except Exception as e:
                         print(e)
-                        mseed[i].data *= 0.0  ## set to zero if resampling fails
+                        mseed[i].data = mseed[i].data.astype(float) * 0.0  ## set to zero if resampling fails
 
             if self.highpass_filter == 0:
                 try:

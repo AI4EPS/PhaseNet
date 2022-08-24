@@ -169,17 +169,26 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             picks.extend(picks_)
 
             if args.plot_figure:
+                if not (isinstance(fname_batch, np.ndarray) or isinstance(fname_batch, list)):
+                    fname_batch = [fname_batch.decode().rstrip(".mseed") + "_" + x.decode() for x in station_batch]
+                else:
+                    fname_batch = [x.decode() for x in fname_batch]
                 pool.starmap(
                     partial(
                         plot_waveform,
                         figure_dir=figure_dir,
                     ),
-                    zip(X_batch, pred_batch, [x.decode() for x in fname_batch]),
+                    # zip(X_batch, pred_batch, [x.decode() for x in fname_batch]),
+                    zip(X_batch, pred_batch, fname_batch),
                 )
 
             if args.save_prob:
                 # save_prob(pred_batch, fname_batch, prob_dir=prob_dir)
-                save_prob_h5(pred_batch, [x.decode() for x in fname_batch], prob_h5)
+                if not (isinstance(fname_batch, np.ndarray) or isinstance(fname_batch, list)):
+                    fname_batch = [fname_batch.decode().rstrip(".mseed") + "_" + x.decode() for x in station_batch]
+                else:
+                    fname_batch = [x.decode() for x in fname_batch]
+                save_prob_h5(pred_batch, fname_batch, prob_h5)
 
         if len(picks) > 0:
             # save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
