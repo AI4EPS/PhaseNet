@@ -133,6 +133,8 @@ def extract_picks(
             else:
                 station_id = station_ids[i].decode() if isinstance(station_ids[i], bytes) else station_ids[i]
 
+            if (waveforms is not None) and use_amplitude:
+                amp = np.max(np.abs(waveforms[i, :, j, :]), axis=-1)  ## amplitude over three channelspy
             for k in range(Nc - 1):  # 0-th channel noise
                 idxs, probs = detect_peaks(preds[i, :, j, k + 1], mph=mph[phases[k]], mpd=mpd, show=False)
                 for l, (phase_index, phase_prob) in enumerate(zip(idxs, probs)):
@@ -165,7 +167,6 @@ def extract_picks(
                             pick["_id"] = f"{pick['station_id']}_{pick['timestamp']}_{pick['type']}"
                         if use_amplitude:
                             next_pick = idxs[l + 1] if l < len(idxs) - 1 else (phase_index + post_idx * 3)
-                            amp = np.max(np.abs(waveforms[i, :, j, :]), axis=-1)  ## amplitude over three channels
                             pick["phase_amp"] = np.max(
                                 amp[phase_index : min(phase_index + post_idx * 3, next_pick)]
                             ).item()  ## peak amplitude
