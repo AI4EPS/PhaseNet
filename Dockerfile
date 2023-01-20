@@ -1,4 +1,4 @@
-FROM tensorflow/tensorflow:2.6.1
+FROM tensorflow/tensorflow
 
 # Create the environment:
 # COPY env.yml /app
@@ -6,8 +6,8 @@ FROM tensorflow/tensorflow:2.6.1
 # Make RUN commands use the new environment:
 # SHELL ["conda", "run", "-n", "cs329s", "/bin/bash", "-c"]
 
-RUN pip install tqdm obspy pandas==1.4.4 minio pymongo
-RUN pip install uvicorn fastapi==0.75 kafka-python
+RUN pip install tqdm obspy pandas 
+RUN pip install minio pymongo kafka-python fastapi uvicorn
 
 WORKDIR /opt
 
