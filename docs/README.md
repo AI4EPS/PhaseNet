@@ -1,6 +1,6 @@
 # PhaseNet: A Deep-Neural-Network-Based Seismic Arrival Time Picking Method
 
-[![](https://github.com/wayneweiqiang/PhaseNet/workflows/documentation/badge.svg)](https://wayneweiqiang.github.io/PhaseNet)
+[![](https://github.com/wayneweiqiang/PhaseNet/workflows/documentation/badge.svg)](https://ai4eps.github.io/PhaseNet)
 
 ## 1.  Install [miniconda](https://docs.conda.io/en/latest/miniconda.html) and requirements
 - Download PhaseNet repository
