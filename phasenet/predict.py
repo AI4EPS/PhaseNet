@@ -57,7 +57,6 @@ def read_args():
     parser.add_argument("--hdf5_group", default="data", help="data group name in hdf5 file")
     parser.add_argument("--result_dir", default="results", help="Output directory")
     parser.add_argument("--result_fname", default="picks", help="Output file")
-    parser.add_argument("--highpass_filter", default=0.0, type=float, help="Highpass filter")
     parser.add_argument("--min_p_prob", default=0.3, type=float, help="Probability threshold for P pick")
     parser.add_argument("--min_s_prob", default=0.3, type=float, help="Probability threshold for S pick")
     parser.add_argument("--mpd", default=50, type=float, help="Minimum peak distance")
@@ -70,6 +69,10 @@ def read_args():
     parser.add_argument("--upload_waveform", action="store_true", help="If upload waveform to mongodb")
     parser.add_argument("--pre_sec", default=1, type=float, help="Window length before pick")
     parser.add_argument("--post_sec", default=4, type=float, help="Window length after pick")
+
+    parser.add_argument("--highpass_filter", default=0.0, type=float, help="Highpass filter")
+    parser.add_argument("--response_xml", default=None, type=str, help="response xml file")
+    parser.add_argument("--sampling_rate", default=100, type=float, help="sampling rate")
     args = parser.parse_args()
 
     return args
@@ -203,8 +206,8 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 # df["amp"] = df["phase_amp"]
                 df = df[
                     [
-                        "file_name",
-                        "begin_time",
+                        # "file_name",
+                        # "begin_time",
                         "station_id",
                         "phase_index",
                         "phase_time",
@@ -254,6 +257,8 @@ def main(args):
                 hdf5_group=args.hdf5_group,
                 amplitude=args.amplitude,
                 highpass_filter=args.highpass_filter,
+                response_xml=args.response_xml,
+                sampling_rate=args.sampling_rate,
             )
 
         pred_fn(args, data_reader, log_dir=args.result_dir)

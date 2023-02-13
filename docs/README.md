@@ -40,7 +40,10 @@ unzip test_data.zip
 
 - For mseed format:
 ```
-python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed.csv --data_dir=test_data/mseed --format=mseed --plot_figure
+python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed.csv --data_dir=test_data/mseed --format=mseed --amplitude --response_xml=test_data/stations.xml --batch_size=1 --plot_figure
+```
+```
+python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed2.csv --data_dir=test_data/mseed --format=mseed --amplitude --response_xml=test_data/stations.xml --batch_size=1 --plot_figure
 ```
 
 - For sac format:
@@ -61,9 +64,6 @@ python phasenet/predict.py --model=model/190703-214543 --hdf5_file=test_data/dat
 - For a seismic array (used by [QuakeFlow](https://github.com/wayneweiqiang/QuakeFlow)):
 ```
 python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed_array.csv --data_dir=test_data/mseed_array --stations=test_data/stations.json  --format=mseed_array --amplitude
-```
-```
-python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed2.csv --data_dir=test_data/mseed --stations=test_data/stations.json  --format=mseed_array --amplitude
 ```
 
 Notes: 
