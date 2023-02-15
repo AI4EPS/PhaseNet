@@ -17,6 +17,7 @@ import obspy
 from scipy.interpolate import interp1d
 from tqdm import tqdm
 from collections import defaultdict
+import random
 
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
@@ -297,7 +298,7 @@ class DataReader:
         return meta
 
 
-    def read_mseed(self, fname, response_xml=None, highpass_filter=0.0, sampling_rate=100):
+    def read_mseed(self, fname, response_xml=None, highpass_filter=0.0, sampling_rate=100, return_single_station=True):
 
         try:
             stream = obspy.read(fname)
@@ -371,6 +372,11 @@ class DataReader:
                 tmp = trace.data.astype("float32")
                 data[j, : len(tmp), i] = tmp[:nt]
         
+        if return_single_station and (len(station_keys) > 1):
+            print(f"Warning: {fname} has multiple stations, returning only the first one {station_keys[0]}")
+            data = data[:, :, 0:1]
+            station_keys = station_keys[0:1]
+
         meta = {"data": data.transpose([1, 2, 0]), "t0": begin_time.datetime.isoformat(timespec="milliseconds"), "station_id": station_keys}
         return meta
 
@@ -750,16 +756,27 @@ class DataReader_pred(DataReader):
         self.X_shape = self.get_data_shape()
 
     def get_data_shape(self):
-        base_name = self.data_list[0]
-        if self.format == "numpy":
-            meta = self.read_numpy(os.path.join(self.data_dir, base_name))
-        elif self.format == "mseed":
-            meta = self.read_mseed(os.path.join(self.data_dir, base_name))
-        elif self.format == "sac":
-            meta = self.read_sac(os.path.join(self.data_dir, base_name))
-        elif self.format == "hdf5":
-            meta = self.read_hdf5(base_name)
-        return meta["data"].shape
+        shape_prev = None
+        tries = 0
+        max_tries = 100
+        while tries < max_tries:
+            tries += 1
+            base_name = random.choice(self.data_list)
+            if self.format == "numpy":
+                meta = self.read_numpy(os.path.join(self.data_dir, base_name))
+            elif self.format == "mseed":
+                meta = self.read_mseed(os.path.join(self.data_dir, base_name), return_single_station=True)
+            elif self.format == "sac":
+                meta = self.read_sac(os.path.join(self.data_dir, base_name))
+            elif self.format == "hdf5":
+                meta = self.read_hdf5(base_name)
+            shape = meta["data"].shape
+            if shape == shape_prev:
+                break
+            shape_prev = shape
+        print("Using a fixed data shape: ", shape)
+        return shape
+
 
     def adjust_missingchannels(self, data):
         tmp = np.max(np.abs(data), axis=0, keepdims=True)
@@ -775,7 +792,7 @@ class DataReader_pred(DataReader):
         if self.format == "numpy":
             meta = self.read_numpy(os.path.join(self.data_dir, base_name))
         elif self.format == "mseed":
-            meta = self.read_mseed(os.path.join(self.data_dir, base_name), response_xml=self.response_xml, sampling_rate=self.sampling_rate, highpass_filter=self.highpass_filter)
+            meta = self.read_mseed(os.path.join(self.data_dir, base_name), response_xml=self.response_xml, sampling_rate=self.sampling_rate, highpass_filter=self.highpass_filter, return_single_station=True)
         elif self.format == "sac":
             meta = self.read_sac(os.path.join(self.data_dir, base_name))
         elif self.format == "hdf5":
