@@ -70,6 +70,7 @@ def normalize_long(data, axis=(0,), window=3000):
         window = nt
     shift = window // 2
 
+    dtype = data.dtype
     ## std in slide windows
     data_pad = np.pad(data, ((window // 2, window // 2), (0, 0), (0, 0)), mode="reflect")
     t = np.arange(0, nt, shift, dtype="int")
@@ -101,7 +102,7 @@ def normalize_long(data, axis=(0,), window=3000):
     if (nonzero < 3) and (nonzero > 0):
         data *= 3.0 / nonzero
 
-    return data
+    return data.astype(dtype)
 
 
 def normalize_batch(data, window=3000):
@@ -308,8 +309,7 @@ class DataReader:
                 stream = stream.remove_sensitivity(response)
         except Exception as e:
             print(f"Error reading {fname}:\n{e}")
-            return None
-
+            return {}
         tmp_stream = obspy.Stream()
         for trace in stream:
 
@@ -333,7 +333,7 @@ class DataReader:
             tmp_stream.append(trace)
 
         if len(tmp_stream) == 0:
-            return None
+            return {}
         stream = tmp_stream
 
         begin_time = min([st.stats.starttime for st in stream])
@@ -372,10 +372,10 @@ class DataReader:
                 tmp = trace.data.astype("float32")
                 data[j, : len(tmp), i] = tmp[:nt]
         
-        if return_single_station and (len(station_keys) > 1):
-            print(f"Warning: {fname} has multiple stations, returning only the first one {station_keys[0]}")
-            data = data[:, :, 0:1]
-            station_keys = station_keys[0:1]
+        # if return_single_station and (len(station_keys) > 1):
+        #     print(f"Warning: {fname} has multiple stations, returning only the first one {station_keys[0]}")
+        #     data = data[:, :, 0:1]
+        #     station_keys = station_keys[0:1]
 
         meta = {"data": data.transpose([1, 2, 0]), "t0": begin_time.datetime.isoformat(timespec="milliseconds"), "station_id": station_keys}
         return meta
@@ -753,30 +753,6 @@ class DataReader_pred(DataReader):
         super().__init__(format=format, config=config, **kwargs)
 
         self.amplitude = amplitude
-        self.X_shape = self.get_data_shape()
-
-    def get_data_shape(self):
-        shape_prev = None
-        tries = 0
-        max_tries = 100
-        while tries < max_tries:
-            tries += 1
-            base_name = random.choice(self.data_list)
-            if self.format == "numpy":
-                meta = self.read_numpy(os.path.join(self.data_dir, base_name))
-            elif self.format == "mseed":
-                meta = self.read_mseed(os.path.join(self.data_dir, base_name), return_single_station=True)
-            elif self.format == "sac":
-                meta = self.read_sac(os.path.join(self.data_dir, base_name))
-            elif self.format == "hdf5":
-                meta = self.read_hdf5(base_name)
-            shape = meta["data"].shape
-            if shape == shape_prev:
-                break
-            shape_prev = shape
-        print("Using a fixed data shape: ", shape)
-        return shape
-
 
     def adjust_missingchannels(self, data):
         tmp = np.max(np.abs(data), axis=0, keepdims=True)
@@ -799,16 +775,14 @@ class DataReader_pred(DataReader):
             meta = self.read_hdf5(base_name)
         else:
             raise (f"{self.format} does not support!")
-        if meta == -1:
-            return (np.zeros(self.X_shape, dtype=self.dtype), base_name)
-
-        raw_amp = np.zeros(self.X_shape, dtype=self.dtype)
-        raw_amp[: meta["data"].shape[0], ...] = meta["data"][: self.X_shape[0], ...]
-        sample = np.zeros(self.X_shape, dtype=self.dtype)
-        sample[: meta["data"].shape[0], ...] = normalize_long(meta["data"])[: self.X_shape[0], ...]
-        if abs(meta["data"].shape[0] - self.X_shape[0]) > 1:
-            logging.warning(f"Data length mismatch in {base_name}: {meta['data'].shape[0]} != {self.X_shape[0]}")
-
+        
+        if "data" in meta:
+            raw_amp = meta["data"].copy()
+            sample = normalize_long(meta["data"])
+        else:
+            raw_amp = np.zeros([3000, 1, 3], dtype=np.float32)
+            sample = np.zeros([3000, 1, 3], dtype=np.float32)
+        
         if "t0" in meta:
             t0 = meta["t0"]
         else:
@@ -828,16 +802,16 @@ class DataReader_pred(DataReader):
         # sample = self.adjust_missingchannels(sample)
 
         if self.amplitude:
-            return (sample[: self.X_shape[0], ...], raw_amp[: self.X_shape[0], ...], base_name, t0, station_id)
+            return (sample, raw_amp, base_name, t0, station_id)
         else:
-            return (sample[: self.X_shape[0], ...], base_name, t0, station_id)
+            return (sample, base_name, t0, station_id)
 
     def dataset(self, batch_size, num_parallel_calls=2, shuffle=False, drop_remainder=False):
         if self.amplitude:
             dataset = dataset_map(
                 self,
                 output_types=(self.dtype, self.dtype, "string", "string", "string"),
-                output_shapes=(self.X_shape, self.X_shape, None, None, None),
+                output_shapes=([None,None,3], [None,None,3], None, None, None),
                 num_parallel_calls=num_parallel_calls,
                 shuffle=shuffle,
             )
@@ -845,7 +819,7 @@ class DataReader_pred(DataReader):
             dataset = dataset_map(
                 self,
                 output_types=(self.dtype, "string", "string", "string"),
-                output_shapes=(self.X_shape, None, None, None),
+                output_shapes=([None,None,3], None, None, None),
                 num_parallel_calls=num_parallel_calls,
                 shuffle=shuffle,
             )
