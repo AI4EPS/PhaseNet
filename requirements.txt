@@ -1,8 +1,8 @@
-tensorflow==2.3
+tensorflow
 matplotlib
 pandas
 tqdm
 scipy
 pymongo
-obspy==1.2.2
+obspy
 
