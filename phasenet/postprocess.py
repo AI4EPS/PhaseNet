@@ -167,7 +167,7 @@ def extract_picks(
                             pick["_id"] = f"{pick['station_id']}_{pick['timestamp']}_{pick['type']}"
                         if use_amplitude:
                             next_pick = idxs[l + 1] if l < len(idxs) - 1 else (phase_index + post_idx * 3)
-                            pick["phase_amp"] = np.max(
+                            pick["phase_amplitude"] = np.max(
                                 amp[phase_index : min(phase_index + post_idx * 3, next_pick)]
                             ).item()  ## peak amplitude
 

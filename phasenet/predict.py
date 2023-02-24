@@ -202,28 +202,13 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             # df["timestamp"] = df["phase_time"]
             # df["prob"] = df["phase_prob"]
             # df["type"] = df["phase_type"]
+
+            base_columns = ["station_id", "phase_index", "phase_time", "phase_score", "phase_type"]
             if args.amplitude:
-                # df["amp"] = df["phase_amp"]
-                df = df[
-                    [
-                        # "file_name",
-                        # "begin_time",
-                        "station_id",
-                        "phase_index",
-                        "phase_time",
-                        "phase_score",
-                        "phase_amp",
-                        "phase_type",
-                    ]
-                ]
-            else:
-                df = df[
-                    ["file_name", "begin_time", "station_id", "phase_index", "phase_time", "phase_score", "phase_type"]
-                ]
-            # if args.amplitude:
-            #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_amplitude", "phase_type","dt",]]
-            # else:
-            #     df = df[["file_name","station_id","phase_index","phase_time","phase_prob","phase_type","dt"]]
+                base_columns.append("phase_amplitude")
+            
+            df = df[base_columns]
+            df["phase_amp"] = df["phase_amplitude"]
             df.to_csv(os.path.join(args.result_dir, args.result_fname + ".csv"), index=False)
 
             print(

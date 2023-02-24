@@ -48,7 +48,7 @@ python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mse
 
 - For sac format:
 ```
-python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/sac.csv --data_dir=test_data/sac --format=sac --plot_figure
+python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/sac.csv --data_dir=test_data/sac --format=sac --batch_size=1 --plot_figure
 ```
 
 - For numpy format:
@@ -67,7 +67,10 @@ python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mse
 ```
 
 Notes: 
-1. Remove the "--plot_figure" argument for large datasets, because plotting can be very slow.
+
+1. The reason for using "--batch_size=1" is because the mseed or sac files usually are not the same length. If you want to use a larger batch size for a good prediction speed, you need to cut the data to the same length.
+
+2. Remove the "--plot_figure" argument for large datasets, because plotting can be very slow.
 
 Optional arguments:
 ```
