@@ -206,9 +206,9 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             base_columns = ["station_id", "phase_index", "phase_time", "phase_score", "phase_type"]
             if args.amplitude:
                 base_columns.append("phase_amplitude")
+                df["phase_amp"] = df["phase_amplitude"]
             
             df = df[base_columns]
-            df["phase_amp"] = df["phase_amplitude"]
             df.to_csv(os.path.join(args.result_dir, args.result_fname + ".csv"), index=False)
 
             print(
