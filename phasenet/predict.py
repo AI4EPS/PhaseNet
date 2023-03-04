@@ -203,9 +203,10 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             # df["prob"] = df["phase_prob"]
             # df["type"] = df["phase_type"]
 
-            base_columns = ["station_id", "phase_index", "phase_time", "phase_score", "phase_type"]
+            base_columns = ["station_id", "begin_time", "phase_index", "phase_time", "phase_score", "phase_type", "file_name"]
             if args.amplitude:
                 base_columns.append("phase_amplitude")
+                base_columns.append("phase_amp")
                 df["phase_amp"] = df["phase_amplitude"]
             
             df = df[base_columns]

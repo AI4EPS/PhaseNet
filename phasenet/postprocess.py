@@ -140,9 +140,9 @@ def extract_picks(
                 for l, (phase_index, phase_prob) in enumerate(zip(idxs, probs)):
                     pick_time = begin_time + timedelta(seconds=phase_index * dt)
                     pick = {
-                        # "file_name": file_name,
+                        "file_name": file_name,
                         "station_id": station_id,
-                        # "begin_time": begin_time.isoformat(timespec="milliseconds"),
+                        "begin_time": begin_time.isoformat(timespec="milliseconds"),
                         "phase_index": int(phase_index),
                         "phase_time": pick_time.isoformat(timespec="milliseconds"),
                         "phase_score": round(phase_prob, 3),
