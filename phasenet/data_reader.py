@@ -341,7 +341,8 @@ class DataReader:
         stream = stream.trim(begin_time, end_time, pad=True, fill_value=0)
 
         comp = ["3", "2", "1", "E", "N", "Z"]
-        comp2idx = {"3": 0, "2": 1, "1": 2, "E": 0, "N": 1, "Z": 2}
+        order = {key: i for i, key in enumerate(comp)}
+        comp2idx = {"3": 0, "2": 1, "1": 2, "E": 0, "N": 1, "Z": 2} ## only for cases less than 3 components
 
         station_ids = defaultdict(list)
         for tr in stream:
@@ -355,9 +356,11 @@ class DataReader:
         nt = len(stream[0].data)
         data = np.zeros([3, nt, nx], dtype=np.float32)
         for i, sta in enumerate(station_keys):
+            
+            for j, c in enumerate(sorted(station_ids[sta], key=lambda x: order[x])):
 
-            for c in station_ids[sta]:
-                j = comp2idx[c]
+                if len(station_ids[sta]) != 3:  ## less than 3 component
+                    j = comp2idx[c]
 
                 if len(stream.select(id=sta + c)) == 0:
                     print(f"Empty trace: {sta+c} {begin_time}")
