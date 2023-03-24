@@ -317,7 +317,7 @@ class DataReader:
                 continue
 
             ## interpolate to 100 Hz
-            if trace.stats.sampling_rate != sampling_rate:
+            if abs(trace.stats.sampling_rate - sampling_rate) > 0.1:
                 logging.warning(f"Resampling {trace.id} from {trace.stats.sampling_rate} to {sampling_rate} Hz")
                 try:
                     trace = trace.interpolate(sampling_rate, method="linear")
