@@ -165,6 +165,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 waveforms=waveforms,
                 use_amplitude=args.amplitude,
                 upload_waveform=args.upload_waveform,
+                dt=1.0/args.sampling_rate
             )
 
             if args.upload_waveform:
