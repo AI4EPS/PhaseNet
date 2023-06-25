@@ -183,7 +183,11 @@ class DataReader:
         # if "highpass_filter" in kwargs:
         #     self.highpass_filter = kwargs["highpass_filter"]
         self.highpass_filter = highpass_filter
-        self.response_xml = response_xml
+        # self.response_xml = response_xml
+        if response_xml is not None:
+            self.response = obspy.read_inventory(response_xml)
+        else:
+            self.response = None
         self.sampling_rate = sampling_rate
         if format in ["numpy", "mseed", "sac"]:
             self.data_dir = kwargs["data_dir"]
@@ -299,13 +303,13 @@ class DataReader:
         return meta
 
 
-    def read_mseed(self, fname, response_xml=None, highpass_filter=0.0, sampling_rate=100, return_single_station=True):
+    def read_mseed(self, fname, response=None, highpass_filter=0.0, sampling_rate=100, return_single_station=True):
 
         try:
             stream = obspy.read(fname)
             stream = stream.merge(fill_value="latest")
-            if response_xml is not None:
-                response = obspy.read_inventory(response_xml)
+            if response is not None:
+                # response = obspy.read_inventory(response_xml)
                 stream = stream.remove_sensitivity(response)
         except Exception as e:
             print(f"Error reading {fname}:\n{e}")
@@ -771,7 +775,7 @@ class DataReader_pred(DataReader):
         if self.format == "numpy":
             meta = self.read_numpy(os.path.join(self.data_dir, base_name))
         elif (self.format == "mseed") or (self.format == "sac"):
-            meta = self.read_mseed(os.path.join(self.data_dir, base_name), response_xml=self.response_xml, sampling_rate=self.sampling_rate, highpass_filter=self.highpass_filter, return_single_station=True)
+            meta = self.read_mseed(os.path.join(self.data_dir, base_name), response=self.response, sampling_rate=self.sampling_rate, highpass_filter=self.highpass_filter, return_single_station=True)
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
         else:
