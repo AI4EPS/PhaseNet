@@ -128,7 +128,7 @@ Notes:
 A complete earthquake detection workflow can be found in the [QuakeFlow](https://wayneweiqiang.github.io/QuakeFlow/) project.
 
 ## 6. Interactive example
-See details in the [notebook](https://github.com/wayneweiqiang/PhaseNet/blob/master/docs/example_interactive.ipynb): [example_interactive.ipynb](example_interactive.ipynb)
+See details in the [notebook](https://github.com/wayneweiqiang/PhaseNet/blob/master/docs/example_gradio.ipynb): [example_interactive.ipynb](example_gradio.ipynb)
 
 ## 7. Training
 - Download a small sample dataset:
