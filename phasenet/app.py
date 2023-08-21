@@ -7,7 +7,7 @@ from typing import Any, AnyStr, Dict, List, NamedTuple, Union, Optional
 import numpy as np
 import requests
 import tensorflow as tf
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from kafka import KafkaProducer
 from pydantic import BaseModel
 from scipy.interpolate import interp1d
@@ -150,7 +150,6 @@ def format_picks(picks, dt, amplitudes):
 
 
 def format_data(data):
-
     # chn2idx = {"ENZ": {"E":0, "N":1, "Z":2},
     #            "123": {"3":0, "2":1, "1":2},
     #            "12Z": {"1":0, "2":1, "Z":2}}
@@ -189,7 +188,6 @@ def format_data(data):
 
 
 def get_prediction(data, return_preds=False):
-
     vec = np.array(data.vec)
     vec, vec_raw = preprocess(vec)
 
@@ -198,7 +196,10 @@ def get_prediction(data, return_preds=False):
 
     picks = extract_picks(preds, station_ids=data.id, begin_times=data.timestamp, waveforms=vec_raw)
 
-    picks = [{k: v for k, v in pick.items() if k in ["station_id", "phase_time", "phase_score", "phase_type", "dt"]} for pick in picks]
+    picks = [
+        {k: v for k, v in pick.items() if k in ["station_id", "phase_time", "phase_score", "phase_type", "dt"]}
+        for pick in picks
+    ]
 
     if return_preds:
         return picks, preds
@@ -211,8 +212,9 @@ class Data(BaseModel):
     # timestamp: Union[List[str], str]
     # vec: Union[List[List[List[float]]], List[List[float]]]
     id: List[str]
-    timestamp: List[str]
+    timestamp: List[Union[str, float, datetime]]
     vec: Union[List[List[List[float]]], List[List[float]]]
+
     dt: Optional[float] = 0.01
     ## gamma
     stations: Optional[List[Dict[str, Union[float, str]]]] = None
@@ -223,7 +225,7 @@ class Data(BaseModel):
 # def set_default_executor():
 #     from concurrent.futures import ThreadPoolExecutor
 #     import asyncio
-# 
+#
 #     loop = asyncio.get_running_loop()
 #     loop.set_default_executor(
 #         ThreadPoolExecutor(max_workers=2)
@@ -232,15 +234,25 @@ class Data(BaseModel):
 
 @app.post("/predict")
 def predict(data: Data):
-
     picks = get_prediction(data)
 
     return picks
 
 
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        data = await websocket.receive_json()
+        # data = json.loads(data)
+        data = Data(**data)
+        picks = get_prediction(data)
+        await websocket.send_json(picks)
+        print("PhaseNet Updating...")
+
+
 @app.post("/predict_prob")
 def predict(data: Data):
-
     picks, preds = get_prediction(data, True)
 
     return picks, preds.tolist()
@@ -248,7 +260,6 @@ def predict(data: Data):
 
 @app.post("/predict_phasenet2gamma")
 def predict(data: Data):
-
     picks = get_prediction(data)
 
     # if use_kafka:
@@ -256,9 +267,9 @@ def predict(data: Data):
     #     for pick in picks:
     #         producer.send("phasenet_picks", key=pick["id"], value=pick)
     try:
-        catalog = requests.post(f"{GAMMA_API_URL}/predict", json={"picks": picks, 
-                                                                 "stations": data.stations, 
-                                                                 "config": data.config})
+        catalog = requests.post(
+            f"{GAMMA_API_URL}/predict", json={"picks": picks, "stations": data.stations, "config": data.config}
+        )
         print(catalog.json()["catalog"])
         return catalog.json()
     except Exception as error:
@@ -266,15 +277,15 @@ def predict(data: Data):
 
     return {}
 
+
 @app.post("/predict_phasenet2gamma2ui")
 def predict(data: Data):
-
     picks = get_prediction(data)
 
     try:
-        catalog = requests.post(f"{GAMMA_API_URL}/predict", json={"picks": picks,
-                                                                  "stations": data.stations, 
-                                                                  "config": data.config})
+        catalog = requests.post(
+            f"{GAMMA_API_URL}/predict", json={"picks": picks, "stations": data.stations, "config": data.config}
+        )
         print(catalog.json()["catalog"])
         return catalog.json()
     except Exception as error:
@@ -293,7 +304,6 @@ def predict(data: Data):
 
 @app.post("/predict_stream_phasenet2gamma")
 def predict(data: Data):
-
     data = format_data(data)
     # for i in range(len(data.id)):
     #     plt.clf()
