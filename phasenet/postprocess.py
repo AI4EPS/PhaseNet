@@ -75,7 +75,6 @@ def extract_picks(
     config=None,
     waveforms=None,
     use_amplitude=False,
-    upload_waveform=False,
 ):
     """Extract picks from prediction results.
     Args:
@@ -94,7 +93,6 @@ def extract_picks(
         for x in phases:
             mph[x] = 0.3
         mpd = 50
-        ## upload waveform
         pre_idx = int(1 / dt)
         post_idx = int(4 / dt)
     else:
@@ -123,7 +121,6 @@ def extract_picks(
 
     picks = []
     for i in range(Nb):
-
         file_name = file_names[i]
         begin_time = datetime.fromisoformat(begin_times[i])
 
@@ -162,9 +159,6 @@ def extract_picks(
                         if hi > Nt:
                             hi = Nt
                         tmp[insert_idx : insert_idx + hi - lo, :] = waveforms[i, lo:hi, j, :]
-                        if upload_waveform:
-                            pick["waveform"] = tmp.tolist()
-                            pick["_id"] = f"{pick['station_id']}_{pick['timestamp']}_{pick['type']}"
                         if use_amplitude:
                             next_pick = idxs[l + 1] if l < len(idxs) - 1 else (phase_index + post_idx * 3)
                             pick["phase_amplitude"] = np.max(

@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from data_reader import DataReader_mseed_array, DataReader_pred
-from model import ModelConfig, UNet
 from postprocess import (
     extract_amplitude,
     extract_picks,
@@ -19,35 +18,16 @@ from postprocess import (
     save_picks_json,
     save_prob_h5,
 )
-from pymongo import MongoClient
 from tqdm import tqdm
 from visulization import plot_waveform
+
+from model import ModelConfig, UNet
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-username = "root"
-password = "quakeflow123"
-# client = MongoClient(f"mongodb://{username}:{password}@127.0.0.1:27017")
-client = MongoClient(f"mongodb://{username}:{password}@quakeflow-mongodb-headless.default.svc.cluster.local:27017")
-
-# db = client["quakeflow"]
-# collection = db["waveform"]
-
-
-def upload_mongodb(picks):
-    db = client["quakeflow"]
-    collection = db["waveform"]
-    try:
-        collection.insert_many(picks)
-    except Exception as e:
-        print("Warning:", e)
-        collection.delete_many({"_id": {"$in": [p["_id"] for p in picks]}})
-        collection.insert_many(picks)
-
 
 def read_args():
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", default=20, type=int, help="batch size")
     parser.add_argument("--model_dir", help="Checkpoint directory (default: None)")
@@ -66,7 +46,6 @@ def read_args():
     parser.add_argument("--stations", default="", help="seismic station info")
     parser.add_argument("--plot_figure", action="store_true", help="If plot figure for test")
     parser.add_argument("--save_prob", action="store_true", help="If save result for test")
-    parser.add_argument("--upload_waveform", action="store_true", help="If upload waveform to mongodb")
     parser.add_argument("--pre_sec", default=1, type=float, help="Window length before pick")
     parser.add_argument("--post_sec", default=4, type=float, help="Window length after pick")
 
@@ -117,7 +96,6 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
     # sess_config.log_device_placement = False
 
     with tf.compat.v1.Session(config=sess_config) as sess:
-
         saver = tf.compat.v1.train.Saver(tf.compat.v1.global_variables(), max_to_keep=5)
         init = tf.compat.v1.global_variables_initializer()
         sess.run(init)
@@ -151,8 +129,6 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             # pred_batch = np.vstack(pred_batch)
 
             waveforms = None
-            if args.upload_waveform:
-                waveforms = X_batch
             if args.amplitude:
                 waveforms = amp_batch
 
@@ -164,13 +140,35 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 config=args,
                 waveforms=waveforms,
                 use_amplitude=args.amplitude,
-                upload_waveform=args.upload_waveform,
-                dt=1.0/args.sampling_rate
+                dt=1.0 / args.sampling_rate,
             )
 
-            if args.upload_waveform:
-                upload_mongodb(picks_)
             picks.extend(picks_)
+
+            ## save pick per file
+            if len(fname_batch) == 1:
+                df = pd.DataFrame(picks_)
+                df = df[df["phase_index"] > 10]
+                if not os.path.exists(os.path.join(args.result_dir, "picks")):
+                    os.makedirs(os.path.join(args.result_dir, "picks"))
+                df = df[
+                    [
+                        "station_id",
+                        "begin_time",
+                        "phase_index",
+                        "phase_time",
+                        "phase_score",
+                        "phase_type",
+                        "phase_amplitude",
+                        "dt",
+                    ]
+                ]
+                df.to_csv(
+                    os.path.join(
+                        args.result_dir, "picks", fname_batch[0].decode().split("/")[-1].rstrip(".mseed") + ".csv"
+                    ),
+                    index=False,
+                )
 
             if args.plot_figure:
                 if not (isinstance(fname_batch, np.ndarray) or isinstance(fname_batch, list)):
@@ -204,12 +202,20 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             # df["prob"] = df["phase_prob"]
             # df["type"] = df["phase_type"]
 
-            base_columns = ["station_id", "begin_time", "phase_index", "phase_time", "phase_score", "phase_type", "file_name"]
+            base_columns = [
+                "station_id",
+                "begin_time",
+                "phase_index",
+                "phase_time",
+                "phase_score",
+                "phase_type",
+                "file_name",
+            ]
             if args.amplitude:
                 base_columns.append("phase_amplitude")
                 base_columns.append("phase_amp")
                 df["phase_amp"] = df["phase_amplitude"]
-            
+
             df = df[base_columns]
             df.to_csv(os.path.join(args.result_dir, args.result_fname + ".csv"), index=False)
 
@@ -222,11 +228,9 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
 
 def main(args):
-
     logging.basicConfig(format="%(asctime)s %(message)s", level=logging.INFO)
 
     with tf.compat.v1.name_scope("create_inputs"):
-
         if args.format == "mseed_array":
             data_reader = DataReader_mseed_array(
                 data_dir=args.data_dir,
