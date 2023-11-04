@@ -6,7 +6,7 @@ repo_name: 'AI4EPS/PhaseNet'
 repo_url: 'https://github.com/ai4eps/PhaseNet'
 nav:
     - Overview: README.md
-    - Interactive Example: example_gradio.ipynb
+    - Interactive Example: example_fastapi.ipynb
     - Batch Prediction: example_batch_prediction.ipynb
 theme:
   name: 'material'
