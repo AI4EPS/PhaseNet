@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from data_reader import DataReader_mseed_array, DataReader_pred
+from model import ModelConfig, UNet
 from postprocess import (
     extract_amplitude,
     extract_picks,
@@ -20,8 +21,6 @@ from postprocess import (
 )
 from tqdm import tqdm
 from visulization import plot_waveform
-
-from model import ModelConfig, UNet
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -146,7 +145,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             picks.extend(picks_)
 
             ## save pick per file
-            if len(fname_batch) == 1:
+            if (len(fname_batch) == 1) & (len(picks_) > 0):
                 df = pd.DataFrame(picks_)
                 df = df[df["phase_index"] > 10]
                 if not os.path.exists(os.path.join(args.result_dir, "picks")):
