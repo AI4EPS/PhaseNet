@@ -13,11 +13,17 @@ import json
 import random
 from collections import defaultdict
 
-# import s3fs
+import fsspec
 import h5py
 import obspy
 from scipy.interpolate import interp1d
 from tqdm import tqdm
+
+# token_json = f"{os.environ['HOME']}/.config/gcloud/application_default_credentials.json"
+token_json = "application_default_credentials.json"
+with open(token_json, "r") as fp:
+    token = json.load(fp)
+fs_gs = fsspec.filesystem("gs", token=token)
 
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
@@ -192,11 +198,43 @@ class DataReader:
         self.sampling_rate = sampling_rate
         if format in ["numpy", "mseed", "sac"]:
             self.data_dir = kwargs["data_dir"]
-            try:
-                csv = pd.read_csv(kwargs["data_list"], header=0, sep="[,|\s+]", engine="python")
-            except:
-                csv = pd.read_csv(kwargs["data_list"], header=0, sep="\t")
-            self.data_list = csv["fname"]
+            # try:
+            #     csv = pd.read_csv(kwargs["data_list"], header=0, sep="[,|\s+]", engine="python")
+            # except:
+            #     csv = pd.read_csv(kwargs["data_list"], header=0, sep="\t")
+
+            with open(kwargs["data_list"], "r") as fp:
+                lines = fp.read().splitlines()
+            print(f"Total sampel: {len(lines)}")
+
+            # HardCode: check if picks exists
+            filter = []
+            # result_dir = "results"
+            # list processed files in quakeflow_catalog/NC using fs_gs
+            bucket = "quakeflow_catalog"
+            folder = "NC/phasenet"
+            networks = fs_gs.glob(f"{bucket}/{folder}/*")
+            proccessed = []
+            for i, network in enumerate(networks):
+                years = fs_gs.glob(f"{network}/????")
+                for year in tqdm(years, desc=network):
+                    jdays = fs_gs.glob(f"{year}/????.???")
+                    for jday in jdays:
+                        mseeds = fs_gs.glob(f"{jday}/*.{jday.split('/')[-1]}.csv")
+                        proccessed.extend(mseeds)
+
+            for line in lines:
+                tmp = line.split(",")[0].split("/")
+                parant_dir = "/".join(tmp[2:-1])
+                fname = tmp[-1].rstrip(".mseed") + ".csv"
+                tmp_name = f"{bucket}/{folder}/{parant_dir}/{fname}"
+                if tmp_name not in proccessed:
+                    filter.append(line)
+            lines = filter
+            print(f"Unprocessed sample {len(lines)}")
+
+            self.data_list = lines
+
             self.num_data = len(self.data_list)
         elif format == "hdf5":
             self.h5 = h5py.File(kwargs["hdf5_file"], "r", libver="latest", swmr=True)
@@ -305,14 +343,29 @@ class DataReader:
 
     def read_mseed(self, fname, response=None, highpass_filter=0.0, sampling_rate=100, return_single_station=True):
         try:
-            stream = obspy.read(fname)
+            # stream = obspy.read(fname)
+            files = fname.rstrip("\n").split(",")
+            stream = obspy.Stream()
+            for file in files:
+                with fsspec.open(f"s3://{file}", "rb", anon=True) as fp:
+                    stream += obspy.read(fp)
             stream = stream.merge(fill_value="latest")
-            if response is not None:
-                # response = obspy.read_inventory(response_xml)
+
+            ## hard code for response file
+            station, network, channel = files[0].split("/")[-1].split(".")[:3]
+            response_xml = (
+                f"gs://quakeflow_dataset/NC/FDSNstationXML/{network}.info/{network}.FDSN.xml/{network}.{station}.xml"
+            )
+
+            if fs_gs.exists(response_xml):
+                with fs_gs.open(response_xml, "rb") as fp:
+                    response = obspy.read_inventory(fp)
                 stream = stream.remove_sensitivity(response)
+
         except Exception as e:
             print(f"Error reading {fname}:\n{e}")
             return {}
+
         tmp_stream = obspy.Stream()
         for trace in stream:
             if len(trace.data) < 10:
@@ -357,11 +410,14 @@ class DataReader:
 
         station_ids = defaultdict(list)
         for tr in stream:
-            station_ids[tr.id[:-1]].append(tr.id[-1])
             if tr.id[-1] not in comp:
-                print(f"Unknown component {tr.id[-1]}")
+                print(f"Unknown component {tr.id}")
+                continue
+            station_ids[tr.id[:-1]].append(tr.id[-1])
 
         station_keys = sorted(list(station_ids.keys()))
+        if len(station_keys) == 0:
+            return {}
 
         nx = len(station_ids)
         nt = len(stream[0].data)
@@ -369,6 +425,9 @@ class DataReader:
         for i, sta in enumerate(station_keys):
             for j, c in enumerate(sorted(station_ids[sta], key=lambda x: order[x])):
                 if len(station_ids[sta]) != 3:  ## less than 3 component
+                    if c not in comp2idx:
+                        print(f"Unknown component {c}")
+                        continue
                     j = comp2idx[c]
 
                 if len(stream.select(id=sta + c)) == 0:
@@ -774,9 +833,15 @@ class DataReader_pred(DataReader):
         if self.format == "numpy":
             meta = self.read_numpy(os.path.join(self.data_dir, base_name))
         elif (self.format == "mseed") or (self.format == "sac"):
+            # meta = self.read_mseed(
+            #     os.path.join(self.data_dir, base_name),
+            #     response=self.response,
+            #     sampling_rate=self.sampling_rate,
+            #     highpass_filter=self.highpass_filter,
+            #     return_single_station=True,
+            # )
             meta = self.read_mseed(
-                os.path.join(self.data_dir, base_name),
-                response=self.response,
+                base_name,
                 sampling_rate=self.sampling_rate,
                 highpass_filter=self.highpass_filter,
                 return_single_station=True,
