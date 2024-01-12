@@ -217,20 +217,26 @@ class DataReader:
             proccessed = []
             for i, network in enumerate(networks):
                 years = fs_gs.glob(f"{network}/????")
-                for year in tqdm(years, desc=network):
+                for year in tqdm(years, desc=f"Check processed {network}"):
                     jdays = fs_gs.glob(f"{year}/????.???")
                     for jday in jdays:
                         mseeds = fs_gs.glob(f"{jday}/*.{jday.split('/')[-1]}.csv")
                         proccessed.extend(mseeds)
 
-            for line in lines:
+            processed = set(proccessed)
+            key_set = set()
+            mapping_dit = {}
+            for line in tqdm(lines, desc="Filter processed"):
                 tmp = line.split(",")[0].split("/")
                 parant_dir = "/".join(tmp[2:-1])
                 fname = tmp[-1].rstrip(".mseed") + ".csv"
                 tmp_name = f"{bucket}/{folder}/{parant_dir}/{fname}"
-                if tmp_name not in proccessed:
-                    filter.append(line)
-            lines = filter
+                # if tmp_name not in proccessed:
+                #     filter.append(line)
+                key_set.add(tmp_name)
+                mapping_dit[tmp_name] = line
+            key_set = list(key_set - processed)
+            lines = sorted([mapping_dit[x] for x in key_set], reverse=True)
             print(f"Unprocessed sample {len(lines)}")
 
             self.data_list = lines
