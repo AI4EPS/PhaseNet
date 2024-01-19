@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from data_reader import DataReader_mseed_array, DataReader_pred
+from model import ModelConfig, UNet
 from postprocess import (
     extract_amplitude,
     extract_picks,
@@ -22,8 +23,6 @@ from postprocess import (
 )
 from tqdm import tqdm
 from visulization import plot_waveform
-
-from model import ModelConfig, UNet
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -156,10 +155,10 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             # ## save pick per file
 
             if len(fname_batch) == 1:
-                ### Hard code for NCEDC
-                tmp = fname_batch[0].decode().split(",")[0].split("/")
+                ### FIX: Hard code for NCEDC
+                tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
                 parant_dir = "/".join(tmp[2:-1])
-                fname = tmp[-1].rstrip(".mseed").rstrip("\n") + ".csv"
+                fname = tmp[-1].rstrip("\n").rstrip(".mseed") + ".csv"
 
                 if len(picks_) == 0:
                     with fs_gs.open(

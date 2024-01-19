@@ -207,41 +207,42 @@ class DataReader:
                 lines = fp.read().splitlines()
             print(f"Total sampel: {len(lines)}")
 
-            # HardCode: check if picks exists
-            filter = []
-            # result_dir = "results"
-            # list processed files in quakeflow_catalog/NC using fs_gs
-            bucket = "quakeflow_catalog"
-            folder = "NC/phasenet"
-            networks = fs_gs.glob(f"{bucket}/{folder}/*")
-            proccessed = []
-            for i, network in enumerate(networks):
-                years = fs_gs.glob(f"{network}/????")
-                for year in tqdm(years, desc=f"Check processed {network}"):
-                    jdays = fs_gs.glob(f"{year}/????.???")
-                    for jday in jdays:
-                        mseeds = fs_gs.glob(f"{jday}/*.{jday.split('/')[-1]}.csv")
-                        proccessed.extend(mseeds)
+            # filter = []
+            # proccessed = []
 
-            processed = set(proccessed)
-            key_set = set()
-            mapping_dit = {}
-            for line in tqdm(lines, desc="Filter processed"):
-                tmp = line.split(",")[0].split("/")
-                parant_dir = "/".join(tmp[2:-1])
-                fname = tmp[-1].rstrip(".mseed") + ".csv"
-                tmp_name = f"{bucket}/{folder}/{parant_dir}/{fname}"
-                # if tmp_name not in proccessed:
-                #     filter.append(line)
-                key_set.add(tmp_name)
-                mapping_dit[tmp_name] = line
-            key_set = list(key_set - processed)
-            lines = sorted([mapping_dit[x] for x in key_set], reverse=True)
-            print(f"Unprocessed sample {len(lines)}")
+            # # FIX: HardCode: check if picks exists
+            # bucket = "quakeflow_catalog"
+            # folder = "NC/phasenet"
+            # proccessed = fs_gs.glob(f"{bucket}/{folder}/**/*.csv")
+            # # networks = fs_gs.ls(f"{bucket}/{folder}/")
+            # # for i, network in enumerate(networks):
+            # #     years = fs_gs.ls(f"{network}/")
+            # #     for year in tqdm(years, desc=f"Check processed {network}"):
+            # #         jdays = fs_gs.ls(f"{year}/")
+            # #         for jday in jdays:
+            # #             mseeds = fs_gs.glob(f"{jday}/*.{jday.split('/')[-1]}.csv")
+            # #             # mseeds = fs_gs.ls(f"{jday}/")
+            # #             proccessed.extend(mseeds)
+
+            # processed = set(proccessed)
+            # key_set = set()
+            # mapping_dit = {}
+            # for line in tqdm(lines, desc="Filter processed"):
+            #     tmp = line.split(",")[0].lstrip("s3://").split("/")
+            #     parant_dir = "/".join(tmp[2:-1])
+            #     fname = tmp[-1].rstrip(".mseed") + ".csv"
+            #     tmp_name = f"{bucket}/{folder}/{parant_dir}/{fname}"
+            #     key_set.add(tmp_name)
+            #     mapping_dit[tmp_name] = line
+            # key_set = list(key_set - processed)
+            # lines = sorted([mapping_dit[x] for x in key_set], reverse=True)
+            # print(f"Unprocessed sample {len(lines)}")
 
             self.data_list = lines
-
             self.num_data = len(self.data_list)
+
+            # del lines, filter, proccessed
+
         elif format == "hdf5":
             self.h5 = h5py.File(kwargs["hdf5_file"], "r", libver="latest", swmr=True)
             self.h5_data = self.h5[kwargs["hdf5_group"]]
@@ -353,11 +354,11 @@ class DataReader:
             files = fname.rstrip("\n").split(",")
             stream = obspy.Stream()
             for file in files:
-                with fsspec.open(f"s3://{file}", "rb", anon=True) as fp:
+                with fsspec.open(file, "rb", anon=True) as fp:
                     stream += obspy.read(fp)
             stream = stream.merge(fill_value="latest")
 
-            ## hard code for response file
+            ## FIX: hard code for response file
             station, network, channel = files[0].split("/")[-1].split(".")[:3]
             response_xml = (
                 f"gs://quakeflow_dataset/NC/FDSNstationXML/{network}.info/{network}.FDSN.xml/{network}.{station}.xml"
