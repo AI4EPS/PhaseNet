@@ -184,6 +184,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                             "dt",
                         ]
                     ]
+                    df.sort_values(by=["phase_time"], inplace=True)
                     # with fs_gs.open(
                     #     f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
                     #     "w",

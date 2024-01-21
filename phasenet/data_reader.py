@@ -208,12 +208,12 @@ class DataReader:
             print(f"Total sampel: {len(lines)}")
 
             # filter = []
-            # proccessed = []
+            # processed = []
 
             # # FIX: HardCode: check if picks exists
             # bucket = "quakeflow_catalog"
             # folder = "NC/phasenet"
-            # proccessed = fs_gs.glob(f"{bucket}/{folder}/**/*.csv")
+            # processed = fs_gs.glob(f"{bucket}/{folder}/**/*.csv")
             # # networks = fs_gs.ls(f"{bucket}/{folder}/")
             # # for i, network in enumerate(networks):
             # #     years = fs_gs.ls(f"{network}/")
@@ -222,9 +222,9 @@ class DataReader:
             # #         for jday in jdays:
             # #             mseeds = fs_gs.glob(f"{jday}/*.{jday.split('/')[-1]}.csv")
             # #             # mseeds = fs_gs.ls(f"{jday}/")
-            # #             proccessed.extend(mseeds)
+            # #             processed.extend(mseeds)
 
-            # processed = set(proccessed)
+            # processed = set(processed)
             # key_set = set()
             # mapping_dit = {}
             # for line in tqdm(lines, desc="Filter processed"):
@@ -241,7 +241,7 @@ class DataReader:
             self.data_list = lines
             self.num_data = len(self.data_list)
 
-            # del lines, filter, proccessed
+            # del lines, filter, processed
 
         elif format == "hdf5":
             self.h5 = h5py.File(kwargs["hdf5_file"], "r", libver="latest", swmr=True)
