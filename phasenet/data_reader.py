@@ -506,19 +506,24 @@ class DataReader:
                     trace_data[: len(tmp), j] = tmp[:nt]
                     if amplitude:
                         # if stations.iloc[i]["unit"] == "m/s**2":
-                        if stations[sta]["unit"] == "m/s**2":
+                        if stations[sta]["unit"].lower() == "m/s**2":
                             tmp = mseed.select(id=sta + c)[0]
                             tmp = tmp.integrate()
                             tmp = tmp.filter("highpass", freq=1.0)
                             tmp = tmp.data.astype(self.dtype)
                             trace_amp[: len(tmp), j] = tmp[:nt]
                         # elif stations.iloc[i]["unit"] == "m/s":
-                        elif stations[sta]["unit"] == "m/s":
+                        elif stations[sta]["unit"].lower() == "m":
+                            tmp = mseed.select(id=sta + c)[0]
+                            tmp = tmp.differentiate()
+                            tmp = tmp.data.astype(self.dtype)
+                            trace_amp[: len(tmp), j] = tmp[:nt]
+                        elif stations[sta]["unit"].lower() == "m/s":
                             tmp = mseed.select(id=sta + c)[0].data.astype(self.dtype)
                             trace_amp[: len(tmp), j] = tmp[:nt]
                         else:
                             print(
-                                f"Error in {stations.iloc[i]['station']}\n{stations.iloc[i]['unit']} should be m/s**2 or m/s!"
+                                f"Error in {stations[sta]}\n{stations[sta]['unit']} should be m/s**2 or m/s or m!"
                             )
                     if amplitude and remove_resp:
                         # trace_amp[:, j] /= float(resp[j])
