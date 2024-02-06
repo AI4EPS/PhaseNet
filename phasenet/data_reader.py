@@ -211,7 +211,11 @@ class DataReader:
                 client_kwargs={"endpoint_url": kwargs["s3_url"]},
                 use_ssl=kwargs["use_ssl"],
             )
-            self.num_data = 0
+        elif format == "mseed_3c":
+            with open(kwargs["data_list"], "r") as fp:
+                self.data_list = fp.readlines()
+            self.num_data = len(self.data_list)
+            self.data_dir = kwargs["data_dir"]
         else:
             raise (f"{format} not support!")
 
@@ -396,6 +400,62 @@ class DataReader:
         }
         return meta
 
+    def read_mseed_3c(self, fname, response=None, highpass_filter=0.0, sampling_rate=100):
+        try:
+            # stream = obspy.read(fname)
+            files = fname.rstrip("\n").split(",")
+
+            traces = []
+            station_ids = []
+            for file in files:
+                # with fsspec.open(file, "rb", anon=True) as fp:
+                #     stream += obspy.read(fp)
+                stream = obspy.read(file)
+                trace = stream.merge(fill_value="latest")[0]
+                station_ids.append(trace.id[:-1])
+
+                ## interpolate to 100 Hz
+                if abs(trace.stats.sampling_rate - sampling_rate) > 0.1:
+                    logging.warning(f"Resampling {trace.id} from {trace.stats.sampling_rate} to {sampling_rate} Hz")
+                    try:
+                        trace = trace.interpolate(sampling_rate, method="linear")
+                    except Exception as e:
+                        print(f"Error resampling {trace.id}:\n{e}")
+
+                trace = trace.detrend("demean")
+                if highpass_filter > 0.0:
+                    trace = trace.filter("highpass", freq=highpass_filter)
+
+                traces.append(trace)
+
+            station_ids = list(set(station_ids))
+            if len(station_ids) > 1:
+                print(f"{station_ids = }")
+                raise
+            assert (len(station_ids) == 1, f"Error: {fname} has multiple stations {station_ids}")
+
+            begin_time = min([st.stats.starttime for st in traces])
+            end_time = max([st.stats.endtime for st in traces])
+            [trace.trim(begin_time, end_time, pad=True, fill_value=0) for trace in traces]
+
+        except Exception as e:
+            print(f"Error reading {fname}:\n{e}")
+            return {}
+
+        nt = len(traces[0].data)
+        data = np.zeros([3, nt], dtype=np.float32)
+        for i, trace in enumerate(traces):
+            tmp = trace.data.astype("float32")
+            data[i, : len(tmp)] = tmp[:nt]
+
+        data = data.T[:, np.newaxis, :]
+        meta = {
+            "data": data,
+            "t0": begin_time.datetime.isoformat(timespec="milliseconds"),
+            "station_id": station_ids,
+        }
+        return meta
+
     def read_sac(self, fname):
         mseed = obspy.read(fname)
         mseed = mseed.detrend("spline", order=2, dspline=5 * mseed[0].stats.sampling_rate)
@@ -522,9 +582,7 @@ class DataReader:
                             tmp = mseed.select(id=sta + c)[0].data.astype(self.dtype)
                             trace_amp[: len(tmp), j] = tmp[:nt]
                         else:
-                            print(
-                                f"Error in {stations[sta]}\n{stations[sta]['unit']} should be m/s**2 or m/s or m!"
-                            )
+                            print(f"Error in {stations[sta]}\n{stations[sta]['unit']} should be m/s**2 or m/s or m!")
                     if amplitude and remove_resp:
                         # trace_amp[:, j] /= float(resp[j])
                         trace_amp[:, j] /= float(resp_j)
@@ -788,6 +846,14 @@ class DataReader_pred(DataReader):
             )
         elif self.format == "hdf5":
             meta = self.read_hdf5(base_name)
+        elif self.format == "mseed_3c":
+            meta = self.read_mseed_3c(
+                os.path.join(self.data_dir, base_name),
+                response=self.response,
+                sampling_rate=self.sampling_rate,
+                highpass_filter=self.highpass_filter,
+            )
+            base_name = ""
         else:
             raise (f"{self.format} does not support!")
 
