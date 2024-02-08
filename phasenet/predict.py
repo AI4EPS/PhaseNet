@@ -144,30 +144,33 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
             picks.extend(picks_)
 
-            # ## save pick per file
-            # if (len(fname_batch) == 1) & (len(picks_) > 0):
-            #     df = pd.DataFrame(picks_)
-            #     df = df[df["phase_index"] > 10]
-            #     if not os.path.exists(os.path.join(args.result_dir, "picks")):
-            #         os.makedirs(os.path.join(args.result_dir, "picks"))
-            #     df = df[
-            #         [
-            #             "station_id",
-            #             "begin_time",
-            #             "phase_index",
-            #             "phase_time",
-            #             "phase_score",
-            #             "phase_type",
-            #             "phase_amplitude",
-            #             "dt",
-            #         ]
-            #     ]
-            #     df.to_csv(
-            #         os.path.join(
-            #             args.result_dir, "picks", fname_batch[0].decode().split("/")[-1].rstrip(".mseed") + ".csv"
-            #         ),
-            #         index=False,
-            #     )
+            ## save pick per file
+            if (len(fname_batch) == 1) & (len(picks_) > 0):
+                df = pd.DataFrame(picks_)
+                try:
+                    df = df[df["phase_index"] > 10]
+                except KeyError:
+                    continue
+                if not os.path.exists(os.path.join(args.result_dir, "picks")):
+                    os.makedirs(os.path.join(args.result_dir, "picks"))
+                df = df[
+                    [
+                        "station_id",
+                        "begin_time",
+                        "phase_index",
+                        "phase_time",
+                        "phase_score",
+                        "phase_type",
+                        "phase_amplitude",
+                        "dt",
+                    ]
+                ]
+                df.to_csv(
+                    os.path.join(
+                        args.result_dir, "picks", fname_batch[0].decode().split("/")[-1].rstrip("*.mseed") + ".csv"
+                    ),
+                    index=False,
+                )
 
             if args.plot_figure:
                 if not (isinstance(fname_batch, np.ndarray) or isinstance(fname_batch, list)):
