@@ -412,7 +412,8 @@ class DataReader:
                 #     stream += obspy.read(fp)
                 stream = obspy.read(file)
                 trace = stream.merge(fill_value="latest")[0]
-                station_ids.append(trace.id[:-1])
+                # station_ids.append(trace.id[:-1])
+                station_ids.append(trace.id.rstrip("B")[:-1])  # Hardcode for station N.WJMF.EB
 
                 ## interpolate to 100 Hz
                 if abs(trace.stats.sampling_rate - sampling_rate) > 0.1:
