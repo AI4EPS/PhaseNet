@@ -16,6 +16,7 @@ from collections import defaultdict
 import fsspec
 import h5py
 import obspy
+from obspy.clients.fdsn import Client
 from scipy.interpolate import interp1d
 from tqdm import tqdm
 
@@ -24,7 +25,7 @@ token_json = "application_default_credentials.json"
 with open(token_json, "r") as fp:
     token = json.load(fp)
 fs_gs = fsspec.filesystem("gs", token=token)
-
+client = Client("IRIS")
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
     def decorator(func):
@@ -359,14 +360,40 @@ class DataReader:
             stream = stream.merge(fill_value="latest")
 
             ## FIX: hard code for response file
+            # NCEDC
             station, network, channel = files[0].split("/")[-1].split(".")[:3]
-            response_xml = (
-                f"gs://quakeflow_dataset/NC/FDSNstationXML/{network}.info/{network}.FDSN.xml/{network}.{station}.xml"
-            )
+            response_xml = f"gs://quakeflow_dataset/NC/FDSNstationXML/{network}/{network}.{station}.xml"
+            # response_xml = (
+            #     f"gs://quakeflow_dataset/NC/FDSNstationXML/{network}.info/{network}.FDSN.xml/{network}.{station}.xml"
+            # )
 
+            ## SCEDC
+            # fname = files[0].split("/")[-1]
+            # network = fname[:2]
+            # station = fname[2:7].rstrip("_")
+            # instrument = fname[7:9]
+            # channel = fname[9]
+            # location = fname[10:12].rstrip("_")
+            # year = fname[13:17]
+            # jday = fname[17:20]
+            # response_xml = f"gs://quakeflow_catalog/SC/FDSNstationXML/{network}/{network}_{station}.xml"
+
+            redownload = True
             if fs_gs.exists(response_xml):
-                with fs_gs.open(response_xml, "rb") as fp:
-                    response = obspy.read_inventory(fp)
+                try:
+                    with fs_gs.open(response_xml, "rb") as fp:
+                        response = obspy.read_inventory(fp)
+                    stream = stream.remove_sensitivity(response)
+                    redownload = False
+                except Exception as e:
+                    print(f"Error removing sensitivity: {e}")    
+            else:
+                redownload = True
+            if redownload:
+                response = client.get_stations(network=network, station=station, level="response")
+                response.write(f"/tmp/{network}_{station}.xml", format="stationxml")
+                fs_gs.put(f"/tmp/{network}_{station}.xml", response_xml)
+                print(f"Update response file: {response_xml}")
                 stream = stream.remove_sensitivity(response)
 
         except Exception as e:
@@ -386,7 +413,8 @@ class DataReader:
                 except Exception as e:
                     print(f"Error resampling {trace.id}:\n{e}")
 
-            trace = trace.detrend("demean")
+            # trace = trace.detrend("demean")
+            trace = trace.detrend("spline", order=2, dspline=5 * trace.stats.sampling_rate)
 
             ## highpass filtering > 1Hz
             if highpass_filter > 0.0:

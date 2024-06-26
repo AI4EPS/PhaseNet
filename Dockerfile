@@ -1,4 +1,4 @@
-FROM tensorflow/tensorflow
+FROM tensorflow/tensorflow:2.14.0
 
 # Create the environment:
 # COPY env.yml /app

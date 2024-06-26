@@ -158,13 +158,22 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 ### FIX: Hard code for NCEDC
                 tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
                 parant_dir = "/".join(tmp[2:-1])
-                fname = tmp[-1].rstrip("\n").rstrip(".mseed") + ".csv"
+                
+                ### FIX: Hard code for SCEDC
+                # tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
+                # parant_dir = "/".join(tmp[2:-1])
+
+                fname = tmp[-1].rstrip("\n").rstrip(".mseed").rstrip(".ms") + ".csv"
 
                 if len(picks_) == 0:
                     with fs_gs.open(
                         f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
                         "w",
                     ) as fp:
+                    # with fs_gs.open(
+                    #     f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}",
+                    #     "w",
+                    # ) as fp:
                         fp.write("")
                 else:
                     df = pd.DataFrame(picks_)
@@ -212,6 +221,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                             fname,
                         ),
                         f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
+                        # f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}",
                     )
 
             if args.plot_figure:
