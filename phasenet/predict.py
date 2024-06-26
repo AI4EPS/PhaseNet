@@ -159,7 +159,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
                 parant_dir = "/".join(tmp[2:-1])
                 
-                ### FIX: Hard code for SCEDC
+                # ### FIX: Hard code for SCEDC
                 # tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
                 # parant_dir = "/".join(tmp[2:-1])
 

@@ -360,9 +360,9 @@ class DataReader:
             stream = stream.merge(fill_value="latest")
 
             ## FIX: hard code for response file
-            # NCEDC
+            ## NCEDC
             station, network, channel = files[0].split("/")[-1].split(".")[:3]
-            response_xml = f"gs://quakeflow_dataset/NC/FDSNstationXML/{network}/{network}.{station}.xml"
+            response_xml = f"gs://quakeflow_catalog/NC/FDSNstationXML/{network}/{network}.{station}.xml"
             # response_xml = (
             #     f"gs://quakeflow_dataset/NC/FDSNstationXML/{network}.info/{network}.FDSN.xml/{network}.{station}.xml"
             # )
