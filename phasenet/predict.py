@@ -167,7 +167,6 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
                 if len(picks_) == 0:
                     with fs_gs.open(csv_name, "w") as fp:
-                        # with fs_gs.open(f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}", "w") as fp:
                         fp.write("")
                 else:
                     df = pd.DataFrame(picks_)
@@ -190,7 +189,6 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                             ]
                         ]
                         df.sort_values(by=["phase_time"], inplace=True)
-
                         df.to_csv(
                             os.path.join(
                                 args.result_dir,
@@ -200,7 +198,6 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                             ),
                             index=False,
                         )
-
                         fs_gs.put(
                             os.path.join(
                                 args.result_dir,
