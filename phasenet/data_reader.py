@@ -26,7 +26,9 @@ with open(token_json, "r") as fp:
     token = json.load(fp)
 fs_gs = fsspec.filesystem("gs", token=token)
 client = Client("SCEDC")
-client_iris = Client("IRIS")
+# client = Client("NCEDC")
+client_iris = Client("IRIS")  ## HardCode: IRIS for response file
+
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
     def decorator(func):
@@ -392,7 +394,7 @@ class DataReader:
                     redownload = False
                 except Exception as e:
                     print(f"Error removing sensitivity: {e}")
-                    raise    
+                    raise
             else:
                 redownload = True
             if redownload:
