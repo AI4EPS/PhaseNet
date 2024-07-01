@@ -156,26 +156,24 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
             # ## save pick per file
 
             if len(fname_batch) == 1:
-                ### FIX: Hard code for NCEDC
+                # ### FIX: Hard code for NCEDC and SCEDC
                 tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
-                parant_dir = "/".join(tmp[2:-1])
-                # ### FIX: Hard code for SCEDC
-                # tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
-                # parant_dir = "/".join(tmp[2:-1])
+                parant_dir = "/".join(tmp[2:-1])  # remove s3://ncedc-pds/continuous and mseed file name
+                fname = tmp[-1].rstrip("\n").rstrip(".mseed").rstrip(".ms") + ".csv"
+                csv_name = f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}"
+                # csv_name = f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}"
                 if not os.path.exists(os.path.join(args.result_dir, "picks", parant_dir)):
                     os.makedirs(os.path.join(args.result_dir, "picks", parant_dir), exist_ok=True)
 
-                fname = tmp[-1].rstrip("\n").rstrip(".mseed").rstrip(".ms") + ".csv"
-
                 if len(picks_) == 0:
-                    with fs_gs.open(f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}", "w") as fp:
+                    with fs_gs.open(csv_name, "w") as fp:
                         # with fs_gs.open(f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}", "w") as fp:
                         fp.write("")
                 else:
                     df = pd.DataFrame(picks_)
                     df = df[df["phase_index"] > 10]
                     if len(df) == 0:
-                        with fs_gs.open(f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}", "w") as fp:
+                        with fs_gs.open(csv_name, "w") as fp:
                             fp.write("")
                     else:
                         df["phase_amplitude"] = df["phase_amplitude"].apply(lambda x: f"{x:.3e}")
@@ -192,12 +190,6 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                             ]
                         ]
                         df.sort_values(by=["phase_time"], inplace=True)
-                        # with fs_gs.open(
-                        #     f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
-                        #     "w",
-                        # ) as fp:
-                        #     df.to_csv(fp, index=False)
-                        # df.to_csv(f"gs://quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}", index=False)
 
                         df.to_csv(
                             os.path.join(
@@ -216,8 +208,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                                 parant_dir,
                                 fname,
                             ),
-                            f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
-                            # f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}",
+                            csv_name,
                         )
 
             if args.plot_figure:
