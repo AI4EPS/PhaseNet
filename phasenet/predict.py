@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from data_reader import DataReader_mseed_array, DataReader_pred
-from model import ModelConfig, UNet
 from postprocess import (
     extract_amplitude,
     extract_picks,
@@ -23,6 +22,8 @@ from postprocess import (
 )
 from tqdm import tqdm
 from visulization import plot_waveform
+
+from model import ModelConfig, UNet
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -158,71 +159,66 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 ### FIX: Hard code for NCEDC
                 tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
                 parant_dir = "/".join(tmp[2:-1])
-                
                 # ### FIX: Hard code for SCEDC
                 # tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
                 # parant_dir = "/".join(tmp[2:-1])
+                if not os.path.exists(os.path.join(args.result_dir, "picks", parant_dir)):
+                    os.makedirs(os.path.join(args.result_dir, "picks", parant_dir), exist_ok=True)
 
                 fname = tmp[-1].rstrip("\n").rstrip(".mseed").rstrip(".ms") + ".csv"
 
                 if len(picks_) == 0:
-                    with fs_gs.open(
-                        f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
-                        "w",
-                    ) as fp:
-                    # with fs_gs.open(
-                    #     f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}",
-                    #     "w",
-                    # ) as fp:
+                    with fs_gs.open(f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}", "w") as fp:
+                        # with fs_gs.open(f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}", "w") as fp:
                         fp.write("")
                 else:
                     df = pd.DataFrame(picks_)
                     df = df[df["phase_index"] > 10]
-                    df["phase_amplitude"] = df["phase_amplitude"].apply(lambda x: f"{x:.3e}")
-                    if not os.path.exists(os.path.join(args.result_dir, "picks")):
-                        os.makedirs(os.path.join(args.result_dir, "picks"))
-                    df = df[
-                        [
-                            "station_id",
-                            "phase_time",
-                            "phase_score",
-                            "phase_type",
-                            "phase_amplitude",
-                            "begin_time",
-                            "phase_index",
-                            "dt",
+                    if len(df) == 0:
+                        with fs_gs.open(f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}", "w") as fp:
+                            fp.write("")
+                    else:
+                        df["phase_amplitude"] = df["phase_amplitude"].apply(lambda x: f"{x:.3e}")
+                        df = df[
+                            [
+                                "station_id",
+                                "phase_time",
+                                "phase_score",
+                                "phase_type",
+                                "phase_amplitude",
+                                "begin_time",
+                                "phase_index",
+                                "dt",
+                            ]
                         ]
-                    ]
-                    df.sort_values(by=["phase_time"], inplace=True)
-                    # with fs_gs.open(
-                    #     f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
-                    #     "w",
-                    # ) as fp:
-                    #     df.to_csv(fp, index=False)
-                    # df.to_csv(f"gs://quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}", index=False)
+                        df.sort_values(by=["phase_time"], inplace=True)
+                        # with fs_gs.open(
+                        #     f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
+                        #     "w",
+                        # ) as fp:
+                        #     df.to_csv(fp, index=False)
+                        # df.to_csv(f"gs://quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}", index=False)
 
-                    if not os.path.exists(os.path.join(args.result_dir, "picks", parant_dir)):
-                        os.makedirs(os.path.join(args.result_dir, "picks", parant_dir))
-                    df.to_csv(
-                        os.path.join(
-                            args.result_dir,
-                            "picks",
-                            parant_dir,
-                            fname,
-                        ),
-                        index=False,
-                    )
+                        df.to_csv(
+                            os.path.join(
+                                args.result_dir,
+                                "picks",
+                                parant_dir,
+                                fname,
+                            ),
+                            index=False,
+                        )
 
-                    fs_gs.put(
-                        os.path.join(
-                            args.result_dir,
-                            "picks",
-                            parant_dir,
-                            fname,
-                        ),
-                        f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
-                        # f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}",
-                    )
+                        fs_gs.put(
+                            os.path.join(
+                                args.result_dir,
+                                "picks",
+                                parant_dir,
+                                fname,
+                            ),
+                            f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}",
+                            # f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}",
+                        )
 
             if args.plot_figure:
                 if not (isinstance(fname_batch, np.ndarray) or isinstance(fname_batch, list)):
