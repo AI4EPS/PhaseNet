@@ -390,7 +390,6 @@ class DataReader:
                     redownload = False
                 except Exception as e:
                     print(f"Error removing sensitivity: {e}")
-                    raise
             else:
                 redownload = True
             if redownload:
