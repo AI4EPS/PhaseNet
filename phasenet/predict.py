@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from data_reader import DataReader_mseed_array, DataReader_pred
-from model import ModelConfig, UNet
 from postprocess import (
     extract_amplitude,
     extract_picks,
@@ -21,6 +20,8 @@ from postprocess import (
 )
 from tqdm import tqdm
 from visulization import plot_waveform
+
+from model import ModelConfig, UNet
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -106,7 +107,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
         picks = []
         amps = [] if args.amplitude else None
         if args.plot_figure:
-            multiprocessing.set_start_method("spawn")
+            # multiprocessing.set_start_method("spawn")
             pool = multiprocessing.Pool(multiprocessing.cpu_count())
 
         for _ in tqdm(range(0, data_reader.num_data, batch_size), desc="Pred"):
@@ -144,30 +145,37 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
             picks.extend(picks_)
 
-            # ## save pick per file
-            # if (len(fname_batch) == 1) & (len(picks_) > 0):
-            #     df = pd.DataFrame(picks_)
-            #     df = df[df["phase_index"] > 10]
-            #     if not os.path.exists(os.path.join(args.result_dir, "picks")):
-            #         os.makedirs(os.path.join(args.result_dir, "picks"))
-            #     df = df[
-            #         [
-            #             "station_id",
-            #             "begin_time",
-            #             "phase_index",
-            #             "phase_time",
-            #             "phase_score",
-            #             "phase_type",
-            #             "phase_amplitude",
-            #             "dt",
-            #         ]
-            #     ]
-            #     df.to_csv(
-            #         os.path.join(
-            #             args.result_dir, "picks", fname_batch[0].decode().split("/")[-1].rstrip(".mseed") + ".csv"
-            #         ),
-            #         index=False,
-            #     )
+            ## save pick per file
+            if len(fname_batch) == 1:
+                subdir_level = 3
+                csv_dir = os.path.join(args.result_dir, "csvs")
+                csv_name = fname_batch[0].decode().split(",")[0].split("/")
+                csv_subdir = "/".join(csv_name[-subdir_level:-1])
+                csv_name = csv_name[-1].replace(".mseed", "").replace(".sac", "") + ".csv"
+                if not os.path.exists(os.path.join(csv_dir, csv_subdir)):
+                    os.makedirs(os.path.join(csv_dir, csv_subdir))
+                if len(picks_) == 0:
+                    with open(os.path.join(csv_dir, csv_subdir, csv_name), "w") as f:
+                        pass
+                else:
+                    df = pd.DataFrame(picks_)
+                    df = df[df["phase_index"] > 10]
+                    if len(df) == 0:
+                        with open(os.path.join(csv_dir, csv_subdir, csv_name), "w") as f:
+                            pass
+                    else:
+                        df = df[
+                            [
+                                "station_id",
+                                "begin_time",
+                                "phase_index",
+                                "phase_time",
+                                "phase_score",
+                                "phase_type",
+                                "phase_amplitude",
+                            ]
+                        ]
+                        df.to_csv(os.path.join(csv_dir, csv_subdir, csv_name), index=False)
 
             if args.plot_figure:
                 if not (isinstance(fname_batch, np.ndarray) or isinstance(fname_batch, list)):
