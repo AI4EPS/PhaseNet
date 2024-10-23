@@ -29,10 +29,10 @@ tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 # token_json = f"{os.environ['HOME']}/.config/gcloud/application_default_credentials.json"
-token_json = "application_default_credentials.json"
-with open(token_json, "r") as fp:
-    token = json.load(fp)
-fs_gs = fsspec.filesystem("gs", token=token)
+# token_json = "application_default_credentials.json"
+# with open(token_json, "r") as fp:
+#     token = json.load(fp)
+# fs_gs = fsspec.filesystem("gs", token=token)
 
 
 def read_args():
@@ -151,28 +151,29 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 dt=1.0 / args.sampling_rate,
             )
 
-            picks.extend(picks_)
+            # picks.extend(picks_)
 
             # ## save pick per file
 
             if len(fname_batch) == 1:
                 # ### FIX: Hard code for NCEDC and SCEDC
-                tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
-                parant_dir = "/".join(tmp[2:-1])  # remove s3://ncedc-pds/continuous and mseed file name
+                tmp = fname_batch[0].decode().split(",")[0].split("/")
+                subdir = "/".join(tmp[-1-3:-1])
                 fname = tmp[-1].rstrip("\n").rstrip(".mseed").rstrip(".ms") + ".csv"
-                csv_name = f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}"
-                # csv_name = f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}"
-                if not os.path.exists(os.path.join(args.result_dir, "picks", parant_dir)):
-                    os.makedirs(os.path.join(args.result_dir, "picks", parant_dir), exist_ok=True)
+                # csv_name = f"quakeflow_catalog/NC/phasenet/{subdir}/{fname}"
+                # csv_name = f"quakeflow_catalog/SC/phasenet/{subdir}/{fname}"
+                if not os.path.exists(os.path.join(args.result_dir, "picks", subdir)):
+                    os.makedirs(os.path.join(args.result_dir, "picks", subdir), exist_ok=True)
+                csv_file = os.path.join(args.result_dir, "picks", subdir, fname)
 
                 if len(picks_) == 0:
-                    with fs_gs.open(csv_name, "w") as fp:
+                    with open(csv_file, "w") as fp:
                         fp.write("")
                 else:
                     df = pd.DataFrame(picks_)
                     df = df[df["phase_index"] > 10]
                     if len(df) == 0:
-                        with fs_gs.open(csv_name, "w") as fp:
+                        with open(csv_file, "w") as fp:
                             fp.write("")
                     else:
                         df["phase_amplitude"] = df["phase_amplitude"].apply(lambda x: f"{x:.3e}")
@@ -189,24 +190,16 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                             ]
                         ]
                         df.sort_values(by=["phase_time"], inplace=True)
-                        df.to_csv(
-                            os.path.join(
-                                args.result_dir,
-                                "picks",
-                                parant_dir,
-                                fname,
-                            ),
-                            index=False,
-                        )
-                        fs_gs.put(
-                            os.path.join(
-                                args.result_dir,
-                                "picks",
-                                parant_dir,
-                                fname,
-                            ),
-                            csv_name,
-                        )
+                        df.to_csv(csv_file, index=False)
+                        # fs_gs.put(
+                        #     os.path.join(
+                        #         args.result_dir,
+                        #         "picks",
+                        #         subdir,
+                        #         fname,
+                        #     ),
+                        #     csv_name,
+                        # )
 
             if args.plot_figure:
                 if not (isinstance(fname_batch, np.ndarray) or isinstance(fname_batch, list)):
@@ -230,38 +223,38 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                     fname_batch = [x.decode() for x in fname_batch]
                 save_prob_h5(pred_batch, fname_batch, prob_h5)
 
-        if len(picks) > 0:
-            # save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
-            # save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
-            df = pd.DataFrame(picks)
-            # df["fname"] = df["file_name"]
-            # df["id"] = df["station_id"]
-            # df["timestamp"] = df["phase_time"]
-            # df["prob"] = df["phase_prob"]
-            # df["type"] = df["phase_type"]
+        # if len(picks) > 0:
+        #     # save_picks(picks, args.result_dir, amps=amps, fname=args.result_fname+".csv")
+        #     # save_picks_json(picks, args.result_dir, dt=data_reader.dt, amps=amps, fname=args.result_fname+".json")
+        #     df = pd.DataFrame(picks)
+        #     # df["fname"] = df["file_name"]
+        #     # df["id"] = df["station_id"]
+        #     # df["timestamp"] = df["phase_time"]
+        #     # df["prob"] = df["phase_prob"]
+        #     # df["type"] = df["phase_type"]
 
-            base_columns = [
-                "station_id",
-                "begin_time",
-                "phase_index",
-                "phase_time",
-                "phase_score",
-                "phase_type",
-                "file_name",
-            ]
-            if args.amplitude:
-                base_columns.append("phase_amplitude")
-                base_columns.append("phase_amp")
-                df["phase_amp"] = df["phase_amplitude"]
+        #     base_columns = [
+        #         "station_id",
+        #         "begin_time",
+        #         "phase_index",
+        #         "phase_time",
+        #         "phase_score",
+        #         "phase_type",
+        #         "file_name",
+        #     ]
+        #     if args.amplitude:
+        #         base_columns.append("phase_amplitude")
+        #         base_columns.append("phase_amp")
+        #         df["phase_amp"] = df["phase_amplitude"]
 
-            df = df[base_columns]
-            df.to_csv(os.path.join(args.result_dir, args.result_fname + ".csv"), index=False)
+        #     df = df[base_columns]
+        #     df.to_csv(os.path.join(args.result_dir, args.result_fname + ".csv"), index=False)
 
-            print(
-                f"Done with {len(df[df['phase_type'] == 'P'])} P-picks and {len(df[df['phase_type'] == 'S'])} S-picks"
-            )
-        else:
-            print(f"Done with 0 P-picks and 0 S-picks")
+        #     print(
+        #         f"Done with {len(df[df['phase_type'] == 'P'])} P-picks and {len(df[df['phase_type'] == 'S'])} S-picks"
+        #     )
+        # else:
+        #     print(f"Done with 0 P-picks and 0 S-picks")
     return 0
 
 
