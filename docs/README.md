@@ -10,13 +10,19 @@ cd PhaseNet
 ```
 - Install to default environment
 ```bash
-conda env update -f=env.yml -n base
+conda env update -f=env.yaml -n base
 ```
 - Install to "phasenet" virtual envirionment
 ```bash
-conda env create -f env.yml
+conda env create -f env.yaml
 conda activate phasenet
 ```
+- For Mac ARM chip, please use the env_mac.yaml file
+```bash
+conda env create -f env_mac.yaml
+conda activate phasenet
+```
+
 
 ## 2. Pre-trained model
 Located in directory: **model/190703-214543**
