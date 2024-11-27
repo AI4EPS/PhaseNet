@@ -1,7 +1,10 @@
-tensorflow==2.14.0
+tensorflow==2.11.0
+numpy==1.26.4
+scipy
 matplotlib
 pandas
+scikit-learn
 tqdm
-scipy
 obspy
-
+fastapi
+uvicorn
