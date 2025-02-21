@@ -367,8 +367,13 @@ class DataReader:
                     stream += obspy.read(fp)
             stream = stream.merge(fill_value="latest")
 
-            ## FIX: hard code for response file
-            station_id = files[0].split("/")[-1].replace(".mseed", "")[:-1]
+        except Exception as e:
+            print(f"Error reading {fname}:\n{e}")
+            return {}
+
+        ## FIX: hard code for response file
+        station_id = files[0].split("/")[-1].replace(".mseed", "")[:-1]
+        if response is not None:
             response_xml = f"{response.rstrip('/')}/{station_id}.xml"
             try:
                 with fsspec.open(response_xml, "rb") as fp:
@@ -376,10 +381,7 @@ class DataReader:
                 stream = stream.remove_sensitivity(response)
             except Exception as e:
                 print(f"Error removing sensitivity: {e}")
-
-        except Exception as e:
-            print(f"Error reading {fname}:\n{e}")
-            return {}
+                return {}
 
         tmp_stream = obspy.Stream()
         for trace in stream:

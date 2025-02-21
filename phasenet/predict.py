@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from data_reader import DataReader_mseed_array, DataReader_pred
-from model import ModelConfig, UNet
 from postprocess import (
     extract_amplitude,
     extract_picks,
@@ -23,6 +22,8 @@ from postprocess import (
 )
 from tqdm import tqdm
 from visulization import plot_waveform
+
+from model import ModelConfig, UNet
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -178,19 +179,11 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                         with open(csv_file, "w") as fp:
                             fp.write("")
                     else:
-                        df["phase_amplitude"] = df["phase_amplitude"].apply(lambda x: f"{x:.3e}")
-                        df = df[
-                            [
-                                "station_id",
-                                "phase_time",
-                                "phase_score",
-                                "phase_type",
-                                "phase_amplitude",
-                                "begin_time",
-                                "phase_index",
-                                "dt",
-                            ]
-                        ]
+                        columns = ["station_id","phase_time", "phase_score", "phase_type", "begin_time", "phase_index", "dt"]
+                        if "phase_amplitude" in df.columns:
+                            df["phase_amplitude"] = df["phase_amplitude"].apply(lambda x: f"{x:.3e}")
+                            columns.append("phase_amplitude")
+                        df = df[columns]
                         df.sort_values(by=["phase_time"], inplace=True)
                         df.to_csv(csv_file, index=False)
                         # fs_gs.put(
