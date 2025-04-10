@@ -16,6 +16,7 @@ from collections import defaultdict
 import fsspec
 import h5py
 import obspy
+from ForgeSegyReader import read as read_forge_segy
 from obspy.clients.fdsn import Client
 from scipy.interpolate import interp1d
 from tqdm import tqdm
@@ -262,6 +263,11 @@ class DataReader:
                 use_ssl=kwargs["use_ssl"],
             )
         elif format == "mseed_3c":
+            with open(kwargs["data_list"], "r") as fp:
+                self.data_list = fp.readlines()
+            self.num_data = len(self.data_list)
+            self.data_dir = kwargs["data_dir"]
+        elif format == "das":
             with open(kwargs["data_list"], "r") as fp:
                 self.data_list = fp.readlines()
             self.num_data = len(self.data_list)
@@ -527,6 +533,23 @@ class DataReader:
             "data": data,
             "t0": begin_time.datetime.isoformat(timespec="milliseconds"),
             "station_id": station_ids,
+        }
+        return meta
+
+    def read_das(self, fname, sampling_rate=100, highpass_filter=0.0):
+        st = read_forge_segy(fname)
+        st.decimate(int(round(st[0].stats.sampling_rate / sampling_rate)))
+        data = []
+        for tr in st:
+            data.append(tr.data)
+        data = np.array(data).T  # nt, nx
+        nt, nx = data.shape
+        tmp = np.zeros([nt, nx, 3], dtype=np.float32)
+        tmp[:, :, -1] = data
+        meta = {
+            "data": tmp,
+            "t0": st[0].stats.starttime.datetime.isoformat(timespec="milliseconds"),
+            "station_id": [f"{x:03d}" for x in range(1, nx + 1)],
         }
         return meta
 
@@ -935,6 +958,8 @@ class DataReader_pred(DataReader):
                 highpass_filter=self.highpass_filter,
             )
             base_name = ""
+        elif self.format == "das":
+            meta = self.read_das(base_name, sampling_rate=self.sampling_rate, highpass_filter=self.highpass_filter)
         else:
             raise (f"{self.format} does not support!")
 
