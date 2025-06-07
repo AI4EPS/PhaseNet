@@ -157,11 +157,17 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
 
             if len(fname_batch) == 1:
                 # ### FIX: Hard code for NCEDC and SCEDC
-                tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
-                parant_dir = "/".join(tmp[2:-1])  # remove s3://ncedc-pds/continuous and mseed file name
-                fname = tmp[-1].rstrip("\n").rstrip(".mseed").rstrip(".ms") + ".csv"
-                csv_name = f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}"
+                # tmp = fname_batch[0].decode().split(",")[0].lstrip("s3://").split("/")
+                # parant_dir = "/".join(tmp[2:-1])  # remove s3://ncedc-pds/continuous and mseed file name
+                # fname = tmp[-1].rstrip("\n").rstrip(".mseed").rstrip(".ms") + ".csv"
+                # csv_name = f"quakeflow_catalog/NC/phasenet/{parant_dir}/{fname}"
                 # csv_name = f"quakeflow_catalog/SC/phasenet/{parant_dir}/{fname}"
+                # ### FIX: Hard code for IRIS
+                tmp = fname_batch[0].decode().split(",")[0].lstrip("gs://").split("/")
+                parant_dir = "/".join(tmp[3:-1])  # remove gs://quakeflow_catalog/IRIS/waveforms and mseed file name
+                fname = tmp[-1].rstrip("\n").rstrip(".mseed").rstrip(".ms") + ".csv"
+                csv_name = f"quakeflow_catalog/IRIS/phasenet/{parant_dir}/{fname}"
+
                 if not os.path.exists(os.path.join(args.result_dir, "picks", parant_dir)):
                     os.makedirs(os.path.join(args.result_dir, "picks", parant_dir), exist_ok=True)
 

@@ -26,8 +26,9 @@ with open(token_json, "r") as fp:
     token = json.load(fp)
 fs_gs = fsspec.filesystem("gs", token=token)
 # client = Client("SCEDC")
-client = Client("NCEDC")
-client_iris = Client("IRIS")  ## HardCode: IRIS for response file
+# client = Client("NCEDC")
+client = Client("IRIS")
+# client_iris = Client("IRIS")  ## HardCode: IRIS for response file
 
 
 def py_func_decorator(output_types=None, output_shapes=None, name=None):
@@ -381,6 +382,10 @@ class DataReader:
             # jday = fname[17:20]
             # response_xml = f"gs://quakeflow_catalog/SC/FDSNstationXML/{network}/{network}_{station}.xml"
 
+            ## IRIS
+            network, station, location, channel = files[0].split("/")[-1].split(".")[:4]
+            response_xml = f"gs://quakeflow_catalog/IRIS/FDSNstationXML/{network}/{network}.{station}.xml"
+
             redownload = True
             if fs_gs.exists(response_xml):
                 try:
@@ -397,14 +402,9 @@ class DataReader:
                     response = client.get_stations(network=network, station=station, level="response")
                 except Exception as e:
                     print(f"Error downloading response: {e}")
-                    print(f"Retry downloading response from IRIS...")
-                    try:
-                        response = client_iris.get_stations(network=network, station=station, level="response")
-                    except Exception as e:
-                        print(f"Error downloading response from IRIS: {e}")
-                        raise
-                response.write(f"/tmp/{network}_{station}.xml", format="stationxml")
-                fs_gs.put(f"/tmp/{network}_{station}.xml", response_xml)
+                    raise
+                response.write(f"/tmp/{network}.{station}.xml", format="stationxml")
+                fs_gs.put(f"/tmp/{network}.{station}.xml", response_xml)
                 print(f"Update response file: {response_xml}")
                 stream = stream.remove_sensitivity(response)
 
