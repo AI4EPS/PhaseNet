@@ -359,8 +359,14 @@ class DataReader:
             files = fname.rstrip("\n").split(",")
             stream = obspy.Stream()
             for file in files:
-                with fsspec.open(file, "rb", anon=True) as fp:
-                    stream += obspy.read(fp)
+                if file.startswith("s3://"):
+                    with fsspec.open(file, "rb", anon=True) as fp:
+                        stream += obspy.read(fp)
+                elif file.startswith("gs://"):
+                    with fs_gs.open(file, "rb") as fp:
+                        stream += obspy.read(fp)
+                else:
+                    raise (f"Unknown file format: {file}")
             stream = stream.merge(fill_value="latest")
 
             ## FIX: hard code for response file
