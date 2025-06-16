@@ -162,7 +162,7 @@ def pred_fn(args, data_reader, figure_dir=None, prob_dir=None, log_dir=None):
                 tmp = fname_batch[0].decode().split(",")[0].split("/")
                 # subdir = "/".join(tmp[-1 - 3 : -1])
                 subdir = "/".join(tmp[-1 - args.subdir_level : -1])
-                fname = tmp[-1].rstrip("\n").rstrip(".mseed").rstrip(".ms").rstrip(".h5") + ".csv"
+                fname = tmp[-1].rstrip("\n").replace(".mseed", "").replace(".ms", "").replace(".h5", "") + ".csv"
                 # csv_name = f"quakeflow_catalog/NC/phasenet/{subdir}/{fname}"
                 # csv_name = f"quakeflow_catalog/SC/phasenet/{subdir}/{fname}"
                 if not os.path.exists(os.path.join(args.result_dir, "picks", subdir)):
