@@ -269,7 +269,13 @@ class DataReader:
             self.data_dir = kwargs["data_dir"]
         elif format == "das":
             with open(kwargs["data_list"], "r") as fp:
-                self.data_list = fp.readlines()
+                self.data_list = [line.rstrip("\n") for line in fp.readlines()]
+
+            self.num_data = len(self.data_list)
+            self.data_dir = kwargs["data_dir"]
+        elif format == "das_event":
+            with open(kwargs["data_list"], "r") as fp:
+                self.data_list = [line.rstrip("\n") for line in fp.readlines()]
             self.num_data = len(self.data_list)
             self.data_dir = kwargs["data_dir"]
         else:
@@ -550,6 +556,24 @@ class DataReader:
             "data": tmp,
             "t0": st[0].stats.starttime.datetime.isoformat(timespec="milliseconds"),
             "station_id": [f"{x:03d}" for x in range(1, nx + 1)],
+        }
+        return meta
+
+    def read_das_event(self, fname):
+        with fsspec.open(fname, "rb", anon=True) as fp:
+            with h5py.File(fp, "r") as f:
+                data = f["data"][:]
+                begin_time = f["data"].attrs["begin_time"]
+
+        data = np.array(data).T  # nt, nx
+        nt, nx = data.shape
+        # tmp = np.zeros([nt, nx, 3], dtype=np.float32)
+        # tmp[:, :, -1] = data
+        tmp = np.repeat(data[:, :, np.newaxis], 3, axis=-1)
+        meta = {
+            "data": tmp,
+            "t0": begin_time,
+            "station_id": [f"{x}" for x in range(nx)],
         }
         return meta
 
@@ -960,6 +984,8 @@ class DataReader_pred(DataReader):
             base_name = ""
         elif self.format == "das":
             meta = self.read_das(base_name, sampling_rate=self.sampling_rate, highpass_filter=self.highpass_filter)
+        elif self.format == "das_event":
+            meta = self.read_das_event(base_name)
         else:
             raise (f"{self.format} does not support!")
 
