@@ -548,10 +548,11 @@ class DataReader:
         data = []
         for tr in st:
             data.append(tr.data)
-        data = np.array(data).T  # nt, nx
+        data = np.array(data, dtype=np.float32).T  # nt, nx
         nt, nx = data.shape
-        tmp = np.zeros([nt, nx, 3], dtype=np.float32)
-        tmp[:, :, -1] = data
+        # tmp = np.zeros([nt, nx, 3], dtype=np.float32)
+        # tmp[:, :, -1] = data
+        tmp = np.repeat(data[:, :, np.newaxis], 3, axis=-1)
         meta = {
             "data": tmp,
             "t0": st[0].stats.starttime.datetime.isoformat(timespec="milliseconds"),
@@ -565,7 +566,7 @@ class DataReader:
                 data = f["data"][:]
                 begin_time = f["data"].attrs["begin_time"]
 
-        data = np.array(data).T  # nt, nx
+        data = np.array(data, dtype=np.float32).T  # nt, nx
         nt, nx = data.shape
         # tmp = np.zeros([nt, nx, 3], dtype=np.float32)
         # tmp[:, :, -1] = data
