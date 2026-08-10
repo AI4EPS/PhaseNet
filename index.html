@@ -1,0 +1,653 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="PhaseNet: a deep-neural-network-based seismic arrival-time picking method">
+      
+      
+        <meta name="author" content="Weiqiang Zhu">
+      
+      
+      <link rel="icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.4.1">
+    
+    
+      
+        <title>PhaseNet</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.69437709.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.cbb835fc.min.css">
+        
+      
+      
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+
+  <script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","G-RZQ9LRPL0S"),document.addEventListener("DOMContentLoaded",function(){if(document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document.forms.feedback){var e,a=document.forms.feedback;for(e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}"undefined"!=typeof location$&&location$.subscribe(function(e){n("config","G-RZQ9LRPL0S",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=G-RZQ9LRPL0S",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
+
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#phasenet-a-deep-neural-network-based-seismic-arrival-time-picking-method" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="." title="PhaseNet" class="md-header__button md-logo" aria-label="PhaseNet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            PhaseNet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/ai4eps/PhaseNet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.1.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    AI4EPS/PhaseNet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="." title="PhaseNet" class="md-nav__button md-logo" aria-label="PhaseNet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    PhaseNet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ai4eps/PhaseNet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.1.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    AI4EPS/PhaseNet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Overview
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="." class="md-nav__link md-nav__link--active">
+        Overview
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-install-miniconda-and-requirements" class="md-nav__link">
+    1.  Install miniconda and requirements
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-pre-trained-model" class="md-nav__link">
+    2. Pre-trained model
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-related-papers" class="md-nav__link">
+    3. Related papers
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-batch-prediction" class="md-nav__link">
+    4. Batch prediction
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-quakeflow-example" class="md-nav__link">
+    5. QuakeFlow example
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-interactive-example" class="md-nav__link">
+    6. Interactive example
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-training" class="md-nav__link">
+    7. Training
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="example_fastapi/" class="md-nav__link">
+        Interactive Example
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="example_batch_prediction/" class="md-nav__link">
+        Batch Prediction
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-install-miniconda-and-requirements" class="md-nav__link">
+    1.  Install miniconda and requirements
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-pre-trained-model" class="md-nav__link">
+    2. Pre-trained model
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-related-papers" class="md-nav__link">
+    3. Related papers
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-batch-prediction" class="md-nav__link">
+    4. Batch prediction
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-quakeflow-example" class="md-nav__link">
+    5. QuakeFlow example
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-interactive-example" class="md-nav__link">
+    6. Interactive example
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-training" class="md-nav__link">
+    7. Training
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+  <a href="https://github.com/ai4eps/PhaseNet/edit/master/docs/README.md" title="Edit this page" class="md-content__button md-icon">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg>
+  </a>
+
+
+
+<h1 id="phasenet-a-deep-neural-network-based-seismic-arrival-time-picking-method">PhaseNet: A Deep-Neural-Network-Based Seismic Arrival Time Picking Method</h1>
+<p><a href="https://ai4eps.github.io/PhaseNet"><img alt="" src="https://github.com/AI4EPS/PhaseNet/workflows/documentation/badge.svg" /></a></p>
+<h2 id="1-install-miniconda-and-requirements">1.  Install <a href="https://docs.conda.io/en/latest/miniconda.html">miniconda</a> and requirements</h2>
+<ul>
+<li>Download PhaseNet repository</li>
+</ul>
+<pre><code class="language-bash">git clone https://github.com/wayneweiqiang/PhaseNet.git
+cd PhaseNet
+</code></pre>
+<ul>
+<li>Install to default environment</li>
+</ul>
+<pre><code class="language-bash">conda env update -f=env.yaml -n base
+</code></pre>
+<ul>
+<li>Install to "phasenet" virtual envirionment</li>
+</ul>
+<pre><code class="language-bash">conda env create -f env.yaml
+conda activate phasenet
+</code></pre>
+<ul>
+<li>For Mac ARM chip, please use the env_mac.yaml file</li>
+</ul>
+<pre><code class="language-bash">conda env create -f env_mac.yaml
+conda activate phasenet
+</code></pre>
+<h2 id="2-pre-trained-model">2. Pre-trained model</h2>
+<p>Located in directory: <strong>model/190703-214543</strong></p>
+<h2 id="3-related-papers">3. Related papers</h2>
+<ul>
+<li>Zhu, Weiqiang, and Gregory C. Beroza. "PhaseNet: A Deep-Neural-Network-Based Seismic Arrival Time Picking Method." arXiv preprint arXiv:1803.03211 (2018).</li>
+<li>Liu, Min, et al. "Rapid characterization of the July 2019 Ridgecrest, California, earthquake sequence from raw seismic data using machine‐learning phase picker." Geophysical Research Letters 47.4 (2020): e2019GL086189.</li>
+<li>Park, Yongsoo, et al. "Machine‐learning‐based analysis of the Guy‐Greenbrier, Arkansas earthquakes: A tale of two sequences." Geophysical Research Letters 47.6 (2020): e2020GL087032.</li>
+<li>Chai, Chengping, et al. "Using a deep neural network and transfer learning to bridge scales for seismic phase picking." Geophysical Research Letters 47.16 (2020): e2020GL088651.</li>
+<li>Tan, Yen Joe, et al. "Machine‐Learning‐Based High‐Resolution Earthquake Catalog Reveals How Complex Fault Structures Were Activated during the 2016–2017 Central Italy Sequence." The Seismic Record 1.1 (2021): 11-19.</li>
+</ul>
+<h2 id="4-batch-prediction">4. Batch prediction</h2>
+<p>See examples in the <a href="https://github.com/wayneweiqiang/PhaseNet/blob/master/docs/example_batch_prediction.ipynb">notebook</a>: <a href="example_batch_prediction/">example_batch_prediction.ipynb</a></p>
+<p>PhaseNet currently supports four data formats: mseed, sac, hdf5, and numpy. The test data can be downloaded here:</p>
+<pre><code>wget https://github.com/wayneweiqiang/PhaseNet/releases/download/test_data/test_data.zip
+unzip test_data.zip
+</code></pre>
+<ul>
+<li>For mseed format:</li>
+</ul>
+<pre><code>python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed.csv --data_dir=test_data/mseed --format=mseed --amplitude --response_xml=test_data/stations.xml --batch_size=1 --sampling_rate=100
+</code></pre>
+<pre><code>python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed2.csv --data_dir=test_data/mseed --format=mseed --amplitude --response_xml=test_data/stations.xml --batch_size=1 --sampling_rate=100
+</code></pre>
+<ul>
+<li>For sac format:</li>
+</ul>
+<pre><code>python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/sac.csv --data_dir=test_data/sac --format=sac --batch_size=1
+</code></pre>
+<ul>
+<li>For numpy format:</li>
+</ul>
+<pre><code>python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/npz.csv --data_dir=test_data/npz --format=numpy
+</code></pre>
+<ul>
+<li>For hdf5 format:</li>
+</ul>
+<pre><code>python phasenet/predict.py --model=model/190703-214543 --hdf5_file=test_data/data.h5 --hdf5_group=data --format=hdf5
+</code></pre>
+<ul>
+<li>For a seismic array (used by <a href="https://github.com/wayneweiqiang/QuakeFlow">QuakeFlow</a>):</li>
+</ul>
+<pre><code>python phasenet/predict.py --model=model/190703-214543 --data_list=test_data/mseed_array.csv --data_dir=test_data/mseed_array --stations=test_data/stations.json  --format=mseed_array --amplitude
+</code></pre>
+<p>Notes: </p>
+<ol>
+<li>
+<p>The reason for using "--batch_size=1" is because the mseed or sac files usually are not the same length. If you want to use a larger batch size for a good prediction speed, you need to cut the data to the same length.</p>
+</li>
+<li>
+<p>Remove the "--plot_figure" argument for large datasets, because plotting can be very slow.</p>
+</li>
+</ol>
+<p>Optional arguments:</p>
+<pre><code>usage: predict.py [-h] [--batch_size BATCH_SIZE] [--model_dir MODEL_DIR]
+                  [--data_dir DATA_DIR] [--data_list DATA_LIST]
+                  [--hdf5_file HDF5_FILE] [--hdf5_group HDF5_GROUP]
+                  [--result_dir RESULT_DIR] [--result_fname RESULT_FNAME]
+                  [--min_p_prob MIN_P_PROB] [--min_s_prob MIN_S_PROB]
+                  [--mpd MPD] [--amplitude] [--format FORMAT]
+                  [--s3_url S3_URL] [--stations STATIONS] [--plot_figure]
+                  [--save_prob]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --batch_size BATCH_SIZE
+                        batch size
+  --model_dir MODEL_DIR
+                        Checkpoint directory (default: None)
+  --data_dir DATA_DIR   Input file directory
+  --data_list DATA_LIST
+                        Input csv file
+  --hdf5_file HDF5_FILE
+                        Input hdf5 file
+  --hdf5_group HDF5_GROUP
+                        data group name in hdf5 file
+  --result_dir RESULT_DIR
+                        Output directory
+  --result_fname RESULT_FNAME
+                        Output file
+  --min_p_prob MIN_P_PROB
+                        Probability threshold for P pick
+  --min_s_prob MIN_S_PROB
+                        Probability threshold for S pick
+  --mpd MPD             Minimum peak distance
+  --amplitude           if return amplitude value
+  --format FORMAT       input format
+  --stations STATIONS   seismic station info
+  --plot_figure         If plot figure for test
+  --save_prob           If save result for test
+</code></pre>
+<ul>
+<li>The output picks are saved to "results/picks.csv" on default</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>file_name</th>
+<th>begin_time</th>
+<th>station_id</th>
+<th>phase_index</th>
+<th>phase_time</th>
+<th>phase_score</th>
+<th>phase_amp</th>
+<th>phase_type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2020-10-01T00:00*</td>
+<td>2020-10-01T00:00:00.003</td>
+<td>CI.BOM..HH</td>
+<td>14734</td>
+<td>2020-10-01T00:02:27.343</td>
+<td>0.708</td>
+<td>2.4998866231208325e-14</td>
+<td>P</td>
+</tr>
+<tr>
+<td>2020-10-01T00:00*</td>
+<td>2020-10-01T00:00:00.003</td>
+<td>CI.BOM..HH</td>
+<td>15487</td>
+<td>2020-10-01T00:02:34.873</td>
+<td>0.416</td>
+<td>2.4998866231208325e-14</td>
+<td>S</td>
+</tr>
+<tr>
+<td>2020-10-01T00:00*</td>
+<td>2020-10-01T00:00:00.003</td>
+<td>CI.COA..HH</td>
+<td>319</td>
+<td>2020-10-01T00:00:03.193</td>
+<td>0.762</td>
+<td>3.708662269972206e-14</td>
+<td>P</td>
+</tr>
+</tbody>
+</table>
+<p>Notes:
+1. The <em>phase_index</em> means which data point is the pick in the original sequence. So <em>phase_time</em> = <em>begin_time</em> + <em>phase_index</em> / <em>sampling rate</em>. The default <em>sampling_rate</em> is 100Hz </p>
+<h2 id="5-quakeflow-example">5. QuakeFlow example</h2>
+<p>A complete earthquake detection workflow can be found in the <a href="https://wayneweiqiang.github.io/QuakeFlow/">QuakeFlow</a> project.</p>
+<h2 id="6-interactive-example">6. Interactive example</h2>
+<p>See details in the <a href="https://github.com/wayneweiqiang/PhaseNet/blob/master/docs/example_gradio.ipynb">notebook</a>: <a href="example_gradio/">example_interactive.ipynb</a></p>
+<h2 id="7-training">7. Training</h2>
+<ul>
+<li>Download a small sample dataset:</li>
+</ul>
+<pre><code class="language-bash">wget https://github.com/wayneweiqiang/PhaseNet/releases/download/test_data/test_data.zip
+unzip test_data.zip
+</code></pre>
+<ul>
+<li>Start training from the pre-trained model</li>
+</ul>
+<pre><code>python phasenet/train.py  --model_dir=model/190703-214543/ --train_dir=test_data/npz --train_list=test_data/npz.csv  --plot_figure --epochs=10 --batch_size=10
+</code></pre>
+<ul>
+<li>Check results in the <strong>log</strong> folder</li>
+</ul>
+
+
+  
+
+
+
+              
+            </article>
+            
+          </div>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+    <nav class="md-footer__inner md-grid" aria-label="Footer" >
+      
+      
+        
+        <a href="example_fastapi/" class="md-footer__link md-footer__link--next" aria-label="Next: Interactive Example" rel="next">
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              Interactive Example
+            </div>
+          </div>
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4Z"/></svg>
+          </div>
+        </a>
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.ecf98df9.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    
+    
+      <script src="assets/javascripts/bundle.9c69f0bc.min.js"></script>
+      
+    
+  </body>
+</html>
